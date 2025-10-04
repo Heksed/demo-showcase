@@ -1,0 +1,889 @@
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Download, Loader2, Plus, Trash2 } from "lucide-react";
+
+// ===============================
+// Helper: dates & math
+// ===============================
+function isBusinessDay(d: Date) {
+  const day = d.getDay(); // 0=Sun,6=Sat
+  return day !== 0 && day !== 6;
+}
+
+function businessDaysBetween(startISO: string, endISO: string) {
+  // counts business days from start (inclusive) to end (exclusive)
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return 0;
+  let count = 0;
+  const cur = new Date(start);
+  while (cur < end) {
+    if (isBusinessDay(cur)) count++;
+    cur.setDate(cur.getDate() + 1);
+    cur.setHours(0, 0, 0, 0);
+  }
+  return count;
+}
+
+function euro(n: number) {
+  return n.toLocaleString("fi-FI", { style: "currency", currency: "EUR", maximumFractionDigits: 2 });
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+// ===============================
+// Constants & options
+// ===============================
+const PERIODS = [
+  { value: "1m", label: "1 kuukausi (21,5 pv)" },
+  { value: "2w", label: "2 viikkoa (10 pv)" },
+  { value: "4w", label: "4 viikkoa (20 pv)" },
+] as const;
+
+type PeriodKey = (typeof PERIODS)[number]["value"];
+
+const DAYS_BY_PERIOD: Record<PeriodKey, number> = {
+  "1m": 21.5,
+  "2w": 10,
+  "4w": 20,
+};
+
+const BENEFIT_TYPES = [
+  { value: "ansioturva", label: "Ansioturva" },
+  { value: "peruspaivaraha", label: "Peruspäiväraha" },
+  { value: "tyomarkkinatuki", label: "Työmarkkinatuki" },
+] as const;
+
+// Etuuden valintalista (esimerkkivaihtoehtoja)
+const BENEFIT_OPTIONS = [
+  { value: "31-osa-aikatyö", label: "31 - Osa-aikatyö" },
+  { value: "32-sivutoimiyrittäjyys", label: "32 - Sivutoimiyrittäjyys" },
+  { value: "33-sairauspäiväraha", label: "33 - Sairauspäiväraha" },
+  { value: "34-vanhempainraha", label: "34 - Vanhempainraha" },
+  { value: "35-muu-etuus", label: "35 - Muu etuus" },
+];
+
+// Viralliset perusarvot (2025 – esimerkkitaso)
+const DAILY_BASE = 37.21; // perusosa €/pv
+const SPLIT_POINT_MONTH = 3534.95; // taitekohta €/kk
+const STAT_DEDUCTIONS = 0.0354; // 3.54 % vähennys ennen päiväansiota
+const TRAVEL_ALLOWANCE_BASE = 9; // €/pv veroton
+const TRAVEL_ALLOWANCE_ELEVATED = 18; // €/pv veroton
+
+function toDailyWage(monthlyGross: number, periodDays = 21.5) {
+  const afterDeductions = monthlyGross * (1 - STAT_DEDUCTIONS);
+  return afterDeductions / periodDays;
+}
+
+function earningsPartFromDaily(dailyWage: number, splitPointMonth = SPLIT_POINT_MONTH, periodDays = 21.5) {
+  const splitDaily = splitPointMonth / periodDays;
+  const baseDiffAt45 = Math.max(Math.min(dailyWage, splitDaily) - DAILY_BASE, 0);
+  const aboveSplit = Math.max(dailyWage - splitDaily, 0);
+  return 0.45 * baseDiffAt45 + 0.20 * aboveSplit;
+}
+
+function stepFactorByCumulativeDays(cumulativeDays: number) {
+  if (cumulativeDays >= 170) return { factor: 0.75, label: "Porrastus 75%" } as const;
+  if (cumulativeDays >= 40) return { factor: 0.80, label: "Porrastus 80%" } as const;
+  return { factor: 1.0, label: "Ei porrastusta" } as const;
+}
+
+function computePerDayReduction(benefitsTotal: number, period: string): number {
+  if (!period) return 0; // ei sovittelua
+  const pd = DAYS_BY_PERIOD[period as PeriodKey];
+  if (!pd) return 0;
+  return (benefitsTotal * 0.5) / pd;
+}
+
+// ===============================
+// (Lightweight) self-tests – run once
+// ===============================
+function runSelfTests() {
+  try {
+    const pDays = 21.5;
+
+    // 1) Päiväpalkka ja ansio-osa skaalautuvat oikein
+    const d1 = toDailyWage(2573, pDays);
+    const ep1 = earningsPartFromDaily(d1, SPLIT_POINT_MONTH, pDays);
+    const d2 = toDailyWage(3700, pDays);
+    const ep2 = earningsPartFromDaily(d2, SPLIT_POINT_MONTH, pDays);
+    if (!(ep2 > ep1)) console.warn("[TEST] Monotonia ei täyttynyt");
+
+    // 2) Sovittelun suunta: suurempi etuustulo -> pienempi soviteltu pv
+    const full = DAILY_BASE + ep1;
+    const redLow = (200 * 0.5) / pDays;
+    const redHigh = (1000 * 0.5) / pDays;
+    const adjLow = clamp(full - redLow, 0, full);
+    const adjHigh = clamp(full - redHigh, 0, full);
+    if (!(adjHigh <= adjLow)) console.warn("[TEST] Sovittelun suunta ei täsmää");
+
+    // 3) Porrastus: keskiarvo jakson sisällä
+    function avgFactor(priorPaid: number, days: number) {
+      let s = 0;
+      for (let i = 0; i < days; i++) {
+        s += stepFactorByCumulativeDays(priorPaid + i + 1).factor;
+      }
+      return days ? s / days : 1;
+    }
+    const avg1 = avgFactor(39, 2); // 40 ja 41 -> 0.8
+    if (Math.abs(avg1 - 0.8) > 1e-9) console.warn("[TEST] Porrastus 40+ keskiarvo väärin", avg1);
+    const avg2 = avgFactor(169, 2); // 170 ja 171 -> 0.75
+    if (Math.abs(avg2 - 0.75) > 1e-9) console.warn("[TEST] Porrastus 170+ keskiarvo väärin", avg2);
+
+    // 4) Arkipäivälaskuri: ti -> to (2 pv)
+    const tue = new Date("2025-09-02"); // Tue
+    const thu = new Date("2025-09-04"); // Thu
+    const bd = businessDaysBetween(tue.toISOString().slice(0, 10), thu.toISOString().slice(0, 10));
+    if (bd !== 2) console.warn("[TEST] businessDaysBetween ti->to pitäisi olla 2, nyt", bd);
+
+    // 5) Arkipäivälaskuri: la -> ma (0 pv, koska la/su eivät kerry)
+    const sat = new Date("2025-09-06");
+    const mon = new Date("2025-09-08");
+    const bd2 = businessDaysBetween(sat.toISOString().slice(0, 10), mon.toISOString().slice(0, 10));
+    if (bd2 !== 0) console.warn("[TEST] la->ma pitäisi olla 0, nyt", bd2);
+
+    // 6) Porrasrajat suoraan: 0 -> 1.0, 40 -> 0.8, 170 -> 0.75
+    const f0 = stepFactorByCumulativeDays(0).factor;
+    const f40 = stepFactorByCumulativeDays(40).factor;
+    const f170 = stepFactorByCumulativeDays(170).factor;
+    if (f0 !== 1 || f40 !== 0.8 || f170 !== 0.75) console.warn("[TEST] Porrasrajat odottamattomat", { f0, f40, f170 });
+
+    // 7) Sovitellun rajoitus toimii (ei negatiivinen eikä yli täyden)
+    const fullDailyTest = 60;
+    const bigReduction = 100; // iso vähennys -> 0
+    const smallReduction = 5; // pieni vähennys -> < full
+    const adj1 = clamp(fullDailyTest - bigReduction, 0, fullDailyTest);
+    const adj2 = clamp(fullDailyTest - smallReduction, 0, fullDailyTest);
+    if (adj1 !== 0 || !(adj2 > 0 && adj2 < fullDailyTest)) console.warn("[TEST] Sovitellun rajat eivät pidä");
+
+    // 8) Sovittelujakso tyhjä -> perDayReduction = 0
+    const redNone = computePerDayReduction(1000, "");
+    if (redNone !== 0) console.warn("[TEST] Tyhjä period -> pitäisi olla 0, nyt", redNone);
+  } catch (e) {
+    console.error("[TEST] Virhe testeissä", e);
+  }
+}
+runSelfTests();
+
+// ===============================
+// Types
+// ===============================
+interface BenefitRow {
+  id: string;
+  name: string;
+  amount: number; // hakujakson tulot/etuus
+  protectedAmount?: number; // suojaosa
+}
+
+// ===============================
+// Component
+// ===============================
+export default function PaivarahaLaskuri() {
+  // Perustiedot
+  const [calcDate, setCalcDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [period, setPeriod] = useState<string>(""); // sallitaan tyhjä -> ei sovittelua
+  const [benefitType, setBenefitType] = useState<(typeof BENEFIT_TYPES)[number]["value"]>("ansioturva");
+  const [toeDate, setToeDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Työssäoloehdon täyttymispäivä
+  const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Ensimmäinen maksupäivä
+  const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Jakson alkupäivä
+  const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
+
+  // Laskennan parametrit
+  const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/kk
+  const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optionaalinen, ei käytössä kaavoissa nyt
+  const [workDays, setWorkDays] = useState<number>(14); // hakujakson täydet päivät
+  const [memberFeePct, setMemberFeePct] = useState<number>(0); // %
+  const [taxPct, setTaxPct] = useState<number>(25); // veroprosentti
+  const [priorPaidDaysManual, setPriorPaidDaysManual] = useState<number>(0); // maksetut pv ennen tätä jaksoa (manuaalinen)
+
+  // Lisäasetukset (tarvittaessa laajennettavissa)
+  const [flags, setFlags] = useState({
+    baseOnlyW: false, // Vain perusosa, työt.laji W
+    tyossaoloehto80: false, // Työssäoloehto 80%
+    yrittajaPaivaraha: false, // Yrittäjäpäiväraha
+    kulukorvaus: false, // Kulukorvaus (veroton)
+    kulukorvausKorotus: false, // Kulukorvauksen korotusosa
+  });
+
+  const [benefits, setBenefits] = useState<BenefitRow[]>([
+    { id: "b1", name: "31 - Osa-aikatyö", amount: 1000, protectedAmount: 0 },
+  ]);
+
+  // ===============================
+  // Kaavojen muokkaus (konfiguroitavat arvot)
+  // ===============================
+  const defaultFormulaConfig = {
+    dailyBase: DAILY_BASE, // €/pv
+    splitPointMonth: SPLIT_POINT_MONTH, // €/kk
+    statDeductions: STAT_DEDUCTIONS, // 0..1
+    rateBelow: 0.45, // 45 %
+    rateAbove: 0.20, // 20 %
+    step1Threshold: 40,
+    step1Factor: 0.8,
+    step2Threshold: 170,
+    step2Factor: 0.75,
+    travelBase: TRAVEL_ALLOWANCE_BASE,
+    travelElevated: TRAVEL_ALLOWANCE_ELEVATED,
+  } as const;
+
+  const [formulaConfig, setFormulaConfig] = useState({ ...defaultFormulaConfig });
+  const [editFormulas, setEditFormulas] = useState(false);
+
+  // ===============================
+  // Laskenta
+  // ===============================
+  const results = useMemo(() => {
+    const cfg = formulaConfig;
+    const periodDays = period ? DAYS_BY_PERIOD[period as PeriodKey] : 0;
+
+    // Automaattinen vs. manuaalinen maksettujen päivien kertymä ennen tämän jakson alkua
+    const priorPaidAuto = businessDaysBetween(benefitStartDate, periodStartDate);
+    const priorPaidDays = autoPorrastus ? priorPaidAuto : priorPaidDaysManual;
+
+    // Etuudet yhteensä (suojaosan jälkeen)
+    const benefitsTotal = benefits.reduce((s, b) => s + Math.max((b.amount - (b.protectedAmount || 0)), 0), 0);
+
+    // Päiväpalkka ja ansio-osa (raaka ennen porrastusta)
+    const dailySalaryBasisDays = periodDays || 21.5; // jos ei jaksoa, käytä 21.5 oletusta
+    const dailySalary = (baseSalary * (1 - cfg.statDeductions)) / dailySalaryBasisDays;
+
+    const earningsPartFromDailyCfg = (dw: number) => {
+      const splitDaily = cfg.splitPointMonth / dailySalaryBasisDays;
+      const baseDiffAtBelow = Math.max(Math.min(dw, splitDaily) - cfg.dailyBase, 0);
+      const aboveSplit = Math.max(dw - splitDaily, 0);
+      return cfg.rateBelow * baseDiffAtBelow + cfg.rateAbove * aboveSplit;
+    };
+
+    const earningsPartRaw = flags.baseOnlyW ? 0 : earningsPartFromDailyCfg(dailySalary);
+
+    // Porrastus päiväkohtaisesti: mahdollinen rajanylitys (40/170 pv) huomioidaan
+    const days = workDays;
+    const stepFactorByCumulativeDaysCfg = (cum: number) => {
+      if (cum >= cfg.step2Threshold) return { factor: cfg.step2Factor, label: `Porrastus ${Math.round(cfg.step2Factor*100)}%` } as const;
+      if (cum >= cfg.step1Threshold) return { factor: cfg.step1Factor, label: `Porrastus ${Math.round(cfg.step1Factor*100)}%` } as const;
+      return { factor: 1.0, label: "Ei porrastusta" } as const;
+    };
+
+    let sumFactor = 0;
+    for (let i = 0; i < days; i++) {
+      const cumulative = priorPaidDays + (i + 1); // 1..days
+      const { factor } = stepFactorByCumulativeDaysCfg(cumulative);
+      sumFactor += factor;
+    }
+    const stepFactor = days > 0 ? sumFactor / days : 1;
+    const startInfo = stepFactorByCumulativeDaysCfg(priorPaidDays + 1);
+    const endInfo = stepFactorByCumulativeDaysCfg(priorPaidDays + days);
+    const stepLabel = endInfo.factor < startInfo.factor ? endInfo.label : startInfo.label;
+
+    // Täysi päiväraha (lapsikorotus 0)
+    const basePart = cfg.dailyBase;
+    const earningsPart = earningsPartRaw * stepFactor;
+    const fullDaily = basePart + earningsPart;
+
+    // Sovittelu: 50 % hakujakson tuloista jaettuna periodin päivillä (tai 0, jos ei jaksoa)
+    const perDayReduction = computePerDayReduction(benefitsTotal, period);
+    const adjustedDaily = clamp(fullDaily - perDayReduction, 0, fullDaily);
+
+    // Veroton kulukorvaus (oletus: 9 €/pv, korotettuna 18 €/pv)
+    const travelAllowancePerDay = flags.kulukorvaus ? (flags.kulukorvausKorotus ? cfg.travelElevated : cfg.travelBase) : 0;
+    const travelAllowanceTotal = travelAllowancePerDay * days;
+
+    // Yhteenveto
+    const gross = adjustedDaily * days;
+    const withholding = gross * (taxPct / 100);
+    const memberFee = (memberFeePct / 100) * gross;
+    const net = gross - withholding - memberFee;
+    const totalPayable = net + travelAllowanceTotal; // netto + veroton kulukorvaus
+
+    const benefitsPerDay = periodDays ? benefitsTotal / periodDays : 0;
+
+    return {
+      // per-day
+      periodDays,
+      benefitsTotal,
+      benefitsPerDay,
+      dailySalary,
+      basePart,
+      earningsPartRaw,
+      stepFactor,
+      stepLabel,
+      earningsPart,
+      fullDaily,
+      perDayReduction,
+      adjustedDaily,
+      travelAllowancePerDay,
+      // period totals
+      days,
+      gross,
+      withholding,
+      memberFee,
+      net,
+      travelAllowanceTotal,
+      totalPayable,
+      // meta
+      priorPaidDays,
+      priorPaidAuto,
+    };
+  }, [
+    formulaConfig,
+    benefits,
+    baseSalary,
+    workDays,
+    memberFeePct,
+    priorPaidDaysManual,
+    taxPct,
+    flags.baseOnlyW,
+    flags.kulukorvaus,
+    flags.kulukorvausKorotus,
+    period,
+    benefitStartDate,
+    periodStartDate,
+    autoPorrastus,
+  ]);
+
+  // Selkokielinen kaavalista korttia varten
+  const formulaList = useMemo(() => {
+    const cfg = formulaConfig;
+    const pd = results.periodDays || 21.5;
+    const splitDaily = cfg.splitPointMonth / pd;
+    return [
+      {
+        key: "dailyWage",
+        title: "Päiväpalkka",
+        formula: `päiväpalkka = (kuukausipalkka × (1 − ${(cfg.statDeductions*100).toFixed(2)}%)) / ${pd}`,
+        explain: `Kuukausipalkka muunnetaan päiväkohtaiseksi. Vähennys ${(cfg.statDeductions*100).toFixed(2)} %. Esimerkin arvoilla: ${(
+          (baseSalary * (1 - cfg.statDeductions)) /
+          pd
+        ).toFixed(2)} €/pv.`,
+      },
+      {
+        key: "earningsPart",
+        title: "Ansio-osa",
+        formula: `ansio-osa = ${(cfg.rateBelow*100).toFixed(0)}% × max(0, min(päiväpalkka, ${splitDaily.toFixed(2)}) − ${cfg.dailyBase.toFixed(
+          2
+        )}) + ${(cfg.rateAbove*100).toFixed(0)}% × max(0, päiväpalkka − ${splitDaily.toFixed(2)})`,
+        explain: `Taitekohta kuukausitasolla on ${cfg.splitPointMonth.toFixed(2)} € (=${splitDaily.toFixed(
+          2
+        )} €/pv tällä jaksolla).`,
+      },
+      {
+        key: "step",
+        title: "Porrastus",
+        formula: `kerroin = 1.0 / ${cfg.step1Threshold - 1}päivään asti, sitten ${cfg.step1Factor} (≥ ${cfg.step1Threshold} pv), ja ${cfg.step2Factor} (≥ ${cfg.step2Threshold} pv). Jaksolla keskiarvo = ${results.stepFactor.toFixed(2)}`,
+        explain: `Kun etuutta on maksettu pitkään, ansio-osa pienenee porrastuksilla. Raja-arvot ja kertoimet ovat muokattavissa.`,
+      },
+      {
+        key: "fullDaily",
+        title: "Täysi päiväraha",
+        formula: `täysi = perusosa (${cfg.dailyBase.toFixed(2)} €/pv) + ansio-osa`,
+        explain: `Päiväraha ilman sovittelua. Lapsikorotus ei ole mukana.`,
+      },
+      {
+        key: "reduction",
+        title: "Sovittelun vähennys/pv",
+        formula: results.periodDays
+          ? `vähennys/pv = (hakujakson tulot × 50%) / ${results.periodDays}`
+          : `ei vähennystä, koska sovittelujaksoa ei ole valittu`,
+        explain: `Hakujakson etuudet/tulot pienentävät päivärahaa puolella jaettuna jakson päivillä. Jos jaksoa ei ole, vähennystä ei tehdä.`,
+      },
+      {
+        key: "adjusted",
+        title: "Soviteltu päiväraha",
+        formula: `soviteltu = max(0, min(täysi, täysi − vähennys/pv))`,
+        explain: `Soviteltu ei voi olla negatiivinen tai ylittää täyttä päivärahaa.`,
+      },
+      {
+        key: "gross",
+        title: "Brutto jaksolta",
+        formula: `brutto = soviteltu × täydet päivät (${results.days})`,
+        explain: `Jakson maksettava bruttomäärä ennen vähennyksiä.`,
+      },
+      {
+        key: "withholding",
+        title: "Ennakonpidätys",
+        formula: `ennakonpidätys = brutto × veroprosentti (${taxPct}%)`,
+        explain: `Vähennetään verokortin mukaisella prosentilla.`,
+      },
+      {
+        key: "memberFee",
+        title: "Jäsenmaksu",
+        formula: `jäsenmaksu = brutto × jäsenmaksu% (${memberFeePct}%)`,
+        explain: `Mahdollinen kassan jäsenmaksu.`,
+      },
+      {
+        key: "net",
+        title: "Maksettava netto",
+        formula: `netto = brutto − ennakonpidätys − jäsenmaksu`,
+        explain: `Käteen jäävä summa vähennysten jälkeen.`,
+      },
+      {
+        key: "travel",
+        title: "Kulukorvaus (veroton)",
+        formula: flags.kulukorvaus
+          ? `kulukorvaus = ${flags.kulukorvausKorotus ? cfg.travelElevated : cfg.travelBase} €/pv × päivät (${results.days})`
+          : `ei kulukorvausta`,
+        explain: `Kulukorvaus on veroton lisä työllistymistä edistävien palvelujen ajalta. Korotusosa nostaa sen ${formulaConfig.travelElevated} €/pv.`,
+      },
+    ];
+  }, [
+    baseSalary,
+    memberFeePct,
+    results.days,
+    results.periodDays,
+    results.stepFactor,
+    taxPct,
+    flags.kulukorvaus,
+    flags.kulukorvausKorotus,
+    formulaConfig,
+  ]);
+
+  function addBenefit() {
+    const n = benefits.length + 1;
+    setBenefits((prev) => [
+      ...prev,
+      { id: `b${n}`, name: "35 - Muu etuus", amount: 0, protectedAmount: 0 },
+    ]);
+  }
+
+  function removeBenefit(id: string) {
+    setBenefits((prev) => prev.filter((b) => b.id !== id));
+  }
+
+  return (
+    <div className="w-full min-h-screen bg-gray-50">
+      <header className="sticky top-0 z-20 border-b bg-white/80 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-[#0b0f14]">Päivärahalaskuri</h1>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" className="gap-2">
+              <Download className="h-4 w-4" />Vie CSV
+            </Button>
+            <Button className="gap-2">
+              <Loader2 className="h-4 w-4" />Hae tiedot
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Vasemmalla: tilanne + etuudet */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tilanne</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Laskentapäivä *</Label>
+                <Input type="date" value={calcDate} onChange={(e) => setCalcDate(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Sovittelujakso</Label>
+                <Select value={period} onValueChange={setPeriod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ei sovittelua" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PERIODS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tukilaji *</Label>
+                <Select value={benefitType} onValueChange={setBenefitType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Valitse" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BENEFIT_TYPES.map((b) => (
+                      <SelectItem key={b.value} value={b.value}>
+                        {b.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>TOE täyttymispäivä</Label>
+                <Input type="date" value={toeDate} onChange={(e) => setToeDate(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ensimmäinen maksupäivä</Label>
+                <Input type="date" value={benefitStartDate} onChange={(e) => setBenefitStartDate(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Jakson alkupäivä</Label>
+                <Input type="date" value={periodStartDate} onChange={(e) => setPeriodStartDate(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Perustepalkka €/kk *</Label>
+                <Input
+                  type="number"
+                  step={0.01}
+                  value={baseSalary}
+                  onChange={(e) => setBaseSalary(parseFloat(e.target.value || "0"))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vertailupalkka €/kk</Label>
+                <Input
+                  type="number"
+                  step={0.01}
+                  value={comparisonSalary}
+                  onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Täydet päivät</Label>
+                <Slider value={[workDays]} max={25} min={0} step={1} onValueChange={(v) => setWorkDays(v[0])} />
+                <div className="text-sm text-gray-500">Valittu: {workDays} pv</div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Jäsenmaksu %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={memberFeePct}
+                  onChange={(e) => setMemberFeePct(parseFloat(e.target.value || "0"))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Veroprosentti</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={taxPct}
+                  onChange={(e) => setTaxPct(parseFloat(e.target.value || "0"))}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Porrastus</Label>
+                <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
+                  <Switch checked={autoPorrastus} onCheckedChange={setAutoPorrastus} />
+                  <span className="text-sm text-gray-600">
+                    Laske porrastus automaattisesti (Ensimmäinen maksupäivä → Jakson alku arkipäivät).
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Maksetut pv ennen jaksoa (manuaalinen)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={priorPaidDaysManual}
+                  onChange={(e) => setPriorPaidDaysManual(parseInt(e.target.value || "0", 10))}
+                  disabled={autoPorrastus}
+                />
+              </div>
+
+              <div className="col-span-1 md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { key: "baseOnlyW", label: "Vain perusosa, työt.laji W" },
+                  { key: "tyossaoloehto80", label: "Työssäoloehto 80%" },
+                  { key: "yrittajaPaivaraha", label: "Yrittäjäpäiväraha" },
+                  { key: "kulukorvaus", label: "Kulukorvaus" },
+                  { key: "kulukorvausKorotus", label: "Kulukorvauksen korotusosa" },
+                ].map((f: any) => (
+                  <label key={f.key} className="flex items-center gap-2 p-2 rounded-xl border bg-white">
+                    <Switch
+                      checked={(flags as any)[f.key]}
+                      onCheckedChange={(v) => setFlags((prev) => ({ ...prev, [f.key]: v }))}
+                    />
+                    <span>{f.label}</span>
+                  </label>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Etuudet</CardTitle>
+              <Button variant="outline" className="gap-2" onClick={addBenefit}>
+                <Plus className="h-4 w-4" />Lisää
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {benefits.map((b) => (
+                <div
+                  key={b.id}
+                  className="grid grid-cols-1 md:grid-cols-12 items-end gap-3 p-3 rounded-xl border bg-white"
+                >
+                  <div className="md:col-span-5 space-y-2">
+                    <Label>Etuuden nimi *</Label>
+                    <Select
+                      value={b.name}
+                      onValueChange={(v) => {
+                        setBenefits((prev) => prev.map((x) => (x.id === b.id ? { ...x, name: v } : x)));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Valitse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BENEFIT_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.label}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-3 space-y-2">
+                    <Label>Määrä *</Label>
+                    <Input
+                      type="number"
+                      step={0.01}
+                      value={b.amount}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value || "0");
+                        setBenefits((prev) => prev.map((x) => (x.id === b.id ? { ...x, amount: v } : x)));
+                      }}
+                    />
+                  </div>
+                  <div className="md:col-span-3 space-y-2">
+                    <Label>Suojaosa</Label>
+                    <Input
+                      type="number"
+                      step={0.01}
+                      value={b.protectedAmount || 0}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value || "0");
+                        setBenefits((prev) => prev.map((x) => (x.id === b.id ? { ...x, protectedAmount: v } : x)));
+                      }}
+                    />
+                  </div>
+                  <div className="md:col-span-1 flex justify-end">
+                    <Button variant="ghost" size="icon" onClick={() => removeBenefit(b.id)}>
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Oikealla: yhteenveto */}
+        <div className="lg:col-span-1">
+          <Card className="sticky top-20">
+            <CardHeader>
+              <CardTitle>Päiväraha</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="text-gray-500">Porrastus</div>
+                <div className="text-right font-medium">{results.stepLabel}</div>
+
+                <div className="text-gray-500">Suojaosuus</div>
+                <div className="text-right font-medium">
+                  {euro(benefits.reduce((s, b) => s + (b.protectedAmount || 0), 0))}
+                </div>
+
+                <div className="text-gray-500">Etuudet vaikutus/yht.</div>
+                <div className="text-right font-medium">{euro(results.benefitsTotal)}</div>
+
+                <div className="text-gray-500">Täydet päivät</div>
+                <div className="text-right">{results.days} pv</div>
+
+                <div className="text-gray-500">Täysi päiväraha</div>
+                <div className="text-right">{euro(results.fullDaily)}</div>
+
+                <div className="text-gray-500">Etuudet vaikutus/pv</div>
+                <div className="text-right">{euro(results.benefitsPerDay)}</div>
+
+                <div className="text-gray-500">Soviteltu päiväraha</div>
+                <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
+
+                <div className="text-gray-500">Perusosa</div>
+                <div className="text-right">{euro(results.basePart)}</div>
+
+                <div className="text-gray-500">Ansio-osa</div>
+                <div className="text-right">{euro(results.earningsPart)}</div>
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Verollisen etuuden määrä jaksolta</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="text-gray-500">Brutto</div>
+                  <div className="text-right font-semibold">{euro(results.gross)}</div>
+
+                  <div className="text-gray-500">Perusosa</div>
+                  <div className="text-right">{euro(results.basePart * results.days)}</div>
+
+                  <div className="text-gray-500">Ansio-osa</div>
+                  <div className="text-right">{euro(results.earningsPart * results.days)}</div>
+
+                  <div className="text-gray-500">Ennakonpidätyksen määrä</div>
+                  <div className="text-right">{euro(results.withholding)}</div>
+
+                  <div className="text-gray-500">Netto ennakonpidätyksen jälkeen</div>
+                  <div className="text-right">{euro(results.gross - results.withholding)}</div>
+
+                  <div className="text-gray-500">Jäsenmaksu</div>
+                  <div className="text-right">{euro(results.memberFee)}</div>
+
+                  <div className="text-gray-700">Maksettava netto</div>
+                  <div className="text-right text-lg font-bold">{euro(results.net)}</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Verottoman etuuden määrä jaksolta</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="text-gray-500">Kulukorvaus / pv</div>
+                  <div className="text-right">{euro(results.travelAllowancePerDay)}</div>
+
+                  <div className="text-gray-500">Kulukorvaus yhteensä</div>
+                  <div className="text-right">{euro(results.travelAllowanceTotal)}</div>
+
+                  <div className="text-gray-700">Maksettava yhteensä</div>
+                  <div className="text-right font-semibold">{euro(results.totalPayable)}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      {/* Breakdown section */}
+      <section className="max-w-7xl mx-auto px-4 pb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         
+        </div>
+
+        {/* Kaavakortti selkokielellä */}
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Laskukaavat (selkokieli)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Switch checked={editFormulas} onCheckedChange={setEditFormulas} />
+                  <span className="text-sm text-gray-700">Muokkaa kaavoja käyttöliittymästä</span>
+                </div>
+                {editFormulas && (
+                  <Button variant="outline" onClick={() => setFormulaConfig({ ...defaultFormulaConfig })}>
+                    Palauta oletukset
+                  </Button>
+                )}
+              </div>
+
+              {editFormulas && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Perusosa €/pv</Label>
+                    <Input type="number" step={0.01} value={formulaConfig.dailyBase}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, dailyBase: parseFloat(e.target.value||"0") }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Taitekohta €/kk</Label>
+                    <Input type="number" step={0.01} value={formulaConfig.splitPointMonth}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, splitPointMonth: parseFloat(e.target.value||"0") }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Tilastolliset vähennykset %</Label>
+                    <Input type="number" step={0.01} value={(formulaConfig.statDeductions*100).toFixed(2)}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, statDeductions: (parseFloat(e.target.value||"0")/100) }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Ansio-osa alempi kerroin %</Label>
+                    <Input type="number" step={1} value={(formulaConfig.rateBelow*100).toFixed(0)}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, rateBelow: (parseFloat(e.target.value||"0")/100) }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Ansio-osa ylempi kerroin %</Label>
+                    <Input type="number" step={1} value={(formulaConfig.rateAbove*100).toFixed(0)}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, rateAbove: (parseFloat(e.target.value||"0")/100) }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Porrastusraja 1 (pv)</Label>
+                    <Input type="number" step={1} value={formulaConfig.step1Threshold}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step1Threshold: parseInt(e.target.value||"0",10) }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Porrastuskerroin 1</Label>
+                    <Input type="number" step={0.01} value={formulaConfig.step1Factor}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step1Factor: parseFloat(e.target.value||"0") }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Porrastusraja 2 (pv)</Label>
+                    <Input type="number" step={1} value={formulaConfig.step2Threshold}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step2Threshold: parseInt(e.target.value||"0",10) }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Porrastuskerroin 2</Label>
+                    <Input type="number" step={0.01} value={formulaConfig.step2Factor}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step2Factor: parseFloat(e.target.value||"0") }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Kulukorvaus €/pv</Label>
+                    <Input type="number" step={1} value={formulaConfig.travelBase}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, travelBase: parseFloat(e.target.value||"0") }))} />
+                  </div>
+                  <div className="space-y-1 p-3 border rounded-xl bg-white">
+                    <Label>Kulukorvaus korotettuna €/pv</Label>
+                    <Input type="number" step={1} value={formulaConfig.travelElevated}
+                      onChange={(e)=> setFormulaConfig(v=>({ ...v, travelElevated: parseFloat(e.target.value||"0") }))} />
+                  </div>
+                </div>
+              )}
+
+              <ul className="space-y-4">
+                {formulaList.map((f) => (
+                  <li key={f.key}>
+                    <div className="text-sm font-medium text-gray-800">{f.title}</div>
+                    <div className="font-mono text-xs bg-gray-50 border rounded-md px-2 py-1 inline-block mt-1">
+                      {f.formula}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{f.explain}</p>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
