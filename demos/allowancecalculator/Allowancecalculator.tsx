@@ -191,13 +191,15 @@ interface BenefitRow {
 export default function PaivarahaLaskuri() {
   // Perustiedot
   const [calcDate, setCalcDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [period, setPeriod] = useState<string>(""); // sallitaan tyhjä -> ei sovittelua
-  const [benefitType, setBenefitType] = useState<(typeof BENEFIT_TYPES)[number]["value"]>("ansioturva");
+  const [period, setPeriod] = useState<string>(""); // sallitaan tyhjä -> ei sovittelua 
   const [toeDate, setToeDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Työssäoloehdon täyttymispäivä
   const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Ensimmäinen maksupäivä
   const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Jakson alkupäivä
   const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
+  const [benefitType, setBenefitType] = useState<BenefitType>("ansioturva");
 
+  type BenefitType = "ansioturva" | "peruspaivaraha" | "tyomarkkinatuki";
+  const handleBenefitTypeChange = (v: string) => setBenefitType(v as BenefitType)
   // Laskennan parametrit
   const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/kk
   const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optionaalinen, ei käytössä kaavoissa nyt
@@ -506,7 +508,7 @@ export default function PaivarahaLaskuri() {
 
               <div className="space-y-2">
                 <Label>Tukilaji *</Label>
-                <Select value={benefitType} onValueChange={setBenefitType}>
+                <Select value={benefitType} onValueChange={handleBenefitTypeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Valitse" />
                   </SelectTrigger>
