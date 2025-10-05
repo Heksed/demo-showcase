@@ -1,4 +1,3 @@
-// tailwind.config.ts (juuressa)
 import type { Config } from "tailwindcss";
 
 export default {

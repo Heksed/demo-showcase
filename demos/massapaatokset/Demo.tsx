@@ -580,9 +580,13 @@ export default function Massapaatokset() {
                           {/* Lukitusindikaattori + Palauta */}
                           <div className="flex items-center gap-1">
                             {locked.has(r.id) ? (
-                              <Lock className="h-4 w-4 text-amber-600" title="Lukittu sinulle" />
+                              <span title="Lukittu sinulle">
+                                <Lock className="h-4 w-4 text-amber-600" aria-hidden="true" focusable="false" />
+                              </span>
                             ) : (
-                              <LockOpen className="h-4 w-4 text-slate-300" title="Ei lukittu" />
+                              <span title="Ei lukittu">
+                                <LockOpen className="h-4 w-4 text-slate-300" aria-hidden="true" focusable="false" />
+                              </span>
                             )}
                             {locked.has(r.id) && (
                               <Button variant="link" size="sm" className="px-1 h-6 text-xs" onClick={() => {

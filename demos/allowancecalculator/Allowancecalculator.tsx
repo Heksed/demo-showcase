@@ -1,5 +1,6 @@
 "use client";
 
+
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Download, Loader2, Plus, Trash2 } from "lucide-react";
+
 
 // ===============================
 // Helper: dates & math
@@ -44,6 +46,8 @@ function clamp(n: number, min: number, max: number) {
 // ===============================
 // Constants & options
 // ===============================
+
+
 const PERIODS = [
   { value: "1m", label: "1 kuukausi (21,5 pv)" },
   { value: "2w", label: "2 viikkoa (10 pv)" },
@@ -188,18 +192,18 @@ interface BenefitRow {
 // ===============================
 // Component
 // ===============================
+
+
 export default function PaivarahaLaskuri() {
   // Perustiedot
   const [calcDate, setCalcDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [period, setPeriod] = useState<string>(""); // sallitaan tyhjä -> ei sovittelua 
+  const [period, setPeriod] = useState<string>(""); // sallitaan tyhjä -> ei sovittelua
+  const [benefitType, setBenefitType] = useState<(typeof BENEFIT_TYPES)[number]["value"]>("ansioturva");
   const [toeDate, setToeDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Työssäoloehdon täyttymispäivä
   const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Ensimmäinen maksupäivä
   const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Jakson alkupäivä
   const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
-  
-  type BenefitType = "ansioturva" | "peruspaivaraha" | "tyomarkkinatuki";
-  const [benefitType, setBenefitType] = useState<BenefitType>("ansioturva");
-  const handleBenefitTypeChange = (v: string) => setBenefitType(v as BenefitType);
+
   // Laskennan parametrit
   const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/kk
   const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optionaalinen, ei käytössä kaavoissa nyt
@@ -217,14 +221,47 @@ export default function PaivarahaLaskuri() {
     kulukorvausKorotus: false, // Kulukorvauksen korotusosa
   });
 
+  const setFormulaNumber =
+  <K extends keyof FormulaConfig>(key: K) =>
+  (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormulaConfig(v => ({ ...v, [key]: parseFloat(e.target.value || "0") }));
+
+const setFormulaInt =
+  <K extends keyof FormulaConfig>(key: K) =>
+  (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormulaConfig(v => ({ ...v, [key]: parseInt(e.target.value || "0", 10) }));
+
+const setFormulaPercent =
+  (key: "statDeductions" | "rateBelow" | "rateAbove") =>
+  (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormulaConfig(v => ({ ...v, [key]: (parseFloat(e.target.value || "0") / 100) }));
+
   const [benefits, setBenefits] = useState<BenefitRow[]>([
     { id: "b1", name: "31 - Osa-aikatyö", amount: 1000, protectedAmount: 0 },
   ]);
 
+  // Bridge Select's string callback to our union type for benefitType
+  type BenefitType = (typeof BENEFIT_TYPES)[number]["value"];
+  const handleBenefitTypeChange = (value: string) => setBenefitType(value as BenefitType);
+
   // ===============================
   // Kaavojen muokkaus (konfiguroitavat arvot)
   // ===============================
-  const defaultFormulaConfig = {
+  type FormulaConfig = {
+    dailyBase: number;
+    splitPointMonth: number;
+    statDeductions: number;
+    rateBelow: number;
+    rateAbove: number;
+    step1Threshold: number;
+    step1Factor: number;
+    step2Threshold: number;
+    step2Factor: number;
+    travelBase: number;
+    travelElevated: number;
+  };
+
+  const defaultFormulaConfig: FormulaConfig = {
     dailyBase: DAILY_BASE, // €/pv
     splitPointMonth: SPLIT_POINT_MONTH, // €/kk
     statDeductions: STAT_DEDUCTIONS, // 0..1
@@ -236,10 +273,23 @@ export default function PaivarahaLaskuri() {
     step2Factor: 0.75,
     travelBase: TRAVEL_ALLOWANCE_BASE,
     travelElevated: TRAVEL_ALLOWANCE_ELEVATED,
-  } as const;
+  };
 
-  const [formulaConfig, setFormulaConfig] = useState({ ...defaultFormulaConfig });
+  const [formulaConfig, setFormulaConfig] = useState<FormulaConfig>(() => ({ 
+    dailyBase: Number(DAILY_BASE),
+    splitPointMonth: Number(SPLIT_POINT_MONTH),
+    statDeductions: Number(STAT_DEDUCTIONS),
+    rateBelow: 0.45,
+    rateAbove: 0.20,
+    step1Threshold: 40,
+    step1Factor: 0.8,
+    step2Threshold: 170,
+    step2Factor: 0.75,
+    travelBase: Number(TRAVEL_ALLOWANCE_BASE),
+    travelElevated: Number(TRAVEL_ALLOWANCE_ELEVATED), }));
   const [editFormulas, setEditFormulas] = useState(false);
+
+  
 
   // ===============================
   // Laskenta
@@ -463,13 +513,11 @@ export default function PaivarahaLaskuri() {
 
   return (
     <div className="w-full min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-20 border-b bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-20 border bg-white">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-[#0b0f14]">Päivärahalaskuri</h1>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" className="gap-2">
-              <Download className="h-4 w-4" />Vie CSV
-            </Button>
+            
             <Button className="gap-2">
               <Loader2 className="h-4 w-4" />Hae tiedot
             </Button>
@@ -787,7 +835,7 @@ export default function PaivarahaLaskuri() {
         <div className="mt-8">
           <Card>
             <CardHeader>
-              <CardTitle>Laskukaavat (selkokieli)</CardTitle>
+              <CardTitle>Laskukaavat</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="mb-4 flex items-center justify-between gap-4">
@@ -803,64 +851,120 @@ export default function PaivarahaLaskuri() {
               </div>
 
               {editFormulas && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Perusosa €/pv</Label>
-                    <Input type="number" step={0.01} value={formulaConfig.dailyBase}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, dailyBase: parseFloat(e.target.value||"0") }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Taitekohta €/kk</Label>
-                    <Input type="number" step={0.01} value={formulaConfig.splitPointMonth}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, splitPointMonth: parseFloat(e.target.value||"0") }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Tilastolliset vähennykset %</Label>
-                    <Input type="number" step={0.01} value={(formulaConfig.statDeductions*100).toFixed(2)}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, statDeductions: (parseFloat(e.target.value||"0")/100) }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Ansio-osa alempi kerroin %</Label>
-                    <Input type="number" step={1} value={(formulaConfig.rateBelow*100).toFixed(0)}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, rateBelow: (parseFloat(e.target.value||"0")/100) }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Ansio-osa ylempi kerroin %</Label>
-                    <Input type="number" step={1} value={(formulaConfig.rateAbove*100).toFixed(0)}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, rateAbove: (parseFloat(e.target.value||"0")/100) }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Porrastusraja 1 (pv)</Label>
-                    <Input type="number" step={1} value={formulaConfig.step1Threshold}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step1Threshold: parseInt(e.target.value||"0",10) }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Porrastuskerroin 1</Label>
-                    <Input type="number" step={0.01} value={formulaConfig.step1Factor}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step1Factor: parseFloat(e.target.value||"0") }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Porrastusraja 2 (pv)</Label>
-                    <Input type="number" step={1} value={formulaConfig.step2Threshold}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step2Threshold: parseInt(e.target.value||"0",10) }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Porrastuskerroin 2</Label>
-                    <Input type="number" step={0.01} value={formulaConfig.step2Factor}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, step2Factor: parseFloat(e.target.value||"0") }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Kulukorvaus €/pv</Label>
-                    <Input type="number" step={1} value={formulaConfig.travelBase}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, travelBase: parseFloat(e.target.value||"0") }))} />
-                  </div>
-                  <div className="space-y-1 p-3 border rounded-xl bg-white">
-                    <Label>Kulukorvaus korotettuna €/pv</Label>
-                    <Input type="number" step={1} value={formulaConfig.travelElevated}
-                      onChange={(e)=> setFormulaConfig(v=>({ ...v, travelElevated: parseFloat(e.target.value||"0") }))} />
-                  </div>
-                </div>
-              )}
+               <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+         <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Perusosa €/pv</Label>
+        <Input
+          type="number"
+          step={0.01}
+          value={formulaConfig.dailyBase}
+          onChange={setFormulaNumber("dailyBase")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Taitekohta €/kk</Label>
+        <Input
+          type="number"
+          step={0.01}
+          value={formulaConfig.splitPointMonth}
+          onChange={setFormulaNumber("splitPointMonth")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Tilastolliset vähennykset %</Label>
+        <Input
+          type="number"
+          step={0.01}
+          value={(formulaConfig.statDeductions * 100).toFixed(2)}
+          onChange={setFormulaPercent("statDeductions")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Ansio-osa alempi kerroin %</Label>
+        <Input
+          type="number"
+          step={1}
+          value={(formulaConfig.rateBelow * 100).toFixed(0)}
+          onChange={setFormulaPercent("rateBelow")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Ansio-osa ylempi kerroin %</Label>
+        <Input
+          type="number"
+          step={1}
+          value={(formulaConfig.rateAbove * 100).toFixed(0)}
+          onChange={setFormulaPercent("rateAbove")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Porrastusraja 1 (pv)</Label>
+        <Input
+          type="number"
+          step={1}
+          value={formulaConfig.step1Threshold}
+          onChange={setFormulaInt("step1Threshold")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Porrastuskerroin 1</Label>
+        <Input
+          type="number"
+          step={0.01}
+          value={formulaConfig.step1Factor}
+          onChange={setFormulaNumber("step1Factor")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Porrastusraja 2 (pv)</Label>
+        <Input
+          type="number"
+          step={1}
+          value={formulaConfig.step2Threshold}
+          onChange={setFormulaInt("step2Threshold")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Porrastuskerroin 2</Label>
+        <Input
+          type="number"
+          step={0.01}
+          value={formulaConfig.step2Factor}
+          onChange={setFormulaNumber("step2Factor")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Kulukorvaus €/pv</Label>
+        <Input
+          type="number"
+          step={1}
+          value={formulaConfig.travelBase}
+          onChange={setFormulaNumber("travelBase")}
+        />
+      </div>
+
+      <div className="space-y-1 p-3 border rounded-xl bg-white">
+        <Label>Kulukorvaus korotettuna €/pv</Label>
+        <Input
+          type="number"
+          step={1}
+          value={formulaConfig.travelElevated}
+          onChange={setFormulaNumber("travelElevated")}
+        />
+      </div>
+    </div>
+  </>
+)}
 
               <ul className="space-y-4">
                 {formulaList.map((f) => (
