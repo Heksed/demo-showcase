@@ -635,7 +635,7 @@ const setFormulaPercent =
               </div>
 
               <div className="space-y-2">
-                <Label>Tukilaji *</Label>
+                <Label>Etuus *</Label>
                 <Select value={benefitType} onValueChange={handleBenefitTypeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Valitse" />
