@@ -196,10 +196,10 @@ export default function PaivarahaLaskuri() {
   const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Ensimmäinen maksupäivä
   const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Jakson alkupäivä
   const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
-  const [benefitType, setBenefitType] = useState<BenefitType>("ansioturva");
-
+  
   type BenefitType = "ansioturva" | "peruspaivaraha" | "tyomarkkinatuki";
-  const handleBenefitTypeChange = (v: string) => setBenefitType(v as BenefitType)
+  const [benefitType, setBenefitType] = useState<BenefitType>("ansioturva");
+  const handleBenefitTypeChange = (v: string) => setBenefitType(v as BenefitType);
   // Laskennan parametrit
   const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/kk
   const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optionaalinen, ei käytössä kaavoissa nyt
