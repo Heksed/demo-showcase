@@ -382,7 +382,7 @@ export default function Massapaatokset() {
   );
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 w-full">
+    <div className="p-4 md:p-6 lg:p-2 w-full">
       <Card className="max-w-[1200px] mx-auto shadow-xl border-slate-200">
         <CardContent className="p-4 md:p-6">
           <div className="flex items-start justify-between">
