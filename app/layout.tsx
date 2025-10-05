@@ -1,5 +1,7 @@
 import React from "react";
 import "./globals.css";
+import CalmKoi from "@/components/CalmKoi";
+
 
 
 export const metadata = {
@@ -10,11 +12,14 @@ export const metadata = {
   export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
       <html lang="fi">
-        <body className="bg-[#0b0f14] text-[#e6edf3]">
+        <body className="relative bg-[#0b0f14] text-[#e6edf3]">
+          {/* Rauhallinen tausta koko sivulle */}
+          <CalmKoi />
+  
           <div className="max-w-[1200px] mx-auto p-6">
             <header className="py-2 pb-6 border-b border-[#1f2630] mb-6">
-              <h1 className="m-0 text-[24px]">Demo Showcase</h1>
-              <p className="mt-[6px] text-[#9fb1c4]">Working prototypes for components</p>
+              <h1 className="m-0 text-[24px]">Heikki's little demos</h1>
+              <p className="mt-[6px] text-[#9fb1c4]">Where boring components come to PARTY!</p>
             </header>
             {children}
           </div>
@@ -22,4 +27,3 @@ export const metadata = {
       </html>
     );
   }
-  
