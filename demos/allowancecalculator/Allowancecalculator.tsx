@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Download, Loader2, Plus, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
 
 
 // ===============================
@@ -212,6 +214,11 @@ export default function PaivarahaLaskuri() {
   const [taxPct, setTaxPct] = useState<number>(25); // veroprosentti
   const [priorPaidDaysManual, setPriorPaidDaysManual] = useState<number>(0); // maksetut pv ennen tätä jaksoa (manuaalinen)
 
+  // Vertailu
+  const [compareMode, setCompareMode] = useState<boolean>(false);
+  const [toeDateCompare, setToeDateCompare] = useState<string>("");
+
+
   // Lisäasetukset (tarvittaessa laajennettavissa)
   const [flags, setFlags] = useState({
     baseOnlyW: false, // Vain perusosa, työt.laji W
@@ -297,6 +304,7 @@ const setFormulaPercent =
   const results = useMemo(() => {
     const cfg = formulaConfig;
     const periodDays = period ? DAYS_BY_PERIOD[period as PeriodKey] : 0;
+    
 
     // Automaattinen vs. manuaalinen maksettujen päivien kertymä ennen tämän jakson alkua
     const priorPaidAuto = businessDaysBetween(benefitStartDate, periodStartDate);
@@ -402,6 +410,71 @@ const setFormulaPercent =
     periodStartDate,
     autoPorrastus,
   ]);
+// Vertailupalkka
+  const resultsCompare = useMemo(() => {
+    if (!compareMode || !comparisonSalary || comparisonSalary <= 0) return null;
+  
+    const periodDays = results.periodDays || 21.5;
+    const dailySalary = toDailyWage(comparisonSalary, periodDays);
+    const earningsPartRaw = flags.baseOnlyW
+      ? 0
+      : earningsPartFromDaily(dailySalary, SPLIT_POINT_MONTH, periodDays);
+  
+    // Käytetään samaa porrastuksen keskiarvokerrointa ja samaa sovitteluvähennystä
+    const earningsPart = earningsPartRaw * results.stepFactor;
+    const fullDaily = DAILY_BASE + earningsPart;
+  
+    const perDayReduction = results.perDayReduction;
+    const adjustedDaily = clamp(fullDaily - perDayReduction, 0, fullDaily);
+
+    
+    
+  
+    return { fullDaily, adjustedDaily };
+  }, [
+    compareMode,
+    comparisonSalary,
+    flags.baseOnlyW,
+    results.periodDays,
+    results.stepFactor,
+    results.perDayReduction,
+  ]);
+
+  function Row3({
+    label,
+    base,
+    compare,
+  }: {
+    label: string;
+    base: number;
+    compare?: number | null;
+  }) {
+    const hasCompare = typeof compare === "number";
+    const delta = hasCompare ? (compare as number) - base : 0;
+    const sign = delta >= 0 ? "+" : "−";
+    const abs = Math.abs(delta);
+  
+    return (
+      <>
+        <div className="text-gray-500">{label}</div>
+        <div className="text-right font-medium">{euro(base)}</div>
+        {hasCompare ? (
+          <>
+            <div className="text-right">{euro(compare as number)}</div>
+            <div className={cn("text-right font-semibold", delta >= 0 ? "text-emerald-600" : "text-rose-600")}>
+              {sign}
+              {euro(abs)}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-right text-gray-400">—</div>
+            <div className="text-right text-gray-400">—</div>
+          </>
+        )}
+      </>
+    );
+  }
 
   // Selkokielinen kaavalista korttia varten
   const formulaList = useMemo(() => {
@@ -525,15 +598,22 @@ const setFormulaPercent =
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Vasemmalla: tilanne + etuudet */}
-        <div className="lg:col-span-2 space-y-6">
+      <main
+  className={cn(
+    "max-w-8xl mx-auto px-4 py-6 grid gap-6 transition-all duration-300",
+    compareMode
+      ? "lg:grid-cols-[1.6fr_1.4fr]" // vertailutilassa: oikea leveämpi
+      : "lg:grid-cols-[2fr_1fr]"     // normaali: vasen 2/3, oikea 1/3
+  )}
+>
+  {/* Vasemmalla: tilanne + etuudet */}
+  <div className="space-y-6 min-w-0">
           <Card>
             <CardHeader>
               <CardTitle>Tilanne</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="space-y-6">
                 <Label>Laskentapäivä *</Label>
                 <Input type="date" value={calcDate} onChange={(e) => setCalcDate(e.target.value)} />
               </div>
@@ -595,15 +675,41 @@ const setFormulaPercent =
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Vertailupalkka €/kk</Label>
-                <Input
-                  type="number"
-                  step={0.01}
-                  value={comparisonSalary}
-                  onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
-                />
-              </div>
+              {/* Vertailu – kytkin */}
+              <div className="space-y-2 md:col-span-2">
+          <Label>Näytä vertailu</Label>
+            <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
+             <Switch checked={compareMode} onCheckedChange={setCompareMode} />
+              <span className="text-sm text-gray-600">
+                Vertaa perustetta ja vertailupalkkaa rinnakkain.
+              </span>
+            </div>
+          </div>
+
+            {/* TOE (vertailu) – näytetään vain kun vertailu päällä */}
+            {compareMode && (
+             <div className="space-y-2">
+             <Label>TOE täyttymispäivä (vertailu)</Label>
+            <Input
+            type="date"
+            value={toeDateCompare}
+            onChange={(e) => setToeDateCompare(e.target.value)}
+              />
+             </div>
+            )}
+
+
+          {compareMode && (
+            <div className="space-y-2">
+            <Label>Vertailupalkka €/kk</Label>
+           <Input
+              type="number"
+             step={0.01}
+            value={comparisonSalary}
+            onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
+               />
+          </div>
+          )}
 
               <div className="space-y-2">
                 <Label>Täydet päivät</Label>
@@ -744,83 +850,168 @@ const setFormulaPercent =
         </div>
 
         {/* Oikealla: yhteenveto */}
-        <div className="lg:col-span-1">
+        <div className="min-w-0">
           <Card className="sticky top-20">
             <CardHeader>
               <CardTitle>Päiväraha</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-gray-500">Porrastus</div>
-                <div className="text-right font-medium">{results.stepLabel}</div>
+            <CardContent
+  className={cn("transition-all duration-300",compareMode && resultsCompare
+      ? "space-y-10 px-6 py-6" // enemmän tilaa kun vertailu päällä
+      : "space-y-6 px-4 py-4" // tiiviimpi oletus
+  )}
+>
+  {/* 1) Meta-rivit – aina 2-sarakkeisena */}
+  <div className="grid grid-cols-2 gap-2 text-sm">
+    <div className="text-gray-500">Porrastus</div>
+    <div className="text-right font-medium">{results.stepLabel}</div>
 
-                <div className="text-gray-500">Suojaosuus</div>
-                <div className="text-right font-medium">
-                  {euro(benefits.reduce((s, b) => s + (b.protectedAmount || 0), 0))}
-                </div>
+    <div className="text-gray-500">Suojaosuus</div>
+    <div className="text-right font-medium">
+      {euro(benefits.reduce((s, b) => s + (b.protectedAmount || 0), 0))}
+    </div>
 
-                <div className="text-gray-500">Etuudet vaikutus/yht.</div>
-                <div className="text-right font-medium">{euro(results.benefitsTotal)}</div>
+    <div className="text-gray-500">Etuudet vaikutus/yht.</div>
+    <div className="text-right font-semibold">{euro(results.benefitsTotal)}</div>
 
-                <div className="text-gray-500">Täydet päivät</div>
-                <div className="text-right">{results.days} pv</div>
+    <div className="text-gray-500">Täydet päivät</div>
+    <div className="text-right">{results.days} pv</div>
 
-                <div className="text-gray-500">Täysi päiväraha</div>
-                <div className="text-right">{euro(results.fullDaily)}</div>
+    <div className="text-gray-500">Etuudet vaikutus/pv</div>
+    <div className="text-right">{euro(results.benefitsPerDay)}</div>
 
-                <div className="text-gray-500">Etuudet vaikutus/pv</div>
-                <div className="text-right">{euro(results.benefitsPerDay)}</div>
+    <div className="text-gray-500">Perusosa</div>
+    <div className="text-right">{euro(results.basePart)}</div>
 
-                <div className="text-gray-500">Soviteltu päiväraha</div>
-                <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
+    <div className="text-gray-500">Ansio-osa</div>
+    <div className="text-right">{euro(results.earningsPart)}</div>
 
-                <div className="text-gray-500">Perusosa</div>
-                <div className="text-right">{euro(results.basePart)}</div>
+    <div className="text-gray-700">Täysi päiväraha</div>
+    <div className="text-right font-semibold">{euro(results.fullDaily)}</div>
 
-                <div className="text-gray-500">Ansio-osa</div>
-                <div className="text-right">{euro(results.earningsPart)}</div>
-              </div>
+    <div className="text-gray-700">Soviteltu päiväraha</div>
+    <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
+  </div>
 
-              <div>
-                <h3 className="font-medium mb-2">Verollisen etuuden määrä jaksolta</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="text-gray-500">Brutto</div>
-                  <div className="text-right font-semibold">{euro(results.gross)}</div>
+  {/* 2) Verollinen osio – 2-col kun ei vertailua, muuten 4-col (Peruste | Vertailu | Δ) */}
+  <div>
+    <h3 className="font-medium mb-2">Verollisen etuuden määrä jaksolta</h3>
 
-                  <div className="text-gray-500">Perusosa</div>
-                  <div className="text-right">{euro(results.basePart * results.days)}</div>
+    {!(compareMode && resultsCompare) ? (
+      /* --- EI vertailua: 2 saraketta --- */
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="text-gray-500">Brutto</div>
+        <div className="text-right font-semibold">{euro(results.gross)}</div>
 
-                  <div className="text-gray-500">Ansio-osa</div>
-                  <div className="text-right">{euro(results.earningsPart * results.days)}</div>
+        <div className="text-gray-500">Perusosa</div>
+        <div className="text-right">{euro(results.basePart * results.days)}</div>
 
-                  <div className="text-gray-500">Ennakonpidätyksen määrä</div>
-                  <div className="text-right">{euro(results.withholding)}</div>
+        <div className="text-gray-500">Ansio-osa</div>
+        <div className="text-right">{euro(results.earningsPart * results.days)}</div>
 
-                  <div className="text-gray-500">Netto ennakonpidätyksen jälkeen</div>
-                  <div className="text-right">{euro(results.gross - results.withholding)}</div>
+        <div className="text-gray-500">Ennakonpidätyksen määrä</div>
+        <div className="text-right">{euro(results.withholding)}</div>
 
-                  <div className="text-gray-500">Jäsenmaksu</div>
-                  <div className="text-right">{euro(results.memberFee)}</div>
+        <div className="text-gray-500">Netto ennakonpidätyksen jälkeen</div>
+        <div className="text-right">{euro(results.gross - results.withholding)}</div>
 
-                  <div className="text-gray-700">Maksettava netto</div>
-                  <div className="text-right text-lg font-bold">{euro(results.net)}</div>
-                </div>
-              </div>
+        <div className="text-gray-500">Jäsenmaksu</div>
+        <div className="text-right">{euro(results.memberFee)}</div>
 
-              <div>
-                <h3 className="font-medium mb-2">Verottoman etuuden määrä jaksolta</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="text-gray-500">Kulukorvaus / pv</div>
-                  <div className="text-right">{euro(results.travelAllowancePerDay)}</div>
+        <div className="text-gray-700">Maksettava netto</div>
+        <div className="text-right text-lg font-bold">{euro(results.net)}</div>
+      </div>
+    ) : (
+      /* --- Vertailu: 4 saraketta --- */
+      <div className={cn("gap-2 text-sm", "grid grid-cols-4")}>
+        <div />
+        <div className="text-right text-gray-600">Peruste</div>
+        <div className="text-right text-gray-600">Vertailu</div>
+        <div className="text-right text-gray-600">Erotus</div>
 
-                  <div className="text-gray-500">Kulukorvaus yhteensä</div>
-                  <div className="text-right">{euro(results.travelAllowanceTotal)}</div>
+        {/* Vertailulaskennan apuarvot */}
+        {(() => {
+          const grossCmp = (resultsCompare!.adjustedDaily ?? 0) * results.days;
+          const basePartCmpPerDay = DAILY_BASE; // sama perusosa
+          const earningsPartCmpPerDay = (resultsCompare!.fullDaily ?? 0) - DAILY_BASE;
+          const basePartCmp = basePartCmpPerDay * results.days;
+          const earningsPartCmp = earningsPartCmpPerDay * results.days;
+          const withholdingCmp = grossCmp * (taxPct / 100);
+          const memberFeeCmp = grossCmp * (memberFeePct / 100);
+          const netAfterWithholdingCmp = grossCmp - withholdingCmp;
+          const netCmp = netAfterWithholdingCmp - memberFeeCmp;
 
-                  <div className="text-gray-700">Maksettava yhteensä</div>
-                  <div className="text-right font-semibold">{euro(results.totalPayable)}</div>
-                </div>
-              </div>
-            </CardContent>
+          return (
+            <>
+              <Row3 label="Brutto" base={results.gross} compare={grossCmp} />
+              <Row3 label="Perusosa" base={results.basePart * results.days} compare={basePartCmp} />
+              <Row3 label="Ansio-osa" base={results.earningsPart * results.days} compare={earningsPartCmp} />
+              <Row3 label="Ennakonpidätyksen määrä" base={results.withholding} compare={withholdingCmp} />
+              <Row3
+                label="Netto ennakonpidätyksen jälkeen"
+                base={results.gross - results.withholding}
+                compare={netAfterWithholdingCmp}
+              />
+              <Row3 label="Jäsenmaksu" base={results.memberFee} compare={memberFeeCmp} />
+              <Row3 label="Maksettava netto" base={results.net} compare={netCmp} />
+            </>
+          );
+        })()}
+      </div>
+    )}
+  </div>
+
+  {/* 3) Veroton osio – 2-col / 4-col vastaavasti */}
+  <div>
+    <h3 className="font-medium mb-2">Verottoman etuuden määrä jaksolta</h3>
+
+    {!(compareMode && resultsCompare) ? (
+      /* --- EI vertailua: 2 saraketta --- */
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="text-gray-500">Kulukorvaus / pv</div>
+        <div className="text-right">{euro(results.travelAllowancePerDay)}</div>
+
+        <div className="text-gray-500">Kulukorvaus yhteensä</div>
+        <div className="text-right">{euro(results.travelAllowanceTotal)}</div>
+
+        <div className="text-gray-700">Maksettava yhteensä</div>
+        <div className="text-right font-semibold">{euro(results.totalPayable)}</div>
+      </div>
+    ) : (
+      /* --- Vertailu: 4 saraketta --- */
+      <div className={cn("gap-2 text-sm", "grid grid-cols-4")}>
+        <div />
+        <div className="text-right text-gray-600">Peruste</div>
+        <div className="text-right text-gray-600">Vertailu</div>
+        <div className="text-right text-gray-600">Erotus</div>
+
+        {(() => {
+          const grossCmp = (resultsCompare!.adjustedDaily ?? 0) * results.days;
+          const withholdingCmp = grossCmp * (taxPct / 100);
+          const memberFeeCmp = grossCmp * (memberFeePct / 100);
+          const netCmp = grossCmp - withholdingCmp - memberFeeCmp;
+          const totalPayableCmp = netCmp + results.travelAllowanceTotal; // kulukorvaus sama
+
+          return (
+            <>
+              <Row3 label="Kulukorvaus / pv" base={results.travelAllowancePerDay} compare={results.travelAllowancePerDay} />
+              <Row3
+                label="Kulukorvaus yhteensä"
+                base={results.travelAllowanceTotal}
+                compare={results.travelAllowanceTotal}
+              />
+              <Row3 label="Maksettava yhteensä" base={results.totalPayable} compare={totalPayableCmp} />
+            </>
+          );
+        })()}
+      </div>
+    )}
+  </div>
+</CardContent>
+
+
+   </CardContent>
           </Card>
         </div>
       </main>
