@@ -6,12 +6,17 @@ const demos = [
   {
     slug: "massapaatokset",
     title: "Mass decisions",
-    description: "UI for mass decision making and status overview.",
+    description: "Whenever you feel like making A LOT of decisions",
   },
   {
     slug: "allowancecalculator",
     title: "Daily allowance calculator",
-    description: "Table for calculating daily allowances.",
+    description: "Sometimes it's good to mingle with numbers",
+  },
+  {
+    slug: "massincomesplit",
+    title: "Mass-splitting income types",
+    description: "Place to slice some income types",
   },
 ];
 
