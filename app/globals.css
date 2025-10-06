@@ -141,3 +141,6 @@
   --ring: 224 76% 48%;
 }
 
+[data-state="open"] .bg-background {
+  color: var(--color-foreground);
+}

@@ -440,7 +440,8 @@ export default function MassIncomeSplitPrototype() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Massatoiminnot</DialogTitle>
+            <DialogTitle><div className="text-gray-900 dark:text-gray-100">Massatoiminnot</div></DialogTitle>
+            <div className="text-gray-900 dark:text-gray-100"></div>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -450,7 +451,7 @@ export default function MassIncomeSplitPrototype() {
                 <label className="inline-flex items-center gap-2">
                   <input type="radio" name="kohde" defaultChecked /> Valitut rivit
                 </label>
-                <label className="inline-flex items-center gap-2 opacity-60">
+                <label className="inline-flex items-center gap-2 opacity-100">
                   <input type="radio" name="kohde" disabled /> Kaikki suodatetut
                 </label>
               </div>
@@ -472,7 +473,7 @@ export default function MassIncomeSplitPrototype() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <Label className="mb-1">Kohdistettu tulolaji (lähde)</Label>
+                <Label className="px-1 text-sm font-medium text-gray-600 mb-2">Kohdistettu tulolaji (lähde)</Label>
                 {incomeType === "Kaikki" ? (
                   <Select value={modalSourceType} onValueChange={setModalSourceType}>
                     <SelectTrigger className="w-full">
