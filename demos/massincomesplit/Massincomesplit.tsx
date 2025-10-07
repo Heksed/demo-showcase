@@ -313,10 +313,10 @@ export default function MassIncomeSplitPrototype() {
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen bg-white p-6">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight text-white">Suodata tulotiedot</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Suodata tulotiedot</h1>
         </header>
 
         <Card className="p-6">

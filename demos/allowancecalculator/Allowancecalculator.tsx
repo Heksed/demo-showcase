@@ -588,7 +588,7 @@ const setFormulaPercent =
     <div className="w-full min-h-screen bg-gray-50">
       <header className="sticky top-0 z-20 border bg-white">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-[#0b0f14]">Päivärahalaskuri</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Päivärahalaskuri</h1>
           <div className="flex items-center gap-2">
             
             <Button className="gap-2">

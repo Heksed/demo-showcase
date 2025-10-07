@@ -8,8 +8,8 @@ import Allowancecalculator from "../../demos/allowancecalculator/Allowancecalcul
 export default function Page() {
   return (
     <DemoPage
-      title="Massapäätökset"
-      description="Esimerkkivirta: valitse rivejä ja suorita massahyväksyntä/hylkäys."
+      title="Mass decisions"
+      description="Make some great decisions."
     >
       <MassapaatoksetDemo />
     </DemoPage>
