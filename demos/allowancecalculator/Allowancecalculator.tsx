@@ -37,6 +37,14 @@ function businessDaysBetween(startISO: string, endISO: string) {
   return count;
 }
 
+function addDaysISO(iso: string, n: number) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  d.setDate(d.getDate() + n);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
 function euro(n: number) {
   return n.toLocaleString("fi-FI", { style: "currency", currency: "EUR", maximumFractionDigits: 2 });
 }
@@ -79,6 +87,22 @@ const BENEFIT_OPTIONS = [
   { value: "35-muu-etuus", label: "35 - Muu etuus" },
 ];
 
+// Etuudet dropdown (esimerkkivaihtoehdot)
+const BENEFIT_CATALOG = [
+  { value: "vanhempainraha", label: "Vanhempainpäiväraha" },
+  { value: "sairauspaivaraha", label: "Sairauspäiväraha" },
+  { value: "kuntoutusraha", label: "Kuntoutusraha" },
+  { value: "muu", label: "Muu etuus" },
+] as const;
+
+// Tulot (sovittelu) – dropdown
+const INCOME_OPTIONS = [
+  { value: "none", label: "Ei tuloja" },
+  { value: "parttime", label: "Osa-aikatyö (≤ 80 %)" },
+  { value: "ft_short", label: "Kokoaikatyö ≤ 2 viikkoa" },
+  { value: "selfemp", label: "Sivutoiminen yrittäjyys" },
+] as const;
+
 // Viralliset perusarvot (2025 – esimerkkitaso)
 const DAILY_BASE = 37.21; // perusosa €/pv
 const SPLIT_POINT_MONTH = 3534.95; // taitekohta €/kk
@@ -104,11 +128,11 @@ function stepFactorByCumulativeDays(cumulativeDays: number) {
   return { factor: 1.0, label: "Ei porrastusta" } as const;
 }
 
-function computePerDayReduction(benefitsTotal: number, period: string): number {
+function computePerDayReduction(incomesTotal: number, period: string): number {
   if (!period) return 0; // ei sovittelua
   const pd = DAYS_BY_PERIOD[period as PeriodKey];
   if (!pd) return 0;
-  return (benefitsTotal * 0.5) / pd;
+  return (incomesTotal * 0.5) / pd; // 50% / jakson pv
 }
 
 // ===============================
@@ -191,6 +215,13 @@ interface BenefitRow {
   protectedAmount?: number; // suojaosa
 }
 
+// Tulorivi
+interface IncomeRow {
+  id: string;
+  type: (typeof INCOME_OPTIONS)[number]["value"];
+  amount: number; // € jaksolla
+}
+
 // ===============================
 // Component
 // ===============================
@@ -204,15 +235,24 @@ export default function PaivarahaLaskuri() {
   const [toeDate, setToeDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Työssäoloehdon täyttymispäivä
   const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Ensimmäinen maksupäivä
   const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Jakson alkupäivä
+  // Jakson loppupäivä (uusi)
+  const [periodEndDate, setPeriodEndDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
 
   // Laskennan parametrit
   const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/kk
   const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optionaalinen, ei käytössä kaavoissa nyt
-  const [workDays, setWorkDays] = useState<number>(14); // hakujakson täydet päivät
+  // Maksettujen päivien lähde: autom. ajanjaksosta vai manuaalinen syöttö
+  const [autoPaidFromRange, setAutoPaidFromRange] = useState<boolean>(true);
+  
+  // Manuaalisesti syötetyt maksetut päivät (pv) – käytetään kun autoPaidFromRange = false
+  const [manualPaidDays, setManualPaidDays] = useState<number>(0);
   const [memberFeePct, setMemberFeePct] = useState<number>(0); // %
   const [taxPct, setTaxPct] = useState<number>(25); // veroprosentti
   const [priorPaidDaysManual, setPriorPaidDaysManual] = useState<number>(0); // maksetut pv ennen tätä jaksoa (manuaalinen)
+
+  // Enimmäisajan valinta (esim. työhistorian/ikärajojen perusteella)
+  const [maxDays, setMaxDays] = useState<number>(400); // 300 / 400 / 500
 
   // Vertailu
   const [compareMode, setCompareMode] = useState<boolean>(false);
@@ -243,9 +283,9 @@ const setFormulaPercent =
   (e: React.ChangeEvent<HTMLInputElement>) =>
     setFormulaConfig(v => ({ ...v, [key]: (parseFloat(e.target.value || "0") / 100) }));
 
-  const [benefits, setBenefits] = useState<BenefitRow[]>([
-    { id: "b1", name: "31 - Osa-aikatyö", amount: 1000, protectedAmount: 0 },
-  ]);
+  const [benefits, setBenefits] = useState<BenefitRow[]>([]);
+
+  const [incomes, setIncomes] = useState<IncomeRow[]>([]);
 
   // Bridge Select's string callback to our union type for benefitType
   type BenefitType = (typeof BENEFIT_TYPES)[number]["value"];
@@ -313,6 +353,21 @@ const setFormulaPercent =
     // Etuudet yhteensä (suojaosan jälkeen)
     const benefitsTotal = benefits.reduce((s, b) => s + Math.max((b.amount - (b.protectedAmount || 0)), 0), 0);
 
+    // Etuudet (vain etuudet, suojaosan jälkeen)
+    const benefitsTotalPure = benefits.reduce(
+      (s, b) => s + Math.max((b.amount - (b.protectedAmount || 0)), 0),
+      0
+    );
+    const hasBenefits = benefits.some(b => b.amount > 0);
+
+    // Tulot (sovittelua varten)
+    const incomesTotal = incomes.reduce((s, i) => s + (i.type !== "none" ? i.amount : 0), 0);
+    const sovitteluOn = incomes.some(i => i.type !== "none" && i.amount > 0);
+
+    // Päiväluvut
+    const pdForBenefits = periodDays || 21.5;
+    const pdForIncome = periodDays || 21.5;
+
     // Päiväpalkka ja ansio-osa (raaka ennen porrastusta)
     const dailySalaryBasisDays = periodDays || 21.5; // jos ei jaksoa, käytä 21.5 oletusta
     const dailySalary = (baseSalary * (1 - cfg.statDeductions)) / dailySalaryBasisDays;
@@ -327,7 +382,11 @@ const setFormulaPercent =
     const earningsPartRaw = flags.baseOnlyW ? 0 : earningsPartFromDailyCfg(dailySalary);
 
     // Porrastus päiväkohtaisesti: mahdollinen rajanylitys (40/170 pv) huomioidaan
-    const days = workDays;
+    // Maksetut päivät: automaattisesti ajanjaksosta tai manuaalisesti syötetty
+    const days = autoPaidFromRange 
+      ? businessDaysBetween(periodStartDate, addDaysISO(periodEndDate, 1))
+      : manualPaidDays;
+    
     const stepFactorByCumulativeDaysCfg = (cum: number) => {
       if (cum >= cfg.step2Threshold) return { factor: cfg.step2Factor, label: `Porrastus ${Math.round(cfg.step2Factor*100)}%` } as const;
       if (cum >= cfg.step1Threshold) return { factor: cfg.step1Factor, label: `Porrastus ${Math.round(cfg.step1Factor*100)}%` } as const;
@@ -350,9 +409,33 @@ const setFormulaPercent =
     const earningsPart = earningsPartRaw * stepFactor;
     const fullDaily = basePart + earningsPart;
 
-    // Sovittelu: 50 % hakujakson tuloista jaettuna periodin päivillä (tai 0, jos ei jaksoa)
-    const perDayReduction = computePerDayReduction(benefitsTotal, period);
+    // Vähennykset per päivä
+    // Etuudet: vähentävä vaikutus/pv (eivät käynnistä sovittelua)
+    const perDayReductionBenefits = (benefitsTotalPure * 0.5) / pdForBenefits;
+
+    // Tulot: sovittelun vaikutus/pv (käynnistyy vain tuloista)
+    const perDayReductionIncome = sovitteluOn ? (incomesTotal * 0.5) / pdForIncome : 0;
+
+    // Yhteensä
+    const perDayReduction = perDayReductionBenefits + perDayReductionIncome;
+
+    // Soviteltu päiväraha
     const adjustedDaily = clamp(fullDaily - perDayReduction, 0, fullDaily);
+
+    // Kulutussuhde: kuinka paljon yksi maksettu päivä kuluttaa enimmäisaikaa
+    const consumptionRatio = fullDaily > 0 ? adjustedDaily / fullDaily : 0;
+
+    // Täydet päivät (ekv.) tällä jaksolla = maksetut × kulutussuhde
+    const fullDaysEquivalent = consumptionRatio * days;
+
+    // --- Enimmäisajan kuluminen sovittelussa ---
+    // Kulutussuhde = soviteltu / täysi (0..1). Jos täysi=0 → 0.
+    // Tällä jaksolla kertyvät "ekvivalentit" maksetut päivät:
+    const paidDaysThisPeriod = consumptionRatio * days;
+
+    // Kumulatiivinen ennen tätä jaksoa teillä on 'priorPaidDays' (manuaali/auto).
+    // Tämän jälkeen kumulatiivinen (pyöristämättä):
+    const cumulativePaidAfter = priorPaidDays + paidDaysThisPeriod;
 
     // Veroton kulukorvaus (oletus: 9 €/pv, korotettuna 18 €/pv)
     const travelAllowancePerDay = flags.kulukorvaus ? (flags.kulukorvausKorotus ? cfg.travelElevated : cfg.travelBase) : 0;
@@ -371,6 +454,12 @@ const setFormulaPercent =
       // per-day
       periodDays,
       benefitsTotal,
+      benefitsTotalPure,
+      hasBenefits,
+      incomesTotal,
+      perDayReductionBenefits,
+      perDayReductionIncome,
+      sovitteluOn,
       benefitsPerDay,
       dailySalary,
       basePart,
@@ -381,6 +470,11 @@ const setFormulaPercent =
       fullDaily,
       perDayReduction,
       adjustedDaily,
+      consumptionRatio,
+      fullDaysEquivalent,
+      paidDaysThisPeriod,
+      cumulativePaidAfter,
+      maxDays,
       travelAllowancePerDay,
       // period totals
       days,
@@ -397,11 +491,16 @@ const setFormulaPercent =
   }, [
     formulaConfig,
     benefits,
+    incomes,
     baseSalary,
-    workDays,
     memberFeePct,
+    autoPaidFromRange,
+    manualPaidDays,
+    periodStartDate,
+    periodEndDate,
     priorPaidDaysManual,
     taxPct,
+    maxDays,
     flags.baseOnlyW,
     flags.kulukorvaus,
     flags.kulukorvausKorotus,
@@ -410,6 +509,12 @@ const setFormulaPercent =
     periodStartDate,
     autoPorrastus,
   ]);
+
+  const periodRangeInvalid = useMemo(() => {
+    if (!periodStartDate || !periodEndDate) return false;
+    return new Date(periodEndDate) < new Date(periodStartDate);
+  }, [periodStartDate, periodEndDate]);
+
 // Vertailupalkka
   const resultsCompare = useMemo(() => {
     if (!compareMode || !comparisonSalary || comparisonSalary <= 0) return null;
@@ -572,17 +677,32 @@ const setFormulaPercent =
     formulaConfig,
   ]);
 
-  function addBenefit() {
+  // Etuudet – käytetään olemassa olevaa `benefits`-listaa
+  function addBenefitRow() {
     const n = benefits.length + 1;
-    setBenefits((prev) => [
+    setBenefits(prev => [
       ...prev,
-      { id: `b${n}`, name: "35 - Muu etuus", amount: 0, protectedAmount: 0 },
+      { id: `b${n}`, name: "Vanhempainpäiväraha", amount: 0, protectedAmount: 0 },
     ]);
   }
-
-  function removeBenefit(id: string) {
-    setBenefits((prev) => prev.filter((b) => b.id !== id));
+  function removeBenefitRow(id: string) {
+    setBenefits(prev => prev.filter(b => b.id !== id));
   }
+
+  // Tulot (sovittelu)
+  function addIncomeRow() {
+    const n = incomes.length + 1;
+    setIncomes(prev => [...prev, { id: `i${n}`, type: "parttime", amount: 0 }]);
+  }
+  function removeIncomeRow(id: string) {
+    setIncomes(prev => prev.filter(i => i.id !== id));
+  }
+
+  // Aktivoi sovittelujakso vain tuloista (ei etuuksista)
+  React.useEffect(() => {
+    const hasEarnings = incomes.some(i => i.type !== "none" && i.amount > 0);
+    if (hasEarnings && !period) setPeriod("1m"); // oletuksena kuukausijakso
+  }, [incomes, period]);
 
   return (
     <div className="w-full min-h-screen bg-gray-50">
@@ -655,16 +775,7 @@ const setFormulaPercent =
                 <Input type="date" value={toeDate} onChange={(e) => setToeDate(e.target.value)} />
               </div>
 
-              <div className="space-y-2">
-                <Label>Ensimmäinen maksupäivä</Label>
-                <Input type="date" value={benefitStartDate} onChange={(e) => setBenefitStartDate(e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Jakson alkupäivä</Label>
-                <Input type="date" value={periodStartDate} onChange={(e) => setPeriodStartDate(e.target.value)} />
-              </div>
-
+             
               <div className="space-y-2">
                 <Label>Perustepalkka €/kk *</Label>
                 <Input
@@ -674,14 +785,51 @@ const setFormulaPercent =
                   onChange={(e) => setBaseSalary(parseFloat(e.target.value || "0"))}
                 />
               </div>
+             
+             
+              <div className="space-y-2">
+                <Label>Ensimmäinen maksupäivä</Label>
+                <Input type="date" value={benefitStartDate} onChange={(e) => setBenefitStartDate(e.target.value)} />
+              </div>
+
+            
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Ajanjakso</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Alkupäivä</Label>
+                    <Input
+                      type="date"
+                      value={periodStartDate}
+                      onChange={(e) => setPeriodStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-500">Loppupäivä</Label>
+                    <Input
+                      type="date"
+                      value={periodEndDate}
+                      onChange={(e) => setPeriodEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {periodRangeInvalid && (
+                  <p className="text-xs text-rose-600 mt-1">
+                    Loppupäivän tulee olla sama tai myöhäisempi kuin alkupäivä.
+                  </p>
+                )}
+              </div>
+
+        
 
               {/* Vertailu – kytkin */}
               <div className="space-y-2 md:col-span-2">
-          <Label>Näytä vertailu</Label>
+          <Label>Näytä vertailujakso</Label>
             <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
              <Switch checked={compareMode} onCheckedChange={setCompareMode} />
               <span className="text-sm text-gray-600">
-                Vertaa perustetta ja vertailupalkkaa rinnakkain.
+                Vertaa laskentaa eri perustepalkalla
               </span>
             </div>
           </div>
@@ -711,11 +859,39 @@ const setFormulaPercent =
           </div>
           )}
 
-              <div className="space-y-2">
-                <Label>Täydet päivät</Label>
-                <Slider value={[workDays]} max={25} min={0} step={1} onValueChange={(v) => setWorkDays(v[0])} />
-                <div className="text-sm text-gray-500">Valittu: {workDays} pv</div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Maksetut päivät</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
+                    <Switch checked={autoPaidFromRange} onCheckedChange={setAutoPaidFromRange} />
+                    <span className="text-sm text-gray-600">
+                      Automaattinen jakson perusteella
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <Input
+                      type="number"
+                      value={businessDaysBetween(periodStartDate, addDaysISO(periodEndDate, 1))}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                    <p className="text-xs text-gray-500">Lasketut arkipäivät</p>
+                  </div>
+                </div>
               </div>
+
+              {!autoPaidFromRange && (
+                <div className="space-y-2">
+                  <Label>Maksetut päivät (manuaalinen)</Label>
+                  <Input
+                    type="number"
+                    step={1}
+                    value={manualPaidDays}
+                    onChange={(e) => setManualPaidDays(parseInt(e.target.value || "0", 10))}
+                  />
+                  <p className="text-xs text-gray-500">Syötä maksetut päivät manuaalisesti.</p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Jäsenmaksu %</Label>
@@ -737,6 +913,18 @@ const setFormulaPercent =
                   value={taxPct}
                   onChange={(e) => setTaxPct(parseFloat(e.target.value || "0"))}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Enimmäiskesto</Label>
+                <Select value={String(maxDays)} onValueChange={(v) => setMaxDays(parseInt(v, 10))}>
+                  <SelectTrigger><SelectValue placeholder="Valitse" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="300">300 pv</SelectItem>
+                    <SelectItem value="400">400 pv</SelectItem>
+                    <SelectItem value="500">500 pv</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -782,31 +970,88 @@ const setFormulaPercent =
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Etuudet</CardTitle>
-              <Button variant="outline" className="gap-2" onClick={addBenefit}>
-                <Plus className="h-4 w-4" />Lisää
-              </Button>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle>Etuudet ja Tulot</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={addBenefitRow}>
+                  <Plus className="h-4 w-4" /> Lisää etuus
+                </Button>
+                <Button variant="outline" size="sm" onClick={addIncomeRow}>
+                  <Plus className="h-4 w-4" /> Lisää tulo
+                </Button>
+              </div>
             </CardHeader>
+
             <CardContent className="space-y-4">
+              {/* TULOT (SOVITTELU) */}
+              {incomes.map((i) => (
+                <div
+                  key={i.id}
+                  className="grid grid-cols-1 md:grid-cols-12 items-end gap-3 p-3 rounded-xl border bg-white"
+                >
+                  <div className="md:col-span-5 space-y-2">
+                    <Label>Tulon tyyppi</Label>
+                    <Select
+                      value={i.type}
+                      onValueChange={(v) =>
+                        setIncomes(prev => prev.map(x => x.id === i.id ? ({ ...x, type: v as IncomeRow["type"] }) : x))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Ei tuloja" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INCOME_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="md:col-span-5 space-y-2">
+                    <Label>Tulot jaksolla (€)</Label>
+                    <Input
+                      type="number"
+                      step={0.01}
+                      value={i.amount}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value || "0");
+                        setIncomes(prev => prev.map(x => x.id === i.id ? ({ ...x, amount: v }) : x));
+                      }}
+                      disabled={i.type === "none"}
+                    />
+                 
+                  </div>
+
+                  <div className="md:col-span-2 flex justify-end">
+                    <Button variant="ghost" size="icon" onClick={() => removeIncomeRow(i.id)}>
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {/* ETUUDET (VÄHENTÄVÄT, EIVÄT KÄYNNISTÄ SOVITTELUA) */}
               {benefits.map((b) => (
                 <div
                   key={b.id}
                   className="grid grid-cols-1 md:grid-cols-12 items-end gap-3 p-3 rounded-xl border bg-white"
                 >
                   <div className="md:col-span-5 space-y-2">
-                    <Label>Etuuden nimi *</Label>
+                    <Label>Etuus (vähentävä)</Label>
                     <Select
                       value={b.name}
                       onValueChange={(v) => {
-                        setBenefits((prev) => prev.map((x) => (x.id === b.id ? { ...x, name: v } : x)));
+                        setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, name: v }) : x));
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Valitse" />
+                        <SelectValue placeholder="Valitse etuus" />
                       </SelectTrigger>
                       <SelectContent>
-                        {BENEFIT_OPTIONS.map((opt) => (
+                        {BENEFIT_CATALOG.map((opt) => (
                           <SelectItem key={opt.value} value={opt.label}>
                             {opt.label}
                           </SelectItem>
@@ -814,32 +1059,36 @@ const setFormulaPercent =
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="md:col-span-3 space-y-2">
-                    <Label>Määrä *</Label>
+                    <Label>Määrä jaksolla (€)</Label>
                     <Input
                       type="number"
                       step={0.01}
                       value={b.amount}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value || "0");
-                        setBenefits((prev) => prev.map((x) => (x.id === b.id ? { ...x, amount: v } : x)));
+                        setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, amount: v }) : x));
                       }}
                     />
                   </div>
+
                   <div className="md:col-span-3 space-y-2">
-                    <Label>Suojaosa</Label>
+                    <Label>Suojaosa (€)</Label>
                     <Input
                       type="number"
                       step={0.01}
                       value={b.protectedAmount || 0}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value || "0");
-                        setBenefits((prev) => prev.map((x) => (x.id === b.id ? { ...x, protectedAmount: v } : x)));
+                        setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, protectedAmount: v }) : x));
                       }}
                     />
+                 
                   </div>
+
                   <div className="md:col-span-1 flex justify-end">
-                    <Button variant="ghost" size="icon" onClick={() => removeBenefit(b.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => removeBenefitRow(b.id)}>
                       <Trash2 className="h-5 w-5" />
                     </Button>
                   </div>
@@ -872,14 +1121,27 @@ const setFormulaPercent =
       {euro(benefits.reduce((s, b) => s + (b.protectedAmount || 0), 0))}
     </div>
 
-    <div className="text-gray-500">Etuudet vaikutus/yht.</div>
-    <div className="text-right font-semibold">{euro(results.benefitsTotal)}</div>
-
-    <div className="text-gray-500">Täydet päivät</div>
+    <div className="text-gray-500">Maksetut päivät</div>
     <div className="text-right">{results.days} pv</div>
 
-    <div className="text-gray-500">Etuudet vaikutus/pv</div>
-    <div className="text-right">{euro(results.benefitsPerDay)}</div>
+    <div className="text-gray-500">Täydet päivät</div>
+    <div className="text-right">{results.fullDaysEquivalent.toFixed(2)} pv</div>
+
+   
+
+   
+
+    <div className="text-gray-500">Kertyneet ennen jaksoa</div>
+    <div className="text-right">
+      {results.priorPaidDays.toFixed(2)} pv
+    </div>
+
+   
+
+    <div className="text-gray-500">Enimmäiskesto</div>
+    <div className="text-right">
+      {Math.max(0, maxDays - results.cumulativePaidAfter).toFixed(2)} pv
+    </div>
 
     <div className="text-gray-500">Perusosa</div>
     <div className="text-right">{euro(results.basePart)}</div>
@@ -892,6 +1154,27 @@ const setFormulaPercent =
 
     <div className="text-gray-700">Soviteltu päiväraha</div>
     <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
+
+    {/* Benefits and Incomes - conditional display */}
+    {results.hasBenefits && (
+      <>
+        <div className="text-gray-500">Etuudet vaikutus/yht.</div>
+        <div className="text-right font-medium">{euro(results.benefitsTotalPure)}</div>
+
+        <div className="text-gray-500">Etuudet vaikutus/pv</div>
+        <div className="text-right">{euro(results.perDayReductionBenefits)}</div>
+      </>
+    )}
+
+    {results.sovitteluOn && (
+      <>
+        <div className="text-gray-500">Tulot jaksolla</div>
+        <div className="text-right">{euro(results.incomesTotal)}</div>
+
+        <div className="text-gray-500">Tulot vaikutus/pv</div>
+        <div className="text-right">{euro(results.perDayReductionIncome)}</div>
+      </>
+    )}
   </div>
 
   {/* 2) Verollinen osio – 2-col kun ei vertailua, muuten 4-col (Peruste | Vertailu | Δ) */}
