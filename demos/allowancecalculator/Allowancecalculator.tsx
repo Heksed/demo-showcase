@@ -256,6 +256,11 @@ export default function PaivarahaLaskuri() {
 
   // Vertailu
   const [compareMode, setCompareMode] = useState<boolean>(false);
+  
+  // Vertailun manuaaliset syötteet
+  const [comparePaidDays, setComparePaidDays] = useState<number | null>(null); // null = käytä peruslaskennan päiviä
+  const [compareDailyManual, setCompareDailyManual] = useState<number>(0); // 0 = ei asetettu
+  
   const [toeDateCompare, setToeDateCompare] = useState<string>("");
 
 
@@ -410,10 +415,10 @@ const setFormulaPercent =
     const fullDaily = basePart + earningsPart;
 
     // Vähennykset per päivä
-    // Etuudet: vähentävä vaikutus/pv (eivät käynnistä sovittelua)
-    const perDayReductionBenefits = (benefitsTotalPure * 0.5) / pdForBenefits;
+    // Etuudet: suora vähennys 100% (eivät käynnistä sovittelua)
+    const perDayReductionBenefits = (benefitsTotalPure * 1.0) / pdForBenefits;
 
-    // Tulot: sovittelun vaikutus/pv (käynnistyy vain tuloista)
+    // Tulot: sovittelun vaikutus 50% per päivä (käynnistyy vain tuloista)
     const perDayReductionIncome = sovitteluOn ? (incomesTotal * 0.5) / pdForIncome : 0;
 
     // Yhteensä
@@ -517,32 +522,77 @@ const setFormulaPercent =
 
 // Vertailupalkka
   const resultsCompare = useMemo(() => {
-    if (!compareMode || !comparisonSalary || comparisonSalary <= 0) return null;
-  
-    const periodDays = results.periodDays || 21.5;
-    const dailySalary = toDailyWage(comparisonSalary, periodDays);
-    const earningsPartRaw = flags.baseOnlyW
-      ? 0
-      : earningsPartFromDaily(dailySalary, SPLIT_POINT_MONTH, periodDays);
-  
-    // Käytetään samaa porrastuksen keskiarvokerrointa ja samaa sovitteluvähennystä
-    const earningsPart = earningsPartRaw * results.stepFactor;
-    const fullDaily = DAILY_BASE + earningsPart;
-  
-    const perDayReduction = results.perDayReduction;
-    const adjustedDaily = clamp(fullDaily - perDayReduction, 0, fullDaily);
+    if (!compareMode) return null;
 
-    
-    
-  
-    return { fullDaily, adjustedDaily };
+    // ✨ 2.1 Päivät vertailussa — käytä vertailun omaa arvoa, jos annettu
+    const cmpDays = (comparePaidDays ?? results.days);
+
+    // ✨ 2.2 Täysi pv vertailussa: manuaali voittaa, muuten lasketaan kuten perus
+    let cmpFullDaily = 0;
+    if (compareDailyManual > 0) {
+      cmpFullDaily = compareDailyManual;
+    } else {
+      const pd = results.periodDays || 21.5;
+      // Käytä vertailupalkkaa jos se on annettu, muuten käytä peruslaskennan perustepalkkaa
+      const cmpBaseSalary = comparisonSalary > 0 ? comparisonSalary : baseSalary;
+      const dailySalaryCmp = (cmpBaseSalary * (1 - formulaConfig.statDeductions)) / pd;
+      const splitDaily = formulaConfig.splitPointMonth / pd;
+      const below = Math.max(Math.min(dailySalaryCmp, splitDaily) - formulaConfig.dailyBase, 0);
+      const above = Math.max(dailySalaryCmp - splitDaily, 0);
+      const earningsPartRawCmp = flags.baseOnlyW
+        ? 0
+        : (formulaConfig.rateBelow * below + formulaConfig.rateAbove * above);
+      const earningsPartCmp = earningsPartRawCmp * results.stepFactor; // sama porrastuksen kerroin
+      cmpFullDaily = formulaConfig.dailyBase + earningsPartCmp;
+    }
+
+    // ✨ 2.3 Per-pv vähennykset — sama logiikka kuin peruslaskennassa
+    const perDayReductionCmp =
+      (results.perDayReductionBenefits ?? 0) + (results.perDayReductionIncome ?? 0);
+
+    const cmpAdjustedDaily = clamp(cmpFullDaily - perDayReductionCmp, 0, cmpFullDaily);
+
+    // ✨ 2.4 Kulutussuhde + ekvivalentit täydet päivät (riippuu cmpDays-muuttujasta)
+    const cmpConsumptionRatio = cmpFullDaily > 0 ? (cmpAdjustedDaily / cmpFullDaily) : 0;
+    const cmpFullDaysEquivalent = cmpConsumptionRatio * cmpDays;
+
+    // ✨ 2.5 Jakson summat – KAIKKI käyttävät cmpDays-arvoa
+    const cmpGross = cmpAdjustedDaily * cmpDays;
+    const cmpWithholding = cmpGross * (taxPct / 100);
+    const cmpMemberFee = (memberFeePct / 100) * cmpGross;
+    const cmpNet = cmpGross - cmpWithholding - cmpMemberFee;
+    const cmpTotal = cmpNet + results.travelAllowanceTotal; // kulukorvaus/ pv samana
+
+    return {
+      days: cmpDays,
+      fullDaily: cmpFullDaily,
+      adjustedDaily: cmpAdjustedDaily,
+      consumptionRatio: cmpConsumptionRatio,
+      fullDaysEquivalent: cmpFullDaysEquivalent,
+      gross: cmpGross,
+      withholding: cmpWithholding,
+      memberFee: cmpMemberFee,
+      net: cmpNet,
+      totalPayable: cmpTotal,
+    };
   }, [
     compareMode,
-    comparisonSalary,
+    comparePaidDays,          // ✅ varmista että on deps-listassa
+    compareDailyManual,       // ✅
+    comparisonSalary,         // ✅ vertailupalkka
+    // base/kaavat
+    baseSalary,
+    taxPct,
+    memberFeePct,
+    formulaConfig,
     flags.baseOnlyW,
+    // peilataan peruslaskennan tuloksia
     results.periodDays,
     results.stepFactor,
-    results.perDayReduction,
+    results.perDayReductionBenefits,
+    results.perDayReductionIncome,
+    results.travelAllowanceTotal,
+    results.days,             // käytetään fallbackina kun comparePaidDays on null
   ]);
 
   function Row3({
@@ -620,11 +670,11 @@ const setFormulaPercent =
       },
       {
         key: "reduction",
-        title: "Sovittelun vähennys/pv",
+        title: "Vähennykset per päivä",
         formula: results.periodDays
-          ? `vähennys/pv = (hakujakson tulot × 50%) / ${results.periodDays}`
+          ? `Tulot (sovittelu): vähennys/pv = (tulot − suoja) × 50% / ${results.periodDays}\nEtuudet (suora): vähennys/pv = (etuudet − suoja) × 100% / ${results.periodDays}`
           : `ei vähennystä, koska sovittelujaksoa ei ole valittu`,
-        explain: `Hakujakson etuudet/tulot pienentävät päivärahaa puolella jaettuna jakson päivillä. Jos jaksoa ei ole, vähennystä ei tehdä.`,
+        explain: `Tulot sovitellaan 50 %:lla, vähentävät etuudet vähennetään täysimääräisesti (100 %). Suojaosa vähennetään ensin. Jos jaksoa ei ole, vähennystä ei tehdä.`,
       },
       {
         key: "adjusted",
@@ -834,29 +884,46 @@ const setFormulaPercent =
             </div>
           </div>
 
-            {/* TOE (vertailu) – näytetään vain kun vertailu päällä */}
-            {compareMode && (
-             <div className="space-y-2">
-             <Label>TOE täyttymispäivä (vertailu)</Label>
-            <Input
-            type="date"
-            value={toeDateCompare}
-            onChange={(e) => setToeDateCompare(e.target.value)}
-              />
-             </div>
-            )}
-
-
           {compareMode && (
-            <div className="space-y-2">
-            <Label>Vertailupalkka €/kk</Label>
-           <Input
-              type="number"
-             step={0.01}
-            value={comparisonSalary}
-            onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
-               />
-          </div>
+            <fieldset className="md:col-span-2 p-4 rounded-lg border border-blue-200 bg-blue-50/30">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Vertailupalkka €/kk</Label>
+                  <Input
+                    type="number"
+                    step={0.01}
+                    value={comparisonSalary}
+                    onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>VERTAILU – Maksetut päivät (pv)</Label>
+                  <Input
+                    type="number"
+                    step={1}
+                    min={0}
+                    value={comparePaidDays ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value.trim();
+                      setComparePaidDays(v === "" ? null : Math.max(0, parseInt(v, 10) || 0));
+                    }}
+                    placeholder={`Oletus: ${results.days} pv`}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>VERTAILU – Päiväraha €/pv</Label>
+                  <Input
+                    type="number"
+                    step={0.01}
+                    value={compareDailyManual}
+                    onChange={(e)=> setCompareDailyManual(parseFloat(e.target.value || "0"))}
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+            </fieldset>
           )}
 
               <div className="space-y-2 md:col-span-2">
@@ -932,22 +999,23 @@ const setFormulaPercent =
                 <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
                   <Switch checked={autoPorrastus} onCheckedChange={setAutoPorrastus} />
                   <span className="text-sm text-gray-600">
-                    Laske porrastus automaattisesti (Ensimmäinen maksupäivä → Jakson alku arkipäivät).
+                    Automaattinen porrastus jakson mukaan
                   </span>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Maksetut pv ennen jaksoa (manuaalinen)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={priorPaidDaysManual}
-                  onChange={(e) => setPriorPaidDaysManual(parseInt(e.target.value || "0", 10))}
-                  disabled={autoPorrastus}
-                />
-              </div>
+              {!autoPorrastus && (
+                <div className="space-y-2">
+                  <Label>Maksetut pv ennen jaksoa (manuaalinen)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={priorPaidDaysManual}
+                    onChange={(e) => setPriorPaidDaysManual(parseInt(e.target.value || "0", 10))}
+                  />
+                </div>
+              )}
 
               <div className="col-span-1 md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
@@ -1152,26 +1220,40 @@ const setFormulaPercent =
     <div className="text-gray-700">Täysi päiväraha</div>
     <div className="text-right font-semibold">{euro(results.fullDaily)}</div>
 
-    <div className="text-gray-700">Soviteltu päiväraha</div>
-    <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
-
-    {/* Benefits and Incomes - conditional display */}
-    {results.hasBenefits && (
+    {/* Vähennetty ansiopäiväraha - näytetään kun on etuuksia */}
+    {results.benefitsTotalPure > 0 && (
       <>
-        <div className="text-gray-500">Etuudet vaikutus/yht.</div>
+        <div className="text-gray-700">Vähennetty ansiopäiväraha</div>
+        <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
+      </>
+    )}
+
+    {/* Soviteltu päiväraha - näytetään kun on tuloja */}
+    {results.incomesTotal > 0 && (
+      <>
+        <div className="text-gray-700">Soviteltu päiväraha</div>
+        <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
+      </>
+    )}
+
+    {/* Näytä vain jos on etuuksia */}
+    {results.benefitsTotalPure > 0 && (
+      <>
+        <div className="text-gray-500">Vähentävät etuudet / yht.</div>
         <div className="text-right font-medium">{euro(results.benefitsTotalPure)}</div>
 
-        <div className="text-gray-500">Etuudet vaikutus/pv</div>
+        <div className="text-gray-500">Vähentävät etuudet / pv</div>
         <div className="text-right">{euro(results.perDayReductionBenefits)}</div>
       </>
     )}
 
-    {results.sovitteluOn && (
+    {/* Näytä vain jos on tuloja */}
+    {results.incomesTotal > 0 && (
       <>
-        <div className="text-gray-500">Tulot jaksolla</div>
-        <div className="text-right">{euro(results.incomesTotal)}</div>
+        <div className="text-gray-500">Tulot sovittelussa / yht.</div>
+        <div className="text-right font-medium">{euro(results.incomesTotal)}</div>
 
-        <div className="text-gray-500">Tulot vaikutus/pv</div>
+        <div className="text-gray-500">Tulot sovittelussa / pv</div>
         <div className="text-right">{euro(results.perDayReductionIncome)}</div>
       </>
     )}
@@ -1215,11 +1297,11 @@ const setFormulaPercent =
 
         {/* Vertailulaskennan apuarvot */}
         {(() => {
-          const grossCmp = (resultsCompare!.adjustedDaily ?? 0) * results.days;
+          const grossCmp = (resultsCompare!.adjustedDaily ?? 0) * resultsCompare!.days;
           const basePartCmpPerDay = DAILY_BASE; // sama perusosa
           const earningsPartCmpPerDay = (resultsCompare!.fullDaily ?? 0) - DAILY_BASE;
-          const basePartCmp = basePartCmpPerDay * results.days;
-          const earningsPartCmp = earningsPartCmpPerDay * results.days;
+          const basePartCmp = basePartCmpPerDay * resultsCompare!.days;
+          const earningsPartCmp = earningsPartCmpPerDay * resultsCompare!.days;
           const withholdingCmp = grossCmp * (taxPct / 100);
           const memberFeeCmp = grossCmp * (memberFeePct / 100);
           const netAfterWithholdingCmp = grossCmp - withholdingCmp;
