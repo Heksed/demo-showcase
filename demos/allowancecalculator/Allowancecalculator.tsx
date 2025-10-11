@@ -135,6 +135,29 @@ function computePerDayReduction(incomesTotal: number, period: string): number {
   return (incomesTotal * 0.5) / pd; // 50% / jakson pv
 }
 
+// Laskee täyden päivärahan €/pv annetusta kuukausipalkasta samoilla kaavoilla kuin peruslaskenta
+function fullDailyFromMonthlyBaseUsingConfig(
+  monthlyBase: number,
+  periodDays: number,
+  cfg: {
+    dailyBase: number;
+    splitPointMonth: number;
+    statDeductions: number;
+    rateBelow: number;
+    rateAbove: number;
+  },
+  baseOnlyW: boolean,
+  stepFactor: number
+) {
+  const dailySalary = (monthlyBase * (1 - cfg.statDeductions)) / (periodDays || 21.5);
+  const splitDaily = cfg.splitPointMonth / (periodDays || 21.5);
+  const below = Math.max(Math.min(dailySalary, splitDaily) - cfg.dailyBase, 0);
+  const above = Math.max(dailySalary - splitDaily, 0);
+  const earningsPartRaw = baseOnlyW ? 0 : (cfg.rateBelow * below + cfg.rateAbove * above);
+  const earningsPart = earningsPartRaw * stepFactor;
+  return cfg.dailyBase + earningsPart;
+}
+
 // ===============================
 // (Lightweight) self-tests – run once
 // ===============================
@@ -409,10 +432,40 @@ const setFormulaPercent =
     const endInfo = stepFactorByCumulativeDaysCfg(priorPaidDays + days);
     const stepLabel = endInfo.factor < startInfo.factor ? endInfo.label : startInfo.label;
 
-    // Täysi päiväraha (lapsikorotus 0)
+    // Täysi päiväraha (raaka, ennen suojia/capeja)
     const basePart = cfg.dailyBase;
     const earningsPart = earningsPartRaw * stepFactor;
-    const fullDaily = basePart + earningsPart;
+    const fullDailyRaw = basePart + earningsPart;
+
+    // --- 80 % -SUOJA (vertailupalkka = comparisonSalary) ---
+    // Lasketaan vertailupalkasta täysi €/pv samoilla kaavoilla ja samalla porrastuskertoimella.
+    // Käytetään vain jos comparisonSalary > 0.
+    let fullDailyAfter80 = fullDailyRaw;
+    let eightyRuleTriggered = false;
+    let prevFullDailyRef = 0;
+    let eightyFloor = 0;
+
+    if (comparisonSalary && comparisonSalary > 0) {
+      const pdRef = periodDays || 21.5;
+      const prevFullDaily = fullDailyFromMonthlyBaseUsingConfig(
+        comparisonSalary,
+        pdRef,
+        cfg,
+        flags.baseOnlyW,
+        stepFactor
+      );
+      prevFullDailyRef = prevFullDaily;
+      eightyFloor = 0.8 * prevFullDaily;
+
+      if (fullDailyAfter80 < eightyFloor) {
+        eightyRuleTriggered = true;
+        fullDailyAfter80 = eightyFloor; // nosta täysi pv vähintään 80 % tasolle
+      }
+    }
+
+    // --- 90 % -cap (päiväpalkasta) ---
+    const cap90 = 0.90 * dailySalary;
+    const fullDailyAfterCap = Math.max(cfg.dailyBase, Math.min(fullDailyAfter80, cap90));
 
     // Vähennykset per päivä
     // Etuudet: suora vähennys 100% (eivät käynnistä sovittelua)
@@ -424,8 +477,11 @@ const setFormulaPercent =
     // Yhteensä
     const perDayReduction = perDayReductionBenefits + perDayReductionIncome;
 
-    // Soviteltu päiväraha
-    const adjustedDaily = clamp(fullDaily - perDayReduction, 0, fullDaily);
+    // Soviteltu päiväraha (sovittelu tehdään suojatusta/capatusta täydestä)
+    const adjustedDaily = clamp(fullDailyAfterCap - perDayReduction, 0, fullDailyAfterCap);
+    
+    // Käytä suojattua/capattua täyttä päivärahaa kulutussuhteiden laskentaan
+    const fullDaily = fullDailyAfterCap;
 
     // Kulutussuhde: kuinka paljon yksi maksettu päivä kuluttaa enimmäisaikaa
     const consumptionRatio = fullDaily > 0 ? adjustedDaily / fullDaily : 0;
@@ -492,12 +548,18 @@ const setFormulaPercent =
       // meta
       priorPaidDays,
       priorPaidAuto,
+      // 80% suoja
+      fullDailyBeforeProtection: fullDailyRaw,
+      eightyRuleTriggered,
+      eightyFloor,
+      prevFullDailyRef,
     };
   }, [
     formulaConfig,
     benefits,
     incomes,
     baseSalary,
+    comparisonSalary,
     memberFeePct,
     autoPaidFromRange,
     manualPaidDays,
@@ -1179,6 +1241,18 @@ const setFormulaPercent =
       : "space-y-6 px-4 py-4" // tiiviimpi oletus
   )}
 >
+  {/* 80% suoja -notifikaatio */}
+  {results.eightyRuleTriggered && (
+    <div className="p-3 rounded-md border bg-amber-50 text-amber-900 text-sm">
+      <div className="font-medium mb-1">80 % -suoja aktivoitui</div>
+      <p>
+        Nykyinen täysi päiväraha ({euro(results.fullDailyBeforeProtection)}/pv) jäi alle
+        80 % vertailutasosta ({euro(results.prevFullDailyRef)}/pv → min {euro(results.eightyFloor)}/pv).
+        Laskenta käyttää vähintään 80 % tasoa ennen sovittelua.
+      </p>
+    </div>
+  )}
+
   {/* 1) Meta-rivit – aina 2-sarakkeisena */}
   <div className="grid grid-cols-2 gap-2 text-sm">
     <div className="text-gray-500">Porrastus</div>
