@@ -937,7 +937,7 @@ const approveByIds = (ids: Set<string>) => {
   const headerCell = (label: string, key: keyof DecisionRow) => (
     <th
       key={String(key)}
-      className="sticky top-0 z-10 bg-slate-800 text-slate-50 px-3 py-2 text-left text-sm font-medium cursor-pointer select-none"
+      className="sticky top-0 z-10 bg-[#003479] text-white px-3 py-2 text-left text-sm font-medium cursor-pointer select-none"
       onClick={() =>
         setSort(prev => {
           if (!prev || prev.key !== key) return { key, dir: "asc" };
@@ -1270,7 +1270,7 @@ const approveByIds = (ids: Set<string>) => {
               <div>
                 <h2 className="text-base font-semibold">Hakutulokset</h2>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className="text-xs rounded-full px-2 py-0.5 bg-slate-100"> Kategoria: {categoryLabel || "Ei kategoriaa"}</span>
+                <span className="text-xs rounded-full px-2 py-0.5 bg-gray-100"> Kategoria: {categoryLabel || "Ei kategoriaa"}</span>
 
                   {lockedBatchSize !== null && locked.size > 0 && (
                     <span className="text-xs rounded-full px-2 py-0.5 bg-amber-100">Tarkasteltavien määrä (lukittu): {lockedBatchSize}{lockedDelta !== 0 && ` (${lockedDelta > 0 ? "+" : ""}${lockedDelta})`}</span>
@@ -1279,7 +1279,7 @@ const approveByIds = (ids: Set<string>) => {
               </div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="text-xs rounded-full px-3 py-1 bg-slate-100 hover:bg-slate-200">
+                  <button className="text-xs rounded-full px-3 py-1 bg-gray-100 hover:bg-gray-200">
                     Pistotarkastuksia: {spotChecks}
                   </button>
                 </PopoverTrigger>
@@ -1310,10 +1310,10 @@ const approveByIds = (ids: Set<string>) => {
               <table className="min-w-[900px] w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="sticky top-0 z-10 bg-slate-800 text-slate-50 px-3 py-2 text-left text-sm font-medium">
+                    <th className="sticky top-0 z-10 bg-[#003479] text-white px-3 py-2 text-left text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <Checkbox id="all" checked={isAllOnPageChecked} onCheckedChange={(v: any) => toggleAllOnPage(Boolean(v))} />
-                        <Label htmlFor="all" className="text-slate-50">Valitse</Label>
+                        <Label htmlFor="all" className="text-white">Valitse</Label>
                       </div>
                     </th>
                     {headerCell("Jäsennro", "jasennro")}
@@ -1332,7 +1332,7 @@ const approveByIds = (ids: Set<string>) => {
                 </thead>
                 <tbody>
                   {pagedRows.map((r) => (
-                    <tr key={r.id} className="odd:bg-white even:bg-slate-50 hover:bg-blue-50 transition-colors">
+                    <tr key={r.id} className="odd:bg-white even:bg-gray-50 hover:bg-blue-50 transition-colors">
                       <td className="px-3 py-2 align-top">
                         <div className="flex items-center gap-2">
                           <Checkbox checked={selected.has(r.id)} onCheckedChange={(v: any) => {

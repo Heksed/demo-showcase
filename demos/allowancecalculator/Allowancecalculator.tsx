@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Download, Loader2, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DevField } from "@/components/DevField";
 
 
 
@@ -884,24 +885,57 @@ const setFormulaPercent =
 
               <div className="space-y-2">
                 <Label>TOE täyttymispäivä</Label>
-                <Input type="date" value={toeDate} onChange={(e) => setToeDate(e.target.value)} />
+                <DevField
+                  fieldId="toe-date"
+                  fieldLabel="TOE täyttymispäivä (Employment Condition Fulfillment Date)"
+                  userStory="User enters the date when they fulfilled the employment condition (TOE) to become eligible for earnings-related allowance."
+                  business="TOE date determines eligibility for earnings-related unemployment benefit. Prior paid days are calculated from this date to determine step factor."
+                  formula="priorPaidDays = businessDaysBetween(toeDate, periodStartDate)"
+                  code={`const priorPaidDays = businessDaysBetween(toeDate, periodStartDate);
+// Used to calculate step factor for allowance increase`}
+                  example="If TOE date is 2024-01-01 and period starts 2024-12-01, prior days determine if step 1 (300+ days) or step 2 (400+ days) applies."
+                >
+                  <Input type="date" value={toeDate} onChange={(e) => setToeDate(e.target.value)} />
+                </DevField>
               </div>
 
              
               <div className="space-y-2">
                 <Label>Perustepalkka €/kk *</Label>
-                <Input
-                  type="number"
-                  step={0.01}
-                  value={baseSalary}
-                  onChange={(e) => setBaseSalary(parseFloat(e.target.value || "0"))}
-                />
+                <DevField
+                  fieldId="base-salary"
+                  fieldLabel="Perustepalkka (Base Salary)"
+                  userStory="User enters their monthly base salary to calculate the daily allowance amount. This is the foundation for all benefit calculations."
+                  business="The base salary is used to calculate the daily wage after statutory deductions. The daily wage determines the earnings-related part of the allowance."
+                  formula="dailySalary = (baseSalary × (1 - statDeductions)) / dailySalaryBasisDays"
+                  code={`const dailySalary = (baseSalary * (1 - cfg.statDeductions)) / dailySalaryBasisDays;
+// statDeductions typically 0.0634 (6.34%)
+// dailySalaryBasisDays typically 21.5`}
+                  example="If baseSalary = 2030.61€, statDeductions = 6.34%, and 21.5 days: dailySalary = (2030.61 × 0.9366) / 21.5 = 88.47€/day"
+                >
+                  <Input
+                    type="number"
+                    step={0.01}
+                    value={baseSalary}
+                    onChange={(e) => setBaseSalary(parseFloat(e.target.value || "0"))}
+                  />
+                </DevField>
               </div>
              
              
               <div className="space-y-2">
                 <Label>Ensimmäinen maksupäivä</Label>
-                <Input type="date" value={benefitStartDate} onChange={(e) => setBenefitStartDate(e.target.value)} />
+                <DevField
+                  fieldId="benefit-start-date"
+                  fieldLabel="Ensimmäinen maksupäivä (First Payment Date)"
+                  userStory="User sets the date when the first unemployment benefit payment will be made."
+                  business="This date is used for informational purposes and scheduling. It helps users understand when to expect their first payment."
+                  code={`const [benefitStartDate, setBenefitStartDate] = useState<string>("");
+// Used for payment scheduling`}
+                  example="If set to 2025-02-01, user knows to expect their first payment on that date."
+                >
+                  <Input type="date" value={benefitStartDate} onChange={(e) => setBenefitStartDate(e.target.value)} />
+                </DevField>
               </div>
 
             
@@ -911,19 +945,43 @@ const setFormulaPercent =
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label className="text-xs text-gray-500">Alkupäivä</Label>
-                    <Input
-                      type="date"
-                      value={periodStartDate}
-                      onChange={(e) => setPeriodStartDate(e.target.value)}
-                    />
+                    <DevField
+                      fieldId="period-start-date"
+                      fieldLabel="Alkupäivä (Period Start Date)"
+                      userStory="User sets the start date of the benefit period to calculate daily allowances for the specified range."
+                      business="The start date marks the beginning of the calculation period. All business days between start and end dates are counted for the allowance calculation."
+                      formula="businessDays = businessDaysBetween(startDate, endDate)"
+                      code={`const businessDays = businessDaysBetween(periodStartDate, periodEndDate);
+// Counts all weekdays (Mon-Fri) in the range`}
+                      example="If start is 2025-01-15 and end is 2025-01-19, that's 5 business days."
+                    >
+                      <Input
+                        type="date"
+                        value={periodStartDate}
+                        onChange={(e) => setPeriodStartDate(e.target.value)}
+                      />
+                    </DevField>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs text-gray-500">Loppupäivä</Label>
-                    <Input
-                      type="date"
-                      value={periodEndDate}
-                      onChange={(e) => setPeriodEndDate(e.target.value)}
-                    />
+                    <DevField
+                      fieldId="period-end-date"
+                      fieldLabel="Loppupäivä (Period End Date)"
+                      userStory="User sets the end date of the benefit period to define the calculation range."
+                      business="The end date marks the end of the calculation period (inclusive). Must be the same or later than the start date."
+                      formula="businessDays = businessDaysBetween(startDate, endDate)"
+                      code={`const businessDays = businessDaysBetween(periodStartDate, periodEndDate);
+if (periodEndDate < periodStartDate) {
+  // Show validation error
+}`}
+                      example="If start is 2025-01-15 and end is 2025-01-19, that's 5 business days (Mon-Fri)."
+                    >
+                      <Input
+                        type="date"
+                        value={periodEndDate}
+                        onChange={(e) => setPeriodEndDate(e.target.value)}
+                      />
+                    </DevField>
                   </div>
                 </div>
                 {periodRangeInvalid && (
@@ -951,27 +1009,48 @@ const setFormulaPercent =
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Vertailupalkka €/kk</Label>
-                  <Input
-                    type="number"
-                    step={0.01}
-                    value={comparisonSalary}
-                    onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
-                  />
+                  <DevField
+                    fieldId="comparison-salary"
+                    fieldLabel="Vertailupalkka (Comparison Salary)"
+                    userStory="User enters an alternative salary amount to compare how different salary levels affect the daily allowance calculation."
+                    business="Allows side-by-side comparison of unemployment benefits with different salary bases. Useful for salary negotiation scenarios."
+                    code={`const [comparisonSalary, setComparisonSalary] = useState<number>(0);
+// Optional comparison calculation with different base salary`}
+                    example="Compare 2000€ vs 2500€ salary to see benefit differences."
+                  >
+                    <Input
+                      type="number"
+                      step={0.01}
+                      value={comparisonSalary}
+                      onChange={(e) => setComparisonSalary(parseFloat(e.target.value || "0"))}
+                    />
+                  </DevField>
                 </div>
                 
                 <div className="space-y-2">
                   <Label>VERTAILU – Maksetut päivät (pv)</Label>
-                  <Input
-                    type="number"
-                    step={1}
-                    min={0}
-                    value={comparePaidDays ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value.trim();
-                      setComparePaidDays(v === "" ? null : Math.max(0, parseInt(v, 10) || 0));
-                    }}
-                    placeholder={`Oletus: ${results.days} pv`}
-                  />
+                  <DevField
+                    fieldId="comparison-paid-days"
+                    fieldLabel="Vertailu – Maksetut päivät (Comparison Paid Days)"
+                    userStory="User manually enters an alternative number of paid days for comparison purposes to see how different paid day counts affect the calculation."
+                    business="Allows side-by-side comparison with different paid days. Used when comparing scenarios with different working patterns or leave days."
+                    formula="gross = adjustedDaily × comparePaidDays"
+                    code={`const paidDays = comparePaidDays ?? results.days;
+const gross = adjustedDaily * paidDays;`}
+                    example="Compare calculation with 20 days vs 22 days to see impact on total benefit amount."
+                  >
+                    <Input
+                      type="number"
+                      step={1}
+                      min={0}
+                      value={comparePaidDays ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value.trim();
+                        setComparePaidDays(v === "" ? null : Math.max(0, parseInt(v, 10) || 0));
+                      }}
+                      placeholder={`Oletus: ${results.days} pv`}
+                    />
+                  </DevField>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -1012,36 +1091,71 @@ const setFormulaPercent =
               {!autoPaidFromRange && (
                 <div className="space-y-2">
                   <Label>Maksetut päivät (manuaalinen)</Label>
-                  <Input
-                    type="number"
-                    step={1}
-                    value={manualPaidDays}
-                    onChange={(e) => setManualPaidDays(parseInt(e.target.value || "0", 10))}
-                  />
+                  <DevField
+                    fieldId="manual-paid-days"
+                    fieldLabel="Maksetut päivät (Manual Paid Days)"
+                    userStory="User manually enters the number of paid days when automatic calculation from date range doesn't match their actual working days."
+                    business="Overrides automatic business day calculation. Used when actual paid days differ from calendar business days (e.g., unpaid sick days, holidays)."
+                    formula="gross = adjustedDaily × manualPaidDays"
+                    code={`const paidDays = autoPaidFromRange 
+  ? businessDaysBetween(periodStartDate, addDaysISO(periodEndDate, 1))
+  : manualPaidDays;
+const gross = adjustedDaily * paidDays;`}
+                    example="If calendar shows 22 business days but user worked only 18 days, enter 18 manually."
+                  >
+                    <Input
+                      type="number"
+                      step={1}
+                      value={manualPaidDays}
+                      onChange={(e) => setManualPaidDays(parseInt(e.target.value || "0", 10))}
+                    />
+                  </DevField>
                   <p className="text-xs text-gray-500">Syötä maksetut päivät manuaalisesti.</p>
                 </div>
               )}
 
               <div className="space-y-2">
                 <Label>Jäsenmaksu %</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={memberFeePct}
-                  onChange={(e) => setMemberFeePct(parseFloat(e.target.value || "0"))}
-                />
+                <DevField
+                  fieldId="member-fee-percent"
+                  fieldLabel="Jäsenmaksu % (Member Fee Percentage)"
+                  userStory="User sets the unemployment fund membership fee percentage, typically 1.5%, which is deducted from the gross benefit amount."
+                  business="Unemployment fund membership fee is a percentage deduction from the gross benefit. Standard rate is 1.5% but may vary by fund."
+                  formula="memberFee = gross × (memberFeePct / 100)"
+                  code={`const memberFee = roundToCents(gross * (memberFeePct / 100));
+const net = gross - withholding - memberFee;`}
+                  example="If gross = 1000€ and memberFee = 1.5%: fee = 15€"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={memberFeePct}
+                    onChange={(e) => setMemberFeePct(parseFloat(e.target.value || "0"))}
+                  />
+                </DevField>
               </div>
 
               <div className="space-y-2">
                 <Label>Veroprosentti</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={taxPct}
-                  onChange={(e) => setTaxPct(parseFloat(e.target.value || "0"))}
-                />
+                <DevField
+                  fieldId="tax-percent"
+                  fieldLabel="Veroprosentti (Tax Percentage)"
+                  userStory="User enters their tax withholding percentage, typically 25%, which is deducted from the gross unemployment benefit."
+                  business="Tax is withheld at source from unemployment benefits. Standard rate is 25% but user's actual tax rate may vary based on their tax card."
+                  formula="withholding = gross × (taxPct / 100)"
+                  code={`const withholding = roundToCents(gross * (taxPct / 100));
+const net = gross - withholding - memberFee;`}
+                  example="If gross = 1000€ and tax = 25%: withholding = 250€"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={taxPct}
+                    onChange={(e) => setTaxPct(parseFloat(e.target.value || "0"))}
+                  />
+                </DevField>
               </div>
 
               <div className="space-y-2">
@@ -1058,24 +1172,69 @@ const setFormulaPercent =
 
               <div className="space-y-2 md:col-span-2">
                 <Label>Porrastus</Label>
-                <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
-                  <Switch checked={autoPorrastus} onCheckedChange={setAutoPorrastus} />
-                  <span className="text-sm text-gray-600">
-                    Automaattinen porrastus jakson mukaan
-                  </span>
-                </div>
+                <DevField
+                  fieldId="porrastus-auto"
+                  fieldLabel="Porrastus (Benefit Stepping)"
+                  userStory="User enables automatic benefit stepping where the daily allowance gradually decreases as unemployment continues. This reflects the Finnish unemployment benefit system where payments reduce over time."
+                  business="Benefit stepping (porrastus) applies to those whose employment condition (TOE) was fulfilled on or after Sept 2, 2024. The benefit is paid at 100% for the first 40 days, 80% for days 41-170, and 75% after 170 days. Stepping is calculated relative to the full earnings-related allowance, not adjusted amounts. The benefit cannot return to 100% until the person fulfills the employment condition again."
+                  formula={`Days 1-40: 100% of full benefit
+Days 41-170: 80% of full benefit  
+Days 171+: 75% of full benefit
+
+avgFactor = Σ(factor per day) / totalDays`}
+                  code={`const stepFactorByCumulativeDays = (cum: number) => {
+  if (cum >= 170) return { factor: 0.75, label: "Porrastus 75%" };
+  if (cum >= 40) return { factor: 0.80, label: "Porrastus 80%" };
+  return { factor: 1.0, label: "Ei porrastusta" };
+};
+
+// Calculate weighted average for period
+let sumFactor = 0;
+for (let i = 0; i < days; i++) {
+  const cumulative = priorPaidDays + (i + 1);
+  sumFactor += stepFactorByCumulativeDays(cumulative).factor;
+}
+const avgStepFactor = sumFactor / days;
+const fullDaily = (basePart + earningsPart) * avgStepFactor;`}
+                  example="If prior paid days = 35 and current period = 10 days: Days 1-5 at 100%, days 6-10 at 80%. Average factor ≈ 0.90, so daily allowance is reduced to 90% of full amount."
+                >
+                  <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
+                    <Switch checked={autoPorrastus} onCheckedChange={setAutoPorrastus} />
+                    <span className="text-sm text-gray-600">
+                      Automaattinen porrastus jakson mukaan
+                    </span>
+                  </div>
+                </DevField>
               </div>
 
               {!autoPorrastus && (
                 <div className="space-y-2">
                   <Label>Maksetut pv ennen jaksoa (manuaalinen)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={priorPaidDaysManual}
-                    onChange={(e) => setPriorPaidDaysManual(parseInt(e.target.value || "0", 10))}
-                  />
+                  <DevField
+                    fieldId="prior-paid-days-manual"
+                    fieldLabel="Maksetut pv ennen jaksoa (Prior Paid Days Manual)"
+                    userStory="User manually enters the number of days they have already received unemployment benefits before this calculation period. This determines which benefit stepping level applies."
+                    business="Prior paid days determine the stepping factor. If total (prior + current period) exceeds 40 days, the 80% step applies. After 170 days, the 75% step applies. This is used when automatic calculation doesn't match actual benefit history."
+                    formula="cumulativeDays = priorPaidDays + currentDayIndex"
+                    code={`const priorPaidDays = autoPorrastus 
+  ? businessDaysBetween(benefitStartDate, periodStartDate)
+  : priorPaidDaysManual;
+
+for (let i = 0; i < days; i++) {
+  const cumulative = priorPaidDays + (i + 1);
+  const { factor } = stepFactorByCumulativeDays(cumulative);
+  sumFactor += factor;
+}`}
+                    example="If prior paid = 38 days and current period = 10 days: Days 1-2 at 100% (cumulative 39-40), days 3-10 at 80% (cumulative 41-48)."
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={priorPaidDaysManual}
+                      onChange={(e) => setPriorPaidDaysManual(parseInt(e.target.value || "0", 10))}
+                    />
+                  </DevField>
                 </div>
               )}
 
@@ -1142,17 +1301,29 @@ const setFormulaPercent =
 
                   <div className="md:col-span-5 space-y-2">
                     <Label>Tulot jaksolla (€)</Label>
-                    <Input
-                      type="number"
-                      step={0.01}
-                      value={i.amount}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value || "0");
-                        setIncomes(prev => prev.map(x => x.id === i.id ? ({ ...x, amount: v }) : x));
-                      }}
-                      disabled={i.type === "none"}
-                    />
-                 
+                    <DevField
+                      fieldId={`income-amount-${i.id}`}
+                      fieldLabel="Tulot jaksolla (Income Amount)"
+                      userStory="User enters the income amount received during the benefit period. This income will reduce the daily allowance through income adjustment."
+                      business="Income during the benefit period reduces the allowance. The system applies protected income rules and adjustment percentages based on the income type."
+                      formula="adjustment = max(0, (income - protectedIncome) × adjustmentPct)"
+                      code={`const protectedAmount = protectedIncome * (incomeDays / periodDays);
+const adjustmentBase = Math.max(0, income - protectedAmount);
+const reduction = adjustmentBase * adjustmentPct;
+const dailyAllowanceAfterIncome = dailyAllowance - (reduction / incomeDays);`}
+                      example="If income = 500€, protected = 300€, adjustment = 50%: reduction = (500-300) × 0.5 = 100€"
+                    >
+                      <Input
+                        type="number"
+                        step={0.01}
+                        value={i.amount}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value || "0");
+                          setIncomes(prev => prev.map(x => x.id === i.id ? ({ ...x, amount: v }) : x));
+                        }}
+                        disabled={i.type === "none"}
+                      />
+                    </DevField>
                   </div>
 
                   <div className="md:col-span-2 flex justify-end">
@@ -1192,29 +1363,54 @@ const setFormulaPercent =
 
                   <div className="md:col-span-3 space-y-2">
                     <Label>Määrä jaksolla (€)</Label>
-                    <Input
-                      type="number"
-                      step={0.01}
-                      value={b.amount}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value || "0");
-                        setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, amount: v }) : x));
-                      }}
-                    />
+                    <DevField
+                      fieldId={`benefit-amount-${b.id}`}
+                      fieldLabel="Etuuden määrä (Benefit Amount)"
+                      userStory="User enters the amount of other benefits (e.g., parental allowance, sickness benefit) received during the period. This reduces unemployment allowance."
+                      business="Other social security benefits reduce unemployment allowance. The reduction is calculated after protected amount is subtracted."
+                      formula="reduction = (benefitAmount - protectedAmount) / days"
+                      code={`let totalBenefitReduction = 0;
+for (const ben of benefits) {
+  const excess = Math.max(ben.amount - (ben.protectedAmount || 0), 0);
+  totalBenefitReduction += excess / days;
+}
+adjustedDaily = fullDaily - totalBenefitReduction;`}
+                      example="If benefit = 800€, protected = 300€, days = 20: reduction = (800-300) / 20 = 25€/day"
+                    >
+                      <Input
+                        type="number"
+                        step={0.01}
+                        value={b.amount}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value || "0");
+                          setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, amount: v }) : x));
+                        }}
+                      />
+                    </DevField>
                   </div>
 
                   <div className="md:col-span-3 space-y-2">
                     <Label>Suojaosa (€)</Label>
-                    <Input
-                      type="number"
-                      step={0.01}
-                      value={b.protectedAmount || 0}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value || "0");
-                        setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, protectedAmount: v }) : x));
-                      }}
-                    />
-                 
+                    <DevField
+                      fieldId={`benefit-protected-${b.id}`}
+                      fieldLabel="Suojaosa (Protected Amount)"
+                      userStory="User sets the protected amount of the benefit that doesn't reduce unemployment allowance. Amount above this is deducted."
+                      business="Protected amount allows receiving a certain amount of other benefits without reduction. Only the excess amount reduces unemployment allowance."
+                      formula="excessBenefit = max(0, benefitAmount - protectedAmount)"
+                      code={`const excess = Math.max(ben.amount - (ben.protectedAmount || 0), 0);
+const reduction = excess / days;`}
+                      example="If benefit = 800€ and protected = 300€: only (800-300) = 500€ reduces allowance."
+                    >
+                      <Input
+                        type="number"
+                        step={0.01}
+                        value={b.protectedAmount || 0}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value || "0");
+                          setBenefits(prev => prev.map(x => x.id === b.id ? ({ ...x, protectedAmount: v }) : x));
+                        }}
+                      />
+                    </DevField>
                   </div>
 
                   <div className="md:col-span-1 flex justify-end">
