@@ -135,7 +135,7 @@ function computePerDayReduction(incomesTotal: number, period: string): number {
   return (incomesTotal * 0.5) / pd; // 50% / jakson pv
 }
 
-// Laskee täyden päivärahan €/pv annetusta kuukausipalkasta samoilla kaavoilla kuin peruslaskenta
+// Calculates full daily allowance €/day from monthly salary using same formulas as basic calculation
 function fullDailyFromMonthlyBaseUsingConfig(
   monthlyBase: number,
   periodDays: number,
@@ -165,22 +165,22 @@ function runSelfTests() {
   try {
     const pDays = 21.5;
 
-    // 1) Päiväpalkka ja ansio-osa skaalautuvat oikein
+    // 1) Daily wage and earnings part scale correctly
     const d1 = toDailyWage(2573, pDays);
     const ep1 = earningsPartFromDaily(d1, SPLIT_POINT_MONTH, pDays);
     const d2 = toDailyWage(3700, pDays);
     const ep2 = earningsPartFromDaily(d2, SPLIT_POINT_MONTH, pDays);
-    if (!(ep2 > ep1)) console.warn("[TEST] Monotonia ei täyttynyt");
+    if (!(ep2 > ep1)) console.warn("[TEST] Monotonicity not met");
 
-    // 2) Sovittelun suunta: suurempi etuustulo -> pienempi soviteltu pv
+    // 2) Adjustment direction: larger benefit income -> smaller adjusted per day
     const full = DAILY_BASE + ep1;
     const redLow = (200 * 0.5) / pDays;
     const redHigh = (1000 * 0.5) / pDays;
     const adjLow = clamp(full - redLow, 0, full);
     const adjHigh = clamp(full - redHigh, 0, full);
-    if (!(adjHigh <= adjLow)) console.warn("[TEST] Sovittelun suunta ei täsmää");
+    if (!(adjHigh <= adjLow)) console.warn("[TEST] Adjustment direction doesn't match");
 
-    // 3) Porrastus: keskiarvo jakson sisällä
+    // 3) Step reduction: average within period
     function avgFactor(priorPaid: number, days: number) {
       let s = 0;
       for (let i = 0; i < days; i++) {
@@ -188,42 +188,42 @@ function runSelfTests() {
       }
       return days ? s / days : 1;
     }
-    const avg1 = avgFactor(39, 2); // 40 ja 41 -> 0.8
-    if (Math.abs(avg1 - 0.8) > 1e-9) console.warn("[TEST] Porrastus 40+ keskiarvo väärin", avg1);
-    const avg2 = avgFactor(169, 2); // 170 ja 171 -> 0.75
-    if (Math.abs(avg2 - 0.75) > 1e-9) console.warn("[TEST] Porrastus 170+ keskiarvo väärin", avg2);
+    const avg1 = avgFactor(39, 2); // 40 and 41 -> 0.8
+    if (Math.abs(avg1 - 0.8) > 1e-9) console.warn("[TEST] Step 40+ average wrong", avg1);
+    const avg2 = avgFactor(169, 2); // 170 and 171 -> 0.75
+    if (Math.abs(avg2 - 0.75) > 1e-9) console.warn("[TEST] Step 170+ average wrong", avg2);
 
-    // 4) Arkipäivälaskuri: ti -> to (2 pv)
+    // 4) Business day counter: Tue -> Thu (2 days)
     const tue = new Date("2025-09-02"); // Tue
     const thu = new Date("2025-09-04"); // Thu
     const bd = businessDaysBetween(tue.toISOString().slice(0, 10), thu.toISOString().slice(0, 10));
-    if (bd !== 2) console.warn("[TEST] businessDaysBetween ti->to pitäisi olla 2, nyt", bd);
+    if (bd !== 2) console.warn("[TEST] businessDaysBetween Tue->Thu should be 2, now", bd);
 
-    // 5) Arkipäivälaskuri: la -> ma (0 pv, koska la/su eivät kerry)
+    // 5) Business day counter: Sat -> Mon (0 days, because Sat/Sun don't count)
     const sat = new Date("2025-09-06");
     const mon = new Date("2025-09-08");
     const bd2 = businessDaysBetween(sat.toISOString().slice(0, 10), mon.toISOString().slice(0, 10));
-    if (bd2 !== 0) console.warn("[TEST] la->ma pitäisi olla 0, nyt", bd2);
+    if (bd2 !== 0) console.warn("[TEST] Sat->Mon should be 0, now", bd2);
 
-    // 6) Porrasrajat suoraan: 0 -> 1.0, 40 -> 0.8, 170 -> 0.75
+    // 6) Step thresholds directly: 0 -> 1.0, 40 -> 0.8, 170 -> 0.75
     const f0 = stepFactorByCumulativeDays(0).factor;
     const f40 = stepFactorByCumulativeDays(40).factor;
     const f170 = stepFactorByCumulativeDays(170).factor;
-    if (f0 !== 1 || f40 !== 0.8 || f170 !== 0.75) console.warn("[TEST] Porrasrajat odottamattomat", { f0, f40, f170 });
+    if (f0 !== 1 || f40 !== 0.8 || f170 !== 0.75) console.warn("[TEST] Step thresholds unexpected", { f0, f40, f170 });
 
-    // 7) Sovitellun rajoitus toimii (ei negatiivinen eikä yli täyden)
+    // 7) Adjusted limits work (not negative nor exceeding full)
     const fullDailyTest = 60;
-    const bigReduction = 100; // iso vähennys -> 0
-    const smallReduction = 5; // pieni vähennys -> < full
+    const bigReduction = 100; // large deduction -> 0
+    const smallReduction = 5; // small deduction -> < full
     const adj1 = clamp(fullDailyTest - bigReduction, 0, fullDailyTest);
     const adj2 = clamp(fullDailyTest - smallReduction, 0, fullDailyTest);
-    if (adj1 !== 0 || !(adj2 > 0 && adj2 < fullDailyTest)) console.warn("[TEST] Sovitellun rajat eivät pidä");
+    if (adj1 !== 0 || !(adj2 > 0 && adj2 < fullDailyTest)) console.warn("[TEST] Adjusted limits don't hold");
 
-    // 8) Sovittelujakso tyhjä -> perDayReduction = 0
+    // 8) Empty adjustment period -> perDayReduction = 0
     const redNone = computePerDayReduction(1000, "");
-    if (redNone !== 0) console.warn("[TEST] Tyhjä period -> pitäisi olla 0, nyt", redNone);
+    if (redNone !== 0) console.warn("[TEST] Empty period -> should be 0, now", redNone);
   } catch (e) {
-    console.error("[TEST] Virhe testeissä", e);
+    console.error("[TEST] Error in tests", e);
   }
 }
 runSelfTests();
@@ -238,11 +238,11 @@ interface BenefitRow {
   protectedAmount?: number; // suojaosa
 }
 
-// Tulorivi
+// Income row
 interface IncomeRow {
   id: string;
   type: (typeof INCOME_OPTIONS)[number]["value"];
-  amount: number; // € jaksolla
+  amount: number; // € per period
 }
 
 // ===============================
@@ -251,49 +251,49 @@ interface IncomeRow {
 
 
 export default function PaivarahaLaskuri() {
-  // Perustiedot
+  // Basic information
   const [calcDate, setCalcDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [period, setPeriod] = useState<string>(""); // sallitaan tyhjä -> ei sovittelua
+  const [period, setPeriod] = useState<string>(""); // allow empty -> no adjustment
   const [benefitType, setBenefitType] = useState<(typeof BENEFIT_TYPES)[number]["value"]>("ansioturva");
-  const [toeDate, setToeDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Työssäoloehdon täyttymispäivä
-  const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Ensimmäinen maksupäivä
-  const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Jakson alkupäivä
-  // Jakson loppupäivä (uusi)
+  const [toeDate, setToeDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Employment condition fulfillment date
+  const [benefitStartDate, setBenefitStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // First payment date
+  const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Period start date
+  // Period end date (new)
   const [periodEndDate, setPeriodEndDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
 
-  // Laskennan parametrit
-  const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/kk
-  const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optionaalinen, ei käytössä kaavoissa nyt
-  // Maksettujen päivien lähde: autom. ajanjaksosta vai manuaalinen syöttö
+  // Calculation parameters
+  const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/month
+  const [comparisonSalary, setComparisonSalary] = useState<number>(0); // optional, not used in formulas now
+  // Paid days source: auto from period or manual input
   const [autoPaidFromRange, setAutoPaidFromRange] = useState<boolean>(true);
   
-  // Manuaalisesti syötetyt maksetut päivät (pv) – käytetään kun autoPaidFromRange = false
+  // Manually entered paid days (days) – used when autoPaidFromRange = false
   const [manualPaidDays, setManualPaidDays] = useState<number>(0);
   const [memberFeePct, setMemberFeePct] = useState<number>(0); // %
-  const [taxPct, setTaxPct] = useState<number>(25); // veroprosentti
-  const [priorPaidDaysManual, setPriorPaidDaysManual] = useState<number>(0); // maksetut pv ennen tätä jaksoa (manuaalinen)
+  const [taxPct, setTaxPct] = useState<number>(25); // tax percentage
+  const [priorPaidDaysManual, setPriorPaidDaysManual] = useState<number>(0); // paid days before this period (manual)
 
-  // Enimmäisajan valinta (esim. työhistorian/ikärajojen perusteella)
+  // Maximum duration selection (e.g. based on work history/age limits)
   const [maxDays, setMaxDays] = useState<number>(400); // 300 / 400 / 500
 
-  // Vertailu
+  // Comparison
   const [compareMode, setCompareMode] = useState<boolean>(false);
   
-  // Vertailun manuaaliset syötteet
-  const [comparePaidDays, setComparePaidDays] = useState<number | null>(null); // null = käytä peruslaskennan päiviä
-  const [compareDailyManual, setCompareDailyManual] = useState<number>(0); // 0 = ei asetettu
+  // Comparison manual inputs
+  const [comparePaidDays, setComparePaidDays] = useState<number | null>(null); // null = use basic calculation days
+  const [compareDailyManual, setCompareDailyManual] = useState<number>(0); // 0 = not set
   
   const [toeDateCompare, setToeDateCompare] = useState<string>("");
 
 
-  // Lisäasetukset (tarvittaessa laajennettavissa)
+  // Additional settings (expandable if needed)
   const [flags, setFlags] = useState({
-    baseOnlyW: false, // Vain perusosa, työt.laji W
-    tyossaoloehto80: false, // Työssäoloehto 80%
-    yrittajaPaivaraha: false, // Yrittäjäpäiväraha
-    kulukorvaus: false, // Kulukorvaus (veroton)
-    kulukorvausKorotus: false, // Kulukorvauksen korotusosa
+    baseOnlyW: false, // Base part only, employment type W
+    tyossaoloehto80: false, // Employment condition 80%
+    yrittajaPaivaraha: false, // Entrepreneur's allowance
+    kulukorvaus: false, // Expense compensation (tax-free)
+    kulukorvausKorotus: false, // Expense compensation increase portion
   });
 
   const setFormulaNumber =
@@ -320,7 +320,7 @@ const setFormulaPercent =
   const handleBenefitTypeChange = (value: string) => setBenefitType(value as BenefitType);
 
   // ===============================
-  // Kaavojen muokkaus (konfiguroitavat arvot)
+  // Formula editing (configurable values)
   // ===============================
   type FormulaConfig = {
     dailyBase: number;
@@ -367,36 +367,36 @@ const setFormulaPercent =
   
 
   // ===============================
-  // Laskenta
+  // Calculation
   // ===============================
   const results = useMemo(() => {
     const cfg = formulaConfig;
     const periodDays = period ? DAYS_BY_PERIOD[period as PeriodKey] : 0;
     
 
-    // Automaattinen vs. manuaalinen maksettujen päivien kertymä ennen tämän jakson alkua
+    // Automatic vs. manual accumulation of paid days before this period's start
     const priorPaidAuto = businessDaysBetween(benefitStartDate, periodStartDate);
     const priorPaidDays = autoPorrastus ? priorPaidAuto : priorPaidDaysManual;
 
-    // Etuudet yhteensä (suojaosan jälkeen)
+    // Benefits total (after protected amount)
     const benefitsTotal = benefits.reduce((s, b) => s + Math.max((b.amount - (b.protectedAmount || 0)), 0), 0);
 
-    // Etuudet (vain etuudet, suojaosan jälkeen)
+    // Benefits (only benefits, after protected amount)
     const benefitsTotalPure = benefits.reduce(
       (s, b) => s + Math.max((b.amount - (b.protectedAmount || 0)), 0),
       0
     );
     const hasBenefits = benefits.some(b => b.amount > 0);
 
-    // Tulot (sovittelua varten)
+    // Income (for adjustment)
     const incomesTotal = incomes.reduce((s, i) => s + (i.type !== "none" ? i.amount : 0), 0);
     const sovitteluOn = incomes.some(i => i.type !== "none" && i.amount > 0);
 
-    // Päiväluvut
+    // Day counts
     const pdForBenefits = periodDays || 21.5;
     const pdForIncome = periodDays || 21.5;
 
-    // Päiväpalkka ja ansio-osa (raaka ennen porrastusta)
+    // Daily wage and earnings part (raw before step reduction)
     const dailySalaryBasisDays = periodDays || 21.5; // jos ei jaksoa, käytä 21.5 oletusta
     const dailySalary = (baseSalary * (1 - cfg.statDeductions)) / dailySalaryBasisDays;
 

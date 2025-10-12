@@ -13,14 +13,14 @@ import { Card } from "@/components/ui/card";
 // ============================================================================
 // Mass Income Split – Next.js + Tailwind (suomi.fi style) Prototype
 // Notes
-// - Suodatus toimii: työnantaja, tulolaji (sis. "Kaikki"), aikaväli, palkkatuettu.
-// - Yhteenveto näyttää suodatetun summan ja 75% palkkatuetuista.
-// - Kohdistettu tulolaji = suodattimen tulolaji; jos "Kaikki", valitaan modaalissa.
-// - Jaon perusta on aina lähderivin PALKKA; "Alkuperäinen tulo" näyttää lähteen alkuperäisen palkan.
-// - "Prosentti + 1/3 ja 2/3": 1/3 ja 2/3 lasketaan erotettavasta määrästä ja LÄHDERIVILLE jää
-//   erotuksen jäljelle jäävä osuus (base - erotettava). Muissa jaoissa lähderivi nollataan.
-// - Modal on suljettu oikein (ei JSX-virheitä). Kaikki state-funktiot, kuten setOpen, ovat komponentin sisällä.
-// - Sisältää kevyet konsolitestit calcSplit-funktiolle.
+// - Filtering works: employer, income type (incl. "All"), time period, subsidized.
+// - Summary shows filtered sum and 75% of subsidized.
+// - Target income type = filter income type; if "All", selected in modal.
+// - Split basis is always source row's SALARY; "Original income" shows source's original salary.
+// - "Percentage + 1/3 and 2/3": 1/3 and 2/3 calculated from deducted amount and SOURCE ROW gets
+//   remaining portion after deduction (base - deducted). In other splits source row is zeroed.
+// - Modal is properly closed (no JSX errors). All state functions like setOpen are inside component.
+// - Contains lightweight console tests for calcSplit function.
 // ============================================================================
 
 // --- Types & mock data ------------------------------------------------------
@@ -36,7 +36,7 @@ type Row = {
   tyonantaja: string;
 };
 
-// Palkkatuetut työnantajat
+// Subsidized employers
 const SUBSIDIZED_EMPLOYERS = new Set<string>(["Nokia Oyj"]);
 
 const MOCK_ROWS: Row[] = [
@@ -219,7 +219,7 @@ export default function MassIncomeSplitPrototype() {
   const totalFiltered = useMemo(() => filteredRows.reduce((s, r) => s + r.palkka, 0), [filteredRows]);
   const subsidizedFiltered = useMemo(() => filteredRows.reduce((s, r) => s + (SUBSIDIZED_EMPLOYERS.has(r.tyonantaja) ? r.palkka : 0), 0), [filteredRows]);
 
-  // Näytetään "Alkuperäinen tulo" -sarake vain, jos sitä on jollakin suodatetulla rivillä
+  // Show "Original income" column only if any filtered row has it
   const showOriginal = useMemo(() => filteredRows.some(r => (r.alkuperainenTulo ?? 0) > 0), [filteredRows]);
 
   // Modal state & split config
@@ -259,7 +259,7 @@ export default function MassIncomeSplitPrototype() {
 
   // --- performSplit lives INSIDE the component and uses setOpen from state ---
   function performSplit() {
-    if (!kohdistettuTulolaji) return; // kun tulolaji = "Kaikki", lähde on valittava ensin
+    if (!kohdistettuTulolaji) return; // when income type = "All", source must be selected first
     const next: Row[] = [];
     for (const r of rows) {
       const rowIsSelected = selectedIds.includes(r.id);
@@ -273,21 +273,21 @@ export default function MassIncomeSplitPrototype() {
       if (splitType === "ONE_THIRD_TWO_THIRDS") {
         const oneThird = base / 3;
         const twoThirds = (base / 3) * 2;
-        // lähde nollataan
+        // source is zeroed
         const zeroed: Row = { ...r, palkka: 0, alkuperainenTulo: base };
         next.push(zeroed);
-        // kohderiveille "Alkuperäinen tulo" = base
+        // for target rows "Original income" = base
         next.push({ ...r, id: newId(), tulolaji: selectOneThird, palkka: oneThird, alkuperainenTulo: base });
         next.push({ ...r, id: newId(), tulolaji: selectTwoThirds, palkka: twoThirds, alkuperainenTulo: base });
      } else if (splitType === "PERCENT") {
   const erotettava = roundToCents(base * (percent / 100));
   const remaining = roundToCents(base - erotettava);
 
-  // Lähteelle jää vähennetty määrä (EI nollata)
+  // Source gets reduced amount (NOT zeroed)
   const updatedSource: Row = { ...r, palkka: remaining, alkuperainenTulo: base };
   next.push(updatedSource);
 
-  // Uusi rivi erotetulle summalle valittuun tulolajiin
+  // New row for deducted amount to selected income type
   next.push({
     ...r,
     id: newId(),
@@ -301,7 +301,7 @@ export default function MassIncomeSplitPrototype() {
         const oneThird = erotettava / 3;
         const twoThirds = (erotettava / 3) * 2;
         const remaining = roundToCents(base - erotettava);
-        // lähteelle jää erotuksen jälkeen jäljelle jäänyt osuus
+        // source gets remaining portion after deduction
         const updatedSource: Row = { ...r, palkka: remaining, alkuperainenTulo: base };
         next.push(updatedSource);
         next.push({ ...r, id: newId(), tulolaji: selectOneThird, palkka: oneThird, alkuperainenTulo: base });

@@ -1,6 +1,7 @@
 import React from "react";
 import "./globals.css";
-
+import type { Metadata } from "next";
+import { Toaster } from "sonner";
 
 
 
@@ -22,7 +23,10 @@ export const metadata = {
             </header>
             {children}
           </div>
+          <Toaster richColors closeButton position="top-right" />
         </body>
       </html>
+      
     );
   }
+  
