@@ -957,11 +957,12 @@ const approveByIds = (ids: Set<string>) => {
   );
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 w-full">
+    <div className="min-h-screen bg-white p-6">
+      
       <Card className="max-w-[1200px] mx-auto shadow-xl border-slate-200">
         <CardContent className="p-4 md:p-6">
           <div className="flex items-start justify-between">
-            <h1 className="text-xl font-semibold tracking-tight">MASSAPÄÄTÖKSET</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Massapäätökset</h1>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm">Sulje</Button>
             </div>
