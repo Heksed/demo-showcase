@@ -378,7 +378,7 @@ export default function MassIncomeSplitPrototype() {
 
           <div className="mt-4 overflow-auto rounded-xl border">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-100 text-left">
+              <thead className="bg-[#003479] text-white text-left">
                 <tr>
                   <th className="px-3 py-2 w-10">
                     <input
@@ -400,7 +400,7 @@ export default function MassIncomeSplitPrototype() {
               </thead>
               <tbody>
                 {filteredRows.map((r) => (
-                  <tr key={r.id} className="odd:bg-white even:bg-slate-50">
+                  <tr key={r.id} className="odd:bg-white even:bg-gray-50">
                     <td className="px-3 py-2">
                       <input
                         type="checkbox"
@@ -486,7 +486,7 @@ export default function MassIncomeSplitPrototype() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="px-3 py-2 border rounded-lg text-sm bg-slate-50">{kohdistettuTulolaji}</div>
+                  <div className="px-3 py-2 border rounded-lg text-sm bg-gray-50">{kohdistettuTulolaji}</div>
                 )}
               </div>
 
@@ -543,7 +543,7 @@ export default function MassIncomeSplitPrototype() {
               <div className="mb-2 text-sm font-semibold">Esikatselu</div>
               <div className="overflow-auto rounded-xl border">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-slate-100 text-left">
+                  <thead className="bg-[#003479] text-white text-left">
                     <tr>
                       <th className="px-3 py-2">Maksupäivä</th>
                       <th className="px-3 py-2 text-right">Alkuperäinen tulo</th>
@@ -570,7 +570,7 @@ export default function MassIncomeSplitPrototype() {
                   </thead>
                   <tbody>
                     {preview.map((p: any) => (
-                      <tr key={p.id} className="odd:bg-white even:bg-slate-50">
+                      <tr key={p.id} className="odd:bg-white even:bg-gray-50">
                         <td className="px-3 py-2 whitespace-nowrap">{p.maksupaiva}</td>
                         <td className="px-3 py-2 text-right">{formatCurrency(p.alkuperainenTulo)}</td>
                         {splitType === "PERCENT" && (

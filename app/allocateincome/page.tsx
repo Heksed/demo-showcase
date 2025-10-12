@@ -1,15 +1,16 @@
 import React from "react";
 import DemoPage from "@/components/DemoPage";
+import DemoNavigation from "@/components/DemoNavigation";
 import AllocateIncome from "@/demos/allocateincome/Allocateincome";
 
 export default function AllocateIncomePage() {
   return (
-    <DemoPage
-      title="Tulotietojen kohdistaminen"
-      description="Kohdista tulotiedot oikeisiin ajanjaksoihin eri menetelmillä."
-    >
-      <AllocateIncome />
-    </DemoPage>
+    <>
+      <DemoNavigation currentSlug="allocateincome" />
+      <DemoPage>
+        <AllocateIncome />
+      </DemoPage>
+    </>
   );
 }
 

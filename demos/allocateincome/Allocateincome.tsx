@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ChevronDown, ChevronRight, Calendar as CalendarIcon, MoreVertical, AlertCircle, CheckCircle2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import Link from "next/link";
 
 // ============================================================================
 // Allocate Income – Income allocation demo
@@ -69,6 +70,55 @@ const MOCK_EMPLOYMENT = {
   endDate: "31.12.2024",
   employer: "Nokia Oyj",
 };
+
+// Mock employment relationships for the add income modal
+const MOCK_EMPLOYMENT_RELATIONSHIPS = [
+  {
+    id: "emp-1",
+    employer: "Espoon kaupunki",
+    description: "XXXXX",
+    startDate: "15.10.2024",
+    endDate: "11.11.2024",
+  },
+  {
+    id: "emp-2",
+    employer: "Espoon kaupunki",
+    description: "XXXXXXX",
+    startDate: "PP.KK.VVVV",
+    endDate: "PP.KK.VVVV",
+  },
+  {
+    id: "emp-3",
+    employer: "Espoon kaupunki",
+    description: "XXXXX",
+    startDate: "PP.KK.VVVV",
+    endDate: "PP.KK.VVVV",
+  },
+  {
+    id: "emp-4",
+    employer: "Espoon kaupunki",
+    description: "XXXXXXX",
+    startDate: "PP.KK.VVVV",
+    endDate: "PP.KK.VVVV",
+  },
+  {
+    id: "emp-5",
+    employer: "Espoon kaupunki",
+    description: "",
+    startDate: "PP.KK.VVVV",
+    endDate: "PP.KK.VVVV",
+  },
+];
+
+// Income types for the dropdown
+const INCOME_TYPES = [
+  "Tulospalkka",
+  "Aikapalkka",
+  "Lomaraha",
+  "Vuosilomakorvaus",
+  "Työkorvaus",
+  "Polkupyöräedun palkaksi katsottava osuus",
+];
 
 const MOCK_INCOME_ROWS: IncomeRow[] = [
   {
@@ -528,6 +578,33 @@ function distributeEqualMonths(totalAmount: number, splits: Array<{ year: number
   });
 }
 
+// Generate months from employment period (always backward from end date)
+function generateMonthsFromEmployment(): Array<{ year: number; month: number }> {
+  const start = parseDate(MOCK_EMPLOYMENT.startDate);
+  const end = parseDate(MOCK_EMPLOYMENT.endDate);
+  
+  if (!start || !end) return [];
+  
+  const months = [];
+  let currentYear = start.getFullYear();
+  let currentMonth = start.getMonth() + 1; // 1-12
+  const endYear = end.getFullYear();
+  const endMonth = end.getMonth() + 1;
+  
+  while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+    months.push({ year: currentYear, month: currentMonth });
+    
+    currentMonth++;
+    if (currentMonth > 12) {
+      currentMonth = 1;
+      currentYear++;
+    }
+  }
+  
+  // Return in reverse order (backward from end)
+  return months.reverse();
+}
+
 // Generate months from payDate
 function generateMonthsFromPayDate(payDate: string, monthCount: number, direction: Direction): Array<{ year: number; month: number }> {
   const date = parseDate(payDate);
@@ -575,6 +652,18 @@ export default function AllocateIncome() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [allocationContext, setAllocationContext] = useState<AllocationContext | null>(null);
+  
+  // Add income modal state
+  const [addIncomeModalOpen, setAddIncomeModalOpen] = useState(false);
+  const [selectedEmployer, setSelectedEmployer] = useState("");
+  const [employmentStartDate, setEmploymentStartDate] = useState("");
+  const [employmentEndDate, setEmploymentEndDate] = useState("");
+  const [selectedEmploymentIds, setSelectedEmploymentIds] = useState<string[]>([]);
+  const [paymentDate, setPaymentDate] = useState("");
+  const [incomeType, setIncomeType] = useState("Tulospalkka");
+  const [salaryAmount, setSalaryAmount] = useState("");
+  const [earningStartDate, setEarningStartDate] = useState("");
+  const [earningEndDate, setEarningEndDate] = useState("");
 
   // Allocation form state
   const [allocationMethod, setAllocationMethod] = useState<AllocationMethod>("period");
@@ -667,6 +756,74 @@ export default function AllocateIncome() {
     return row.huom?.toLowerCase().includes("poistettu") || false;
   };
 
+  // Handle add income modal
+  const handleAddIncome = () => {
+    if (!paymentDate || !incomeType || !salaryAmount || selectedEmploymentIds.length === 0) {
+      toast.error("Täytä kaikki pakolliset kentät");
+      return;
+    }
+
+    const amount = parseFloat(salaryAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Syötä kelvollinen summa");
+      return;
+    }
+
+    // Create new income row
+    const newRow: IncomeRow = {
+      id: `new-${Date.now()}`,
+      maksupaiva: paymentDate,
+      tulolaji: incomeType,
+      palkka: amount,
+      alkuperainenTulo: amount,
+      ansaintaAika: earningStartDate && earningEndDate ? `${earningStartDate} - ${earningEndDate}` : "",
+      tyonantaja: selectedEmployer || "Espoon kaupunki",
+    };
+
+    // Add to the current period (2026-01 for demo)
+    setPeriods(prev => {
+      return prev.map(period => {
+        if (period.id === "2026-01") {
+          return {
+            ...period,
+            rows: [...period.rows, newRow],
+            palkka: period.palkka + amount,
+          };
+        }
+        return period;
+      });
+    });
+
+    // Reset form
+    setSelectedEmployer("");
+    setEmploymentStartDate("");
+    setEmploymentEndDate("");
+    setSelectedEmploymentIds([]);
+    setPaymentDate("");
+    setIncomeType("Tulospalkka");
+    setSalaryAmount("");
+    setEarningStartDate("");
+    setEarningEndDate("");
+    setAddIncomeModalOpen(false);
+
+    toast.success("Tulotieto lisätty onnistuneesti");
+  };
+
+  const toggleEmploymentSelection = (id: string) => {
+    setSelectedEmploymentIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(empId => empId !== id)
+        : [...prev, id]
+    );
+  };
+
+  const filteredEmployments = MOCK_EMPLOYMENT_RELATIONSHIPS.filter(emp => {
+    if (selectedEmployer && emp.employer !== selectedEmployer) return false;
+    if (employmentStartDate && emp.startDate !== employmentStartDate) return false;
+    if (employmentEndDate && emp.endDate !== employmentEndDate) return false;
+    return true;
+  });
+
   // Calculate preview splits
   const previewSplits = useMemo<MonthSplit[]>(() => {
     if (!allocationContext) return [];
@@ -709,7 +866,9 @@ export default function AllocateIncome() {
           return allSplits;
         }
       } else if (distributionType === "manual") {
-        const months = generateMonthsFromPayDate(allocationContext.payDate, monthCount, direction);
+        const months = allocationMethod === "employment" 
+          ? generateMonthsFromEmployment() 
+          : generateMonthsFromPayDate(allocationContext.payDate, monthCount, direction);
         
         if (allocationContext.mode === "single") {
           return months.map(m => {
@@ -949,7 +1108,9 @@ export default function AllocateIncome() {
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-semibold tracking-tight">Kohdista tulotiedot</h1>
-          <Button className="bg-[#0e4c92] hover:bg-[#0d4383]">Suodata tulotietoja</Button>
+          <Link href="/massincomesplit">
+            <Button className="bg-[#0e4c92] hover:bg-[#0d4383]">Suodata tulotietoja</Button>
+          </Link>
         </header>
 
         {/* Periods Table */}
@@ -1012,7 +1173,11 @@ export default function AllocateIncome() {
                           <td colSpan={7} className="p-0">
                             <div className="bg-gray-100 p-4">
                               <div className="flex justify-between items-center mb-3">
-                                <Button variant="outline" size="sm">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => setAddIncomeModalOpen(true)}
+                                >
                                   Lisää tulotieto
                                 </Button>
                                 <Button variant="ghost" size="sm">
@@ -1318,16 +1483,33 @@ export default function AllocateIncome() {
               {distributionType === "manual" && (
                 <div className="space-y-2">
                   <Label>Kuukausien määrä</Label>
-                  <Select value={String(monthCount)} onValueChange={(v) => setMonthCount(Number(v))}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[2, 3, 4, 5, 6, 12].map(n => (
-                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {allocationMethod === "employment" ? (
+                    <div className="p-2 bg-gray-50 border rounded-md">
+                      <span className="text-sm text-gray-600">
+                        {(() => {
+                          const start = parseDate(MOCK_EMPLOYMENT.startDate);
+                          const end = parseDate(MOCK_EMPLOYMENT.endDate);
+                          if (start && end) {
+                            const months = (end.getFullYear() - start.getFullYear()) * 12 + 
+                                         (end.getMonth() - start.getMonth()) + 1;
+                            return `${months} kuukautta (palvelussuhteen mukaan)`;
+                          }
+                          return "3 kuukautta";
+                        })()}
+                      </span>
+                    </div>
+                  ) : (
+                    <Select value={String(monthCount)} onValueChange={(v) => setMonthCount(Number(v))}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2, 3, 4, 5, 6, 12].map(n => (
+                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               )}
 
@@ -1337,7 +1519,10 @@ export default function AllocateIncome() {
                   <Label>Kuukausikohtaiset summat (€)</Label>
                   {allocationContext.mode === "single" ? (
                     <div className="space-y-2">
-                      {generateMonthsFromPayDate(allocationContext.payDate, monthCount, direction).map(m => {
+                      {(allocationMethod === "employment" 
+                        ? generateMonthsFromEmployment() 
+                        : generateMonthsFromPayDate(allocationContext.payDate, monthCount, direction)
+                      ).map(m => {
                         const key = `${m.year}-${m.month}`;
                         const monthName = new Date(m.year, m.month - 1, 1).toLocaleDateString('fi-FI', { year: 'numeric', month: 'long' });
                         
@@ -1363,7 +1548,9 @@ export default function AllocateIncome() {
                     <div className="space-y-4">
                       {allocationContext.sourceRows.map(row => {
                         const rowAmount = row.alkuperainenTulo > 0 ? row.alkuperainenTulo : row.palkka;
-                        const months = generateMonthsFromPayDate(allocationContext.payDate, monthCount, direction);
+                        const months = allocationMethod === "employment" 
+                          ? generateMonthsFromEmployment() 
+                          : generateMonthsFromPayDate(allocationContext.payDate, monthCount, direction);
                         
                         return (
                           <div key={row.id} className="border rounded-lg p-3 bg-gray-50">
@@ -1562,6 +1749,197 @@ export default function AllocateIncome() {
               className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300"
             >
               Suorita kohdistus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Income Modal */}
+      <Dialog open={addIncomeModalOpen} onOpenChange={setAddIncomeModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>LISÄÄ TULOTIETO</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Employment Relationships Section */}
+            <div className="pt-4">
+              <h3 className="text-lg font-semibold mb-4">Palvelussuhteet</h3>
+              
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4 mb-4">
+                <div>
+                  <Label>Työnantaja</Label>
+                  <Select value={selectedEmployer} onValueChange={setSelectedEmployer}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Valitse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Espoon kaupunki">Espoon kaupunki</SelectItem>
+                      <SelectItem value="Nokia Oyj">Nokia Oyj</SelectItem>
+                      <SelectItem value="Posti Oyj">Posti Oyj</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label>Alkupäivä</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="PP.KK.VVVV" 
+                      value={employmentStartDate}
+                      onChange={(e) => setEmploymentStartDate(e.target.value)}
+                    />
+                    <Button variant="outline" size="icon">
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label>Loppupäivä</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="PP.KK.VVVV" 
+                      value={employmentEndDate}
+                      onChange={(e) => setEmploymentEndDate(e.target.value)}
+                    />
+                    <Button variant="outline" size="icon">
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="flex items-end">
+                  
+                </div>
+              </div>
+
+              {/* Employment Relationships Table */}
+              <div className="overflow-auto rounded-xl border">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-[#003479] text-white">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Valinta</th>
+                      <th className="px-3 py-2 text-left font-medium">Työnantaja</th>
+                      <th className="px-3 py-2 text-left font-medium">Selite</th>
+                      <th className="px-3 py-2 text-left font-medium">Alkupäivä</th>
+                      <th className="px-3 py-2 text-left font-medium">Loppupäivä</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEmployments.map((emp, idx) => (
+                      <tr key={emp.id} className={cn("border-b", idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedEmploymentIds.includes(emp.id)}
+                            onChange={() => toggleEmploymentSelection(emp.id)}
+                          />
+                        </td>
+                        <td className="px-3 py-2">{emp.employer}</td>
+                        <td className="px-3 py-2">{emp.description}</td>
+                        <td className="px-3 py-2">{emp.startDate}</td>
+                        <td className="px-3 py-2">{emp.endDate}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="mt-2">
+                <Link href="#" className="text-blue-600 hover:underline text-sm">
+                  Palvelussuhde- ja yritystoimintatiedot
+                </Link>
+              </div>
+            </div>
+
+            {/* Income Details Section */}
+            <div className="pt-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                  <Label>Maksupäivä</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="PP.KK.VVVV" 
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                    />
+                    <Button variant="outline" size="icon">
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label>Tulolaji</Label>
+                  <Select value={incomeType} onValueChange={setIncomeType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INCOME_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label>Palkka</Label>
+                  <Input 
+                    placeholder="Täydennä summa" 
+                    value={salaryAmount}
+                    onChange={(e) => setSalaryAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Earning Period Section */}
+            <div className="pt-4">
+              <h3 className="text-lg font-semibold mb-4">Ansainta-aika</h3>
+              
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Alkupäivä</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="PP.KK.VVVV" 
+                      value={earningStartDate}
+                      onChange={(e) => setEarningStartDate(e.target.value)}
+                    />
+                    <Button variant="outline" size="icon">
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label>Loppupäivä</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="PP.KK.VVVV" 
+                      value={earningEndDate}
+                      onChange={(e) => setEarningEndDate(e.target.value)}
+                    />
+                    <Button variant="outline" size="icon">
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary">Peruuta</Button>
+            </DialogClose>
+            <Button 
+              onClick={handleAddIncome}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Tallenna ja sulje
             </Button>
           </DialogFooter>
         </DialogContent>
