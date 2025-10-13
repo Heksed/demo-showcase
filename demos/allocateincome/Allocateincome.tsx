@@ -158,16 +158,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     kohdistusTOE: "1.1.2025 - 31.12.2025",
     tyonantaja: "Nokia Oyj",
   },
-  {
-    id: "1-4",
-    huom: "Poistettu (15.12.2025)",
-    maksupaiva: "8.1.2026",
-    tulolaji: "Tulolaji joka on poistettu",
-    palkka: 100,
-    alkuperainenTulo: 0,
-    ansaintaAika: "",
-    tyonantaja: "Nokia Oyj",
-  },
+ 
   {
     id: "1-5",
     maksupaiva: "8.1.2026",
