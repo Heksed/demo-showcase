@@ -126,7 +126,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "8.1.2026",
     tulolaji: "Aikapalkka",
     palkka: 2200,
-    alkuperainenTulo: 2200,
+    alkuperainenTulo: 0,
     ansaintaAika: "1.12.2025 - 31.12.2025",
     tyonantaja: "Nokia Oyj",
   },
@@ -135,7 +135,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "8.1.2026",
     tulolaji: "Lomaraha",
     palkka: 800,
-    alkuperainenTulo: 800,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Nokia Oyj",
   },
@@ -155,7 +155,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "8.1.2026",
     tulolaji: "Tulolaji joka on poistettu",
     palkka: 100,
-    alkuperainenTulo: 100,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Nokia Oyj",
   },
@@ -164,7 +164,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "8.1.2026",
     tulolaji: "Polkupyöräedun palkaksi katsottava osuus",
     palkka: 100,
-    alkuperainenTulo: 100,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Nokia Oyj",
   },
@@ -173,7 +173,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "15.1.2026",
     tulolaji: "Aikapalkka",
     palkka: 200,
-    alkuperainenTulo: 200,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Posti Oyj",
   },
@@ -182,7 +182,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "15.1.2026",
     tulolaji: "Lomaraha",
     palkka: 500,
-    alkuperainenTulo: 500,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Posti Oyj",
   },
@@ -191,7 +191,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     maksupaiva: "15.1.2026",
     tulolaji: "Työkorvaus",
     palkka: 300,
-    alkuperainenTulo: 300,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Posti Oyj",
   },
@@ -204,7 +204,7 @@ const MOCK_ROWS_2025_12: IncomeRow[] = [
     maksupaiva: "10.12.2025",
     tulolaji: "Aikapalkka",
     palkka: 2100,
-    alkuperainenTulo: 2100,
+    alkuperainenTulo: 0,
     ansaintaAika: "1.11.2025 - 30.11.2025",
     tyonantaja: "Nokia Oyj",
   },
@@ -213,7 +213,7 @@ const MOCK_ROWS_2025_12: IncomeRow[] = [
     maksupaiva: "10.12.2025",
     tulolaji: "Lomaraha",
     palkka: 600,
-    alkuperainenTulo: 600,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Nokia Oyj",
   },
@@ -225,7 +225,7 @@ const MOCK_ROWS_2025_11: IncomeRow[] = [
     maksupaiva: "10.11.2025",
     tulolaji: "Aikapalkka",
     palkka: 2000,
-    alkuperainenTulo: 2000,
+    alkuperainenTulo: 0,
     ansaintaAika: "1.10.2025 - 31.10.2025",
     tyonantaja: "Nokia Oyj",
   },
@@ -237,7 +237,7 @@ const MOCK_ROWS_2025_03: IncomeRow[] = [
     maksupaiva: "10.3.2025",
     tulolaji: "Aikapalkka",
     palkka: 1800,
-    alkuperainenTulo: 1800,
+    alkuperainenTulo: 0,
     ansaintaAika: "1.2.2025 - 28.2.2025",
     tyonantaja: "Nokia Oyj",
   },
@@ -249,7 +249,7 @@ const MOCK_ROWS_2025_02: IncomeRow[] = [
     maksupaiva: "10.2.2025",
     tulolaji: "Aikapalkka",
     palkka: 1900,
-    alkuperainenTulo: 1900,
+    alkuperainenTulo: 0,
     ansaintaAika: "1.1.2025 - 31.1.2025",
     tyonantaja: "Nokia Oyj",
   },
@@ -261,7 +261,7 @@ const MOCK_ROWS_2025_01: IncomeRow[] = [
     maksupaiva: "10.1.2025",
     tulolaji: "Aikapalkka",
     palkka: 2050,
-    alkuperainenTulo: 2050,
+    alkuperainenTulo: 0,
     ansaintaAika: "1.12.2024 - 31.12.2024",
     tyonantaja: "Nokia Oyj",
   },
@@ -270,7 +270,7 @@ const MOCK_ROWS_2025_01: IncomeRow[] = [
     maksupaiva: "10.1.2025",
     tulolaji: "Lomaraha",
     palkka: 400,
-    alkuperainenTulo: 400,
+    alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Nokia Oyj",
   },
@@ -425,6 +425,19 @@ function parseDate(dateStr: string): Date {
     return new Date(year, month, day);
   }
   return new Date();
+}
+
+// Parse Finnish date like "8.10.2026" → Date | null (from massincomesplit)
+function parseFinnishDate(s?: string | null): Date | null {
+  if (!s) return null;
+  const parts = String(s).trim().split(".").filter(Boolean);
+  if (parts.length !== 3) return null;
+  const [dd, mm, yyyy] = parts;
+  const d = parseInt(dd, 10);
+  const m = parseInt(mm, 10) - 1;
+  const y = parseInt(yyyy, 10);
+  const dt = new Date(y, m, d);
+  return isNaN(dt.getTime()) ? null : dt;
 }
 
 // Format Date to DD.MM.YYYY
@@ -817,12 +830,23 @@ export default function AllocateIncome() {
     );
   };
 
-  const filteredEmployments = MOCK_EMPLOYMENT_RELATIONSHIPS.filter(emp => {
-    if (selectedEmployer && emp.employer !== selectedEmployer) return false;
-    if (employmentStartDate && emp.startDate !== employmentStartDate) return false;
-    if (employmentEndDate && emp.endDate !== employmentEndDate) return false;
-    return true;
-  });
+  const filteredEmployments = useMemo(() => {
+    return MOCK_EMPLOYMENT_RELATIONSHIPS.filter(emp => {
+      if (selectedEmployer && emp.employer !== selectedEmployer) return false;
+      
+      // Parse both dates for comparison using parseFinnishDate
+      const inputStart = parseFinnishDate(employmentStartDate);
+      const empStart = parseFinnishDate(emp.startDate);
+      const inputEnd = parseFinnishDate(employmentEndDate);
+      const empEnd = parseFinnishDate(emp.endDate);
+      
+      // Only filter by start date if both dates are valid and different
+      if (employmentStartDate && inputStart && empStart && inputStart.getTime() !== empStart.getTime()) return false;
+      if (employmentEndDate && inputEnd && empEnd && inputEnd.getTime() !== empEnd.getTime()) return false;
+      
+      return true;
+    });
+  }, [selectedEmployer, employmentStartDate, employmentEndDate]);
 
   // Calculate preview splits
   const previewSplits = useMemo<MonthSplit[]>(() => {
@@ -1013,7 +1037,7 @@ export default function AllocateIncome() {
         maksupaiva: allocationContext.payDate,
         tulolaji: split.incomeType || sourceRow.tulolaji,
         palkka: roundToCents(split.amount),
-        alkuperainenTulo: sourceRow.alkuperainenTulo,
+        alkuperainenTulo: sourceRow.alkuperainenTulo > 0 ? sourceRow.alkuperainenTulo : sourceRow.palkka,
         ansaintaAika: earningPeriod,
         kohdistusTOE: allocationMethodDesc,
         tyonantaja: sourceRow.tyonantaja,
@@ -1379,8 +1403,8 @@ export default function AllocateIncome() {
                 )}
               </div>
 
-              {/* Direction - only show for period method */}
-              {allocationMethod === "period" && (
+              {/* Direction - only show for manual distribution */}
+              {distributionType === "manual" && (
                 <div className="space-y-2">
                   <Label>Jaon suunta</Label>
                   <Select value={direction} onValueChange={(v) => setDirection(v as Direction)}>
@@ -1437,44 +1461,26 @@ export default function AllocateIncome() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Alkupäivä</Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        type="text" 
-                        value={startDate} 
-                        onChange={(e) => setStartDate(e.target.value)}
-                        placeholder="DD.MM.YYYY"
-                        disabled={allocationMethod === "employment"}
-                        className={cn(allocationMethod === "employment" && "bg-gray-100 cursor-not-allowed")}
-                      />
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        disabled={allocationMethod === "employment"}
-                      >
-                        <CalendarIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Input 
+                      type="text" 
+                      value={startDate} 
+                      onChange={(e) => setStartDate(e.target.value)}
+                      placeholder="DD.MM.YYYY"
+                      disabled={allocationMethod === "employment"}
+                      className={cn(allocationMethod === "employment" && "bg-gray-100 cursor-not-allowed")}
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label>Loppupäivä</Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        type="text" 
-                        value={endDate} 
-                        onChange={(e) => setEndDate(e.target.value)}
-                        placeholder="DD.MM.YYYY"
-                        disabled={allocationMethod === "employment"}
-                        className={cn(allocationMethod === "employment" && "bg-gray-100 cursor-not-allowed")}
-                      />
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        disabled={allocationMethod === "employment"}
-                      >
-                        <CalendarIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Input 
+                      type="text" 
+                      value={endDate} 
+                      onChange={(e) => setEndDate(e.target.value)}
+                      placeholder="DD.MM.YYYY"
+                      disabled={allocationMethod === "employment"}
+                      className={cn(allocationMethod === "employment" && "bg-gray-100 cursor-not-allowed")}
+                    />
                   </div>
                 </div>
               )}
@@ -1783,30 +1789,20 @@ export default function AllocateIncome() {
                 
                 <div>
                   <Label>Alkupäivä</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="PP.KK.VVVV" 
-                      value={employmentStartDate}
-                      onChange={(e) => setEmploymentStartDate(e.target.value)}
-                    />
-                    <Button variant="outline" size="icon">
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    placeholder="PP.KK.VVVV" 
+                    value={employmentStartDate}
+                    onChange={(e) => setEmploymentStartDate(e.target.value)}
+                  />
                 </div>
                 
                 <div>
                   <Label>Loppupäivä</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="PP.KK.VVVV" 
-                      value={employmentEndDate}
-                      onChange={(e) => setEmploymentEndDate(e.target.value)}
-                    />
-                    <Button variant="outline" size="icon">
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    placeholder="PP.KK.VVVV" 
+                    value={employmentEndDate}
+                    onChange={(e) => setEmploymentEndDate(e.target.value)}
+                  />
                 </div>
                 
                 <div className="flex items-end">
@@ -1817,7 +1813,7 @@ export default function AllocateIncome() {
               {/* Employment Relationships Table */}
               <div className="overflow-auto rounded-xl border">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-[#003479] text-white">
+                <thead className="text-white" style={{backgroundColor: '#5F686D'}}>
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">Valinta</th>
                       <th className="px-3 py-2 text-left font-medium">Työnantaja</th>
@@ -1858,16 +1854,11 @@ export default function AllocateIncome() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
                   <Label>Maksupäivä</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="PP.KK.VVVV" 
-                      value={paymentDate}
-                      onChange={(e) => setPaymentDate(e.target.value)}
-                    />
-                    <Button variant="outline" size="icon">
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    placeholder="PP.KK.VVVV" 
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
                 </div>
                 
                 <div>
@@ -1902,30 +1893,20 @@ export default function AllocateIncome() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <Label>Alkupäivä</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="PP.KK.VVVV" 
-                      value={earningStartDate}
-                      onChange={(e) => setEarningStartDate(e.target.value)}
-                    />
-                    <Button variant="outline" size="icon">
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    placeholder="PP.KK.VVVV" 
+                    value={earningStartDate}
+                    onChange={(e) => setEarningStartDate(e.target.value)}
+                  />
                 </div>
                 
                 <div>
                   <Label>Loppupäivä</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="PP.KK.VVVV" 
-                      value={earningEndDate}
-                      onChange={(e) => setEarningEndDate(e.target.value)}
-                    />
-                    <Button variant="outline" size="icon">
-                      <CalendarIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    placeholder="PP.KK.VVVV" 
+                    value={earningEndDate}
+                    onChange={(e) => setEarningEndDate(e.target.value)}
+                  />
                 </div>
               </div>
             </div>

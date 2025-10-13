@@ -285,6 +285,9 @@ export default function PaivarahaLaskuri() {
   const [comparePaidDays, setComparePaidDays] = useState<number | null>(null); // null = use basic calculation days
   const [compareDailyManual, setCompareDailyManual] = useState<number>(0); // 0 = not set
   
+  // Child increment
+  const [childCount, setChildCount] = useState<number>(0); // 0-3+ children
+  
   const [toeDateCompare, setToeDateCompare] = useState<string>("");
 
 
@@ -295,6 +298,8 @@ export default function PaivarahaLaskuri() {
     yrittajaPaivaraha: false, // Entrepreneur's allowance
     kulukorvaus: false, // Expense compensation (tax-free)
     kulukorvausKorotus: false, // Expense compensation increase portion
+    lapsikorotus: false, // Child increment
+    ulkomaanPaivaraha: false, // Foreign per diem
   });
 
   const setFormulaNumber =
@@ -503,12 +508,23 @@ const setFormulaPercent =
     const travelAllowancePerDay = flags.kulukorvaus ? (flags.kulukorvausKorotus ? cfg.travelElevated : cfg.travelBase) : 0;
     const travelAllowanceTotal = travelAllowancePerDay * days;
 
+    // Lapsikorotus (poistui 1.4.2024)
+    const childIncrementPerDay = flags.lapsikorotus && calcDate < '2024-04-01' 
+      ? (() => {
+          if (childCount <= 0) return 0;
+          if (childCount === 1) return 5.84;
+          if (childCount === 2) return 8.57;
+          return 11.05; // 3+ children
+        })()
+      : 0;
+    const childIncrementTotal = childIncrementPerDay * days;
+
     // Yhteenveto
     const gross = adjustedDaily * days;
     const withholding = gross * (taxPct / 100);
     const memberFee = (memberFeePct / 100) * gross;
     const net = gross - withholding - memberFee;
-    const totalPayable = net + travelAllowanceTotal; // netto + veroton kulukorvaus
+    const totalPayable = net + travelAllowanceTotal + childIncrementTotal; // netto + veroton kulukorvaus + lapsikorotus
 
     const benefitsPerDay = periodDays ? benefitsTotal / periodDays : 0;
 
@@ -538,6 +554,7 @@ const setFormulaPercent =
       cumulativePaidAfter,
       maxDays,
       travelAllowancePerDay,
+      childIncrementPerDay,
       // period totals
       days,
       gross,
@@ -545,6 +562,7 @@ const setFormulaPercent =
       memberFee,
       net,
       travelAllowanceTotal,
+      childIncrementTotal,
       totalPayable,
       // meta
       priorPaidDays,
@@ -572,6 +590,9 @@ const setFormulaPercent =
     flags.baseOnlyW,
     flags.kulukorvaus,
     flags.kulukorvausKorotus,
+    flags.lapsikorotus,
+    childCount,
+    calcDate,
     period,
     benefitStartDate,
     periodStartDate,
@@ -848,23 +869,55 @@ const setFormulaPercent =
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-6">
                 <Label>Laskentapäivä *</Label>
-                <Input type="date" value={calcDate} onChange={(e) => setCalcDate(e.target.value)} />
+                <DevField
+                  fieldId="calculation-date"
+                  fieldLabel="Laskentapäivä (Calculation Day)"
+                  userStory="The user selects or confirms the Calculation Day used by the benefit calculator. By default this is the payable day being simulated (or the period start), but the user can override it to test retroactive/what-if scenarios. The calculator then fetches the correct rates and rules that are in force on that date."
+                  business="The Calculation Day is the effective-date anchor for all time-dependent parameters in the unemployment benefit calculation (e.g., index-linked amounts, child increments, earnings-disregard rules, tax settings, and step thresholds). For a single day, use that day as the Calculation Day. For multi-day periods, compute day-by-day using each day as its own Calculation Day and sum the results. If a simplified mode is needed, use the period start date as the Calculation Day only if no rule changes occur inside the period."
+                  formula="params(calcDay) = ruleset.effectiveAt(calcDay)\nstep(calcDay) = stepFrom(priorPaidDaysBefore(calcDay), params(calcDay).stepThresholds)\ndailyAmount(calcDay) = computeDaily(baseInputs, params(calcDay), step(calcDay))\nperiodAmount = Σ dailyAmount(d) for each payable day d in [periodStart, periodEnd]"
+                  code={`const [calcDate, setCalcDate] = useState<string>(new Date().toISOString().slice(0, 10));
+
+// Get effective parameters for the calculation date
+const effectiveParams = getEffectiveParams(calcDate);
+const stepThresholds = effectiveParams.stepThresholds;
+const dailyBase = effectiveParams.dailyBase;
+const splitPointMonth = effectiveParams.splitPointMonth;
+
+// Calculate step factor based on prior paid days before calc date
+const priorPaidDays = businessDaysBetween(benefitStartDate, calcDate);
+const stepFactor = calculateStepFactor(priorPaidDays, stepThresholds);`}
+                  example="Rates change on 2025-01-01.\n• Calculating 2024-12-30 → use 2024 rules.\n• Calculating 2025-01-02 → use 2025 rules.\nFor a period 2024-12-29…2025-01-03, compute each day with its own Calculation Day so the rule change on 2025-01-01 is handled correctly."
+                >
+                  <Input type="date" value={calcDate} onChange={(e) => setCalcDate(e.target.value)} />
+                </DevField>
               </div>
 
               <div className="space-y-2">
                 <Label>Sovittelujakso</Label>
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Ei sovittelua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PERIODS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <DevField
+                  fieldId="adjustment-period"
+                  fieldLabel="Sovittelujakso (Adjustment Period)"
+                  userStory="The user reviews or inputs the adjustment period to ensure that all income within that time frame is correctly included in the benefit calculation. The user can view, edit, or confirm the start and end dates of the adjustment period before benefit processing."
+                  business="The adjustment period (settlement period) defines the time range during which earned income affects the amount of unemployment benefit paid. Any income received within this period is adjusted against the daily allowance according to the applicable earnings disregard rules. The adjustment period typically corresponds to the employer's pay cycle or a 4-week/1-month benefit period determined by the fund."
+                  formula="adjustedBenefit = baseBenefit – adjustment(incomeDuringPeriod, disregardRules)"
+                  code={`const periodDays = period ? DAYS_BY_PERIOD[period as PeriodKey] : 0;
+const perDayReduction = (incomesTotal * 0.5) / periodDays; // 50% / jakson pv
+const adjustedBenefit = baseBenefit - perDayReduction;`}
+                  example="If the adjustment period is 2025-03-01 – 2025-03-31 and the person earns €600 during that time, the income is distributed evenly over the period and reduces the daily allowance according to the earnings disregard. The next adjustment period starts immediately after the previous one ends."
+                >
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ei sovittelua" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PERIODS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </DevField>
               </div>
 
               <div className="space-y-2">
@@ -889,11 +942,11 @@ const setFormulaPercent =
                   fieldId="toe-date"
                   fieldLabel="TOE täyttymispäivä (Employment Condition Fulfillment Date)"
                   userStory="User enters the date when they fulfilled the employment condition (TOE) to become eligible for earnings-related allowance."
-                  business="TOE date determines eligibility for earnings-related unemployment benefit. Prior paid days are calculated from this date to determine step factor."
+                  business="The TOE (fulfilment of the employment condition) date establishes eligibility for the earnings-related unemployment benefit, but it does not define the starting point for step calculation. The step counter (prior paid days) begins from the first paid unemployment benefit day, i.e. the first day for which the benefit has actually been paid."
                   formula="priorPaidDays = businessDaysBetween(toeDate, periodStartDate)"
                   code={`const priorPaidDays = businessDaysBetween(toeDate, periodStartDate);
-// Used to calculate step factor for allowance increase`}
-                  example="If TOE date is 2024-01-01 and period starts 2024-12-01, prior days determine if step 1 (300+ days) or step 2 (400+ days) applies."
+                `}
+                  example="If the TOE date is 2024-01-01 but the person applies for unemployment benefit on 2025-01-01 and the first paid day is 2025-01-02, the step calculation starts from 2025-01-02, not from the TOE date."
                 >
                   <Input type="date" value={toeDate} onChange={(e) => setToeDate(e.target.value)} />
                 </DevField>
@@ -1055,13 +1108,33 @@ const gross = adjustedDaily * paidDays;`}
 
                 <div className="space-y-2 md:col-span-2">
                   <Label>VERTAILU – Päiväraha €/pv</Label>
-                  <Input
-                    type="number"
-                    step={0.01}
-                    value={compareDailyManual}
-                    onChange={(e)=> setCompareDailyManual(parseFloat(e.target.value || "0"))}
-                    placeholder="0,00"
-                  />
+                  <DevField
+                    fieldId="comparison-daily-allowance"
+                    fieldLabel="VERTAILU – Päiväraha €/pv (Comparison Daily Allowance)"
+                    userStory="The user manually enters a daily allowance amount for comparison purposes to see how different daily allowance rates affect the total benefit calculation and net income."
+                    business="This field allows users to override the calculated daily allowance with a custom value for comparison scenarios. When set to a value greater than 0, it takes precedence over the automatically calculated daily allowance in the comparison calculation. This is useful for testing different allowance rates, negotiating scenarios, or comparing with alternative benefit schemes."
+                    formula="comparisonDailyAllowance = compareDailyManual > 0 ? compareDailyManual : calculatedDailyAllowance\ncomparisonGross = comparisonDailyAllowance × paidDays\ncomparisonNet = comparisonGross - withholding - memberFee"
+                    code={`const [compareDailyManual, setCompareDailyManual] = useState<number>(0);
+
+// In comparison calculation
+let cmpFullDaily = 0;
+if (compareDailyManual > 0) {
+  cmpFullDaily = compareDailyManual; // Use manual override
+} else {
+  cmpFullDaily = calculatedDailyAllowance; // Use calculated value
+}
+
+const comparisonGross = cmpFullDaily * paidDays;`}
+                    example="If the calculated daily allowance is €45.50 but the user wants to compare with €50.00, they enter 50.00 in this field. The comparison will then show results using €50.00 daily allowance instead of the calculated €45.50."
+                  >
+                    <Input
+                      type="number"
+                      step={0.01}
+                      value={compareDailyManual}
+                      onChange={(e)=> setCompareDailyManual(parseFloat(e.target.value || "0"))}
+                      placeholder="0,00"
+                    />
+                  </DevField>
                 </div>
               </div>
             </fieldset>
@@ -1178,24 +1251,24 @@ const net = gross - withholding - memberFee;`}
                   userStory="User enables automatic benefit stepping where the daily allowance gradually decreases as unemployment continues. This reflects the Finnish unemployment benefit system where payments reduce over time."
                   business="Benefit stepping (porrastus) applies to those whose employment condition (TOE) was fulfilled on or after Sept 2, 2024. The benefit is paid at 100% for the first 40 days, 80% for days 41-170, and 75% after 170 days. Stepping is calculated relative to the full earnings-related allowance, not adjusted amounts. The benefit cannot return to 100% until the person fulfills the employment condition again."
                   formula={`Days 1-40: 100% of full benefit
-Days 41-170: 80% of full benefit  
-Days 171+: 75% of full benefit
+                  Days 41-170: 80% of full benefit  
+                  Days 171+: 75% of full benefit
 
-avgFactor = Σ(factor per day) / totalDays`}
+                  avgFactor = Σ(factor per day) / totalDays`}
                   code={`const stepFactorByCumulativeDays = (cum: number) => {
-  if (cum >= 170) return { factor: 0.75, label: "Porrastus 75%" };
-  if (cum >= 40) return { factor: 0.80, label: "Porrastus 80%" };
-  return { factor: 1.0, label: "Ei porrastusta" };
-};
+                  if (cum >= 170) return { factor: 0.75, label: "Porrastus 75%" };
+                  if (cum >= 40) return { factor: 0.80, label: "Porrastus 80%" };
+                 return { factor: 1.0, label: "Ei porrastusta" };
+                };
 
-// Calculate weighted average for period
-let sumFactor = 0;
-for (let i = 0; i < days; i++) {
-  const cumulative = priorPaidDays + (i + 1);
-  sumFactor += stepFactorByCumulativeDays(cumulative).factor;
-}
-const avgStepFactor = sumFactor / days;
-const fullDaily = (basePart + earningsPart) * avgStepFactor;`}
+                // Calculate weighted average for period
+                let sumFactor = 0;
+                for (let i = 0; i < days; i++) {
+                const cumulative = priorPaidDays + (i + 1);
+                sumFactor += stepFactorByCumulativeDays(cumulative).factor;
+                }
+                const avgStepFactor = sumFactor / days;
+                const fullDaily = (basePart + earningsPart) * avgStepFactor;`}
                   example="If prior paid days = 35 and current period = 10 days: Days 1-5 at 100%, days 6-10 at 80%. Average factor ≈ 0.90, so daily allowance is reduced to 90% of full amount."
                 >
                   <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
@@ -1245,6 +1318,8 @@ for (let i = 0; i < days; i++) {
                   { key: "yrittajaPaivaraha", label: "Yrittäjäpäiväraha" },
                   { key: "kulukorvaus", label: "Kulukorvaus" },
                   { key: "kulukorvausKorotus", label: "Kulukorvauksen korotusosa" },
+                  { key: "lapsikorotus", label: "Lapsikorotus" },
+                  { key: "ulkomaanPaivaraha", label: "Ulkomaan päiväraha" },
                 ].map((f: any) => (
                   <label key={f.key} className="flex items-center gap-2 p-2 rounded-xl border bg-white">
                     <Switch
@@ -1255,6 +1330,55 @@ for (let i = 0; i < days; i++) {
                   </label>
                 ))}
               </div>
+
+              {flags.lapsikorotus && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-gray-500">Huollettavien lasten määrä</Label>
+                  <Select value={childCount.toString()} onValueChange={(v) => setChildCount(parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Ei lapsia</SelectItem>
+                      <SelectItem value="1">1 lapsi (+5,84 €/pv)</SelectItem>
+                      <SelectItem value="2">2 lasta (+8,57 €/pv)</SelectItem>
+                      <SelectItem value="3">3+ lasta (+11,05 €/pv)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {flags.ulkomaanPaivaraha && (
+                <div className="space-y-2">
+                  <DevField
+                    fieldId="foreign-per-diem"
+                    fieldLabel="Ulkomaan päiväraha (Foreign Per Diem)"
+                    userStory="The user selects destination countries, travel start and end times, and meal/accommodation benefits. The system calculates foreign per diem according to tax administration regulations."
+                    business="Foreign per diem is determined per travel day (24-hour periods) based on the country where the travel day ends. If it ends on a ship or plane, the decisive country is the last departure/first arrival country. Each country has an annual maximum amount (2025: country-specific euro amounts). Domestic per diems (2025: full day 53 €, partial day 24 €) are determined separately."
+                    formula="for each 24h travelDay: country = countryWhereDayEnds(travelDay), base = perDiemTable2025[country], base = applyPartialDayRules(base, hoursInFinalDay), base = applyMealReductions(base, providedMeals), totalPerDiem = Σ base"
+                    code={`type PerDiemTable = Record<string, number>; // e.g. { "NL": 86, "DE": 76, ... } for 2025
+type TravelLeg = { from: ISO; to: ISO; endCountry: string };
+type Meal = 'breakfast' | 'lunch' | 'dinner';
+
+function perDiemForSegment(endCountry: string, hours: number, p: PerDiemParams, providedMeals: Meal[]): number {
+  const base = p.table[endCountry] ?? 0;
+  let amount = p.partialDayRule(hours, base);
+  for (const m of providedMeals) {
+    const r = p.mealReductions[m] ?? 0;
+    amount -= amount * r;
+  }
+  return Math.max(0, Math.round(amount * 100) / 100);
+}`}
+                    example="Business trip 2025-02-10 08:00 → 2025-02-12 13:00. 1st travel day ends 2025-02-11 08:00 in Netherlands → use NL per diem (e.g. 86 €). 2nd travel day ends 2025-02-12 08:00 in Netherlands → 86 €. Remaining 5h → partial day rule/tax authority guidelines. Sum and deduct provided meals."
+                  >
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                      <p className="font-medium">Ulkomaan päiväraha (työmatkojen verovapaa päiväraha)</p>
+                      <p className="text-xs mt-1">Tarvitaanko tässä laskurissa? Vaaditaan monimutkainen laskentalogiikka matkavuorokausien, maakohtaisten määrien ja aterioiden vähennysten kanssa.</p>
+                    </div>
+                  </DevField>
+                </div>
+              )}
+
             </CardContent>
           </Card>
 
