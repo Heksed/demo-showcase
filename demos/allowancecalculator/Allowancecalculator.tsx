@@ -250,6 +250,11 @@ interface IncomeRow {
 // Component
 // ===============================
 
+// Utility function for rounding to cents (2 decimal places)
+function roundToCents(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 
 export default function PaivarahaLaskuri() {
   // Basic information
@@ -506,7 +511,7 @@ const setFormulaPercent =
 
     // Veroton kulukorvaus (oletus: 9 €/pv, korotettuna 18 €/pv)
     const travelAllowancePerDay = flags.kulukorvaus ? (flags.kulukorvausKorotus ? cfg.travelElevated : cfg.travelBase) : 0;
-    const travelAllowanceTotal = travelAllowancePerDay * days;
+    const travelAllowanceTotal = roundToCents(travelAllowancePerDay * days);
 
     // Lapsikorotus (poistui 1.4.2024)
     const childIncrementPerDay = flags.lapsikorotus && calcDate < '2024-04-01' 
@@ -517,14 +522,14 @@ const setFormulaPercent =
           return 11.05; // 3+ children
         })()
       : 0;
-    const childIncrementTotal = childIncrementPerDay * days;
+    const childIncrementTotal = roundToCents(childIncrementPerDay * days);
 
     // Yhteenveto
-    const gross = adjustedDaily * days;
-    const withholding = gross * (taxPct / 100);
-    const memberFee = (memberFeePct / 100) * gross;
-    const net = gross - withholding - memberFee;
-    const totalPayable = net + travelAllowanceTotal + childIncrementTotal; // netto + veroton kulukorvaus + lapsikorotus
+    const gross = roundToCents(adjustedDaily * days);
+    const withholding = roundToCents(gross * (taxPct / 100));
+    const memberFee = roundToCents((memberFeePct / 100) * gross);
+    const net = roundToCents(gross - withholding - memberFee);
+    const totalPayable = roundToCents(net + travelAllowanceTotal + childIncrementTotal); // netto + veroton kulukorvaus + lapsikorotus
 
     const benefitsPerDay = periodDays ? benefitsTotal / periodDays : 0;
 
@@ -641,11 +646,11 @@ const setFormulaPercent =
     const cmpFullDaysEquivalent = cmpConsumptionRatio * cmpDays;
 
     // ✨ 2.5 Jakson summat – KAIKKI käyttävät cmpDays-arvoa
-    const cmpGross = cmpAdjustedDaily * cmpDays;
-    const cmpWithholding = cmpGross * (taxPct / 100);
-    const cmpMemberFee = (memberFeePct / 100) * cmpGross;
-    const cmpNet = cmpGross - cmpWithholding - cmpMemberFee;
-    const cmpTotal = cmpNet + results.travelAllowanceTotal; // kulukorvaus/ pv samana
+    const cmpGross = roundToCents(cmpAdjustedDaily * cmpDays);
+    const cmpWithholding = roundToCents(cmpGross * (taxPct / 100));
+    const cmpMemberFee = roundToCents((memberFeePct / 100) * cmpGross);
+    const cmpNet = roundToCents(cmpGross - cmpWithholding - cmpMemberFee);
+    const cmpTotal = roundToCents(cmpNet + results.travelAllowanceTotal); // kulukorvaus/ pv samana
 
     return {
       days: cmpDays,
@@ -1367,7 +1372,7 @@ function perDiemForSegment(endCountry: string, hours: number, p: PerDiemParams, 
     const r = p.mealReductions[m] ?? 0;
     amount -= amount * r;
   }
-  return Math.max(0, Math.round(amount * 100) / 100);
+  return Math.max(0, roundToCents(amount));
 }`}
                     example="Business trip 2025-02-10 08:00 → 2025-02-12 13:00. 1st travel day ends 2025-02-11 08:00 in Netherlands → use NL per diem (e.g. 86 €). 2nd travel day ends 2025-02-12 08:00 in Netherlands → 86 €. Remaining 5h → partial day rule/tax authority guidelines. Sum and deduct provided meals."
                   >

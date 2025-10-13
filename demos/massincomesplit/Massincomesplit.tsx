@@ -88,8 +88,8 @@ export function calcSplit(rows: Row[], opts: { splitType: SplitType; percent?: n
         id: r.id,
         maksupaiva: r.maksupaiva,
         alkuperainenTulo: base,
-        oneThird: base / 3,
-        twoThirds: (base / 3) * 2,
+        oneThird: roundToCents(base / 3),
+        twoThirds: roundToCents((base / 3) * 2),
       } as any;
     }
     if (opts.splitType === "PERCENT") {
@@ -97,8 +97,8 @@ export function calcSplit(rows: Row[], opts: { splitType: SplitType; percent?: n
       return { id: r.id, maksupaiva: r.maksupaiva, alkuperainenTulo: base, prosentti: opts.percent, erotettava: amount } as any;
     }
     const erotettavaMaara = roundToCents(base * percent);
-    const oneThird = erotettavaMaara / 3;
-    const twoThirds = (erotettavaMaara / 3) * 2;
+    const oneThird = roundToCents(erotettavaMaara / 3);
+    const twoThirds = roundToCents((erotettavaMaara / 3) * 2);
     return { id: r.id, maksupaiva: r.maksupaiva, alkuperainenTulo: base, prosentti: opts.percent, erotettava: erotettavaMaara, oneThird, twoThirds } as any;
   });
 }
@@ -271,8 +271,8 @@ export default function MassIncomeSplitPrototype() {
       const base = r.palkka;
 
       if (splitType === "ONE_THIRD_TWO_THIRDS") {
-        const oneThird = base / 3;
-        const twoThirds = (base / 3) * 2;
+        const oneThird = roundToCents(base / 3);
+        const twoThirds = roundToCents((base / 3) * 2);
         // source is zeroed
         const zeroed: Row = { ...r, palkka: 0, alkuperainenTulo: base };
         next.push(zeroed);
@@ -298,8 +298,8 @@ export default function MassIncomeSplitPrototype() {
 } else if (splitType === "PERCENT_PLUS_SPLIT") {
 
         const erotettava = roundToCents(base * (percent / 100));
-        const oneThird = erotettava / 3;
-        const twoThirds = (erotettava / 3) * 2;
+        const oneThird = roundToCents(erotettava / 3);
+        const twoThirds = roundToCents((erotettava / 3) * 2);
         const remaining = roundToCents(base - erotettava);
         // source gets remaining portion after deduction
         const updatedSource: Row = { ...r, palkka: remaining, alkuperainenTulo: base };

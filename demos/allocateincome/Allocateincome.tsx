@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronRight, Calendar as CalendarIcon, MoreVertical, AlertCircle, CheckCircle2, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar as CalendarIcon, MoreVertical, AlertCircle, CheckCircle2, RotateCcw, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -28,6 +28,7 @@ type IncomeRow = {
   ansaintaAika: string; // earningPeriod
   kohdistusTOE?: string; // allocationTOE
   tyonantaja: string; // employer
+  allocationData?: any; // Tallenna kohdistuksen tiedot
 };
 
 type MonthPeriod = {
@@ -117,7 +118,15 @@ const INCOME_TYPES = [
   "Lomaraha",
   "Vuosilomakorvaus",
   "Työkorvaus",
-  "Polkupyöräedun palkaksi katsottava osuus",
+  "Jokin etuus",
+  "Aloitepalkkio",
+  "Kilometrikorvaus",
+];
+
+// Income types that don't affect unemployment benefit calculation
+const NON_BENEFIT_AFFECTING_INCOME_TYPES = [
+  "Kokouspalkkio",
+  "Luentopalkkio",
 ];
 
 const MOCK_INCOME_ROWS: IncomeRow[] = [
@@ -162,7 +171,7 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
   {
     id: "1-5",
     maksupaiva: "8.1.2026",
-    tulolaji: "Polkupyöräedun palkaksi katsottava osuus",
+    tulolaji: "Jokin etuus",
     palkka: 100,
     alkuperainenTulo: 0,
     ansaintaAika: "",
@@ -194,6 +203,24 @@ const MOCK_INCOME_ROWS: IncomeRow[] = [
     alkuperainenTulo: 0,
     ansaintaAika: "",
     tyonantaja: "Posti Oyj",
+  },
+  {
+    id: "1-9",
+    maksupaiva: "8.1.2026",
+    tulolaji: "Kokouspalkkio",
+    palkka: 500,
+    alkuperainenTulo: 0,
+    ansaintaAika: "",
+    tyonantaja: "Nokia Oyj",
+  },
+  {
+    id: "1-10",
+    maksupaiva: "8.1.2026",
+    tulolaji: "Luentopalkkio",
+    palkka: 150,
+    alkuperainenTulo: 0,
+    ansaintaAika: "",
+    tyonantaja: "Nokia Oyj",
   },
 ];
 
@@ -523,8 +550,8 @@ function distributeByDays(totalAmount: number, splits: Array<{ year: number; mon
   // Round down to 2 decimals
   const roundedSplits = rawSplits.map(s => ({
     ...s,
-    amount: Math.floor(s.rawAmount * 100) / 100,
-    remainder: s.rawAmount - Math.floor(s.rawAmount * 100) / 100,
+    amount: roundToCents(s.rawAmount),
+    remainder: s.rawAmount - roundToCents(s.rawAmount),
   }));
 
   // Calculate total rounded and remainder
@@ -563,7 +590,7 @@ function distributeByDays(totalAmount: number, splits: Array<{ year: number; mon
 // Distribute amount equally across months
 function distributeEqualMonths(totalAmount: number, splits: Array<{ year: number; month: number; start: Date; end: Date; days: number }>, direction: Direction): MonthSplit[] {
   const monthCount = splits.length;
-  const baseAmount = Math.floor((totalAmount / monthCount) * 100) / 100;
+  const baseAmount = roundToCents(totalAmount / monthCount);
   const totalBase = baseAmount * monthCount;
   const remainder = Math.round((totalAmount - totalBase) * 100);
 
@@ -661,10 +688,12 @@ function generateMonthsFromPayDate(payDate: string, monthCount: number, directio
 export default function AllocateIncome() {
   const [periods, setPeriods] = useState<MonthPeriod[]>(MOCK_PERIODS);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set(["2026-01"]));
+  const [showNonBenefitAffecting, setShowNonBenefitAffecting] = useState(false);
   
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [allocationContext, setAllocationContext] = useState<AllocationContext | null>(null);
+  const [viewMode, setViewMode] = useState(false); // Lukittu näkymä silmäikonin kautta
   
   // Add income modal state
   const [addIncomeModalOpen, setAddIncomeModalOpen] = useState(false);
@@ -708,6 +737,34 @@ export default function AllocateIncome() {
     });
   };
 
+  // Filter rows to show based on showNonBenefitAffecting setting
+  const getVisibleRows = (period: MonthPeriod) => {
+    if (showNonBenefitAffecting) {
+      return period.rows; // Show all rows including deleted and non-benefit affecting
+    }
+    return period.rows.filter(row => 
+      !isRowDeleted(row) && // Hide deleted rows
+      // Show: vaikuttavat tulot + huomioidut tulot
+      (!NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) || 
+       row.huom?.includes("Huomioitu laskennassa"))
+    );
+  };
+
+  // Calculate count of hidden rows
+  const getHiddenRowsCount = (period: MonthPeriod) => {
+    if (showNonBenefitAffecting) {
+      return 0; // All rows are visible
+    }
+    
+    const hiddenCount = period.rows.filter(row => 
+      isRowDeleted(row) || // Deleted rows
+      (NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) && 
+       !row.huom?.includes("Huomioitu laskennassa")) // Non-benefit affecting (not included)
+    ).length;
+    
+    return hiddenCount;
+  };
+
   // Open allocation modal for single row
   const openAllocationModalSingle = (row: IncomeRow) => {
     const context: AllocationContext = {
@@ -721,12 +778,19 @@ export default function AllocateIncome() {
     setStartDate("20.1.2025");
     setEndDate("10.2.2025");
     setModalOpen(true);
+    setViewMode(false); // Ei lukittu näkymä
   };
 
   // Open allocation modal for all rows with same payDate
   const openAllocationModalBatch = (row: IncomeRow, period: MonthPeriod) => {
     const payDate = row.maksupaiva;
-    const rowsForPayDate = period.rows.filter(r => r.maksupaiva === payDate);
+    const rowsForPayDate = period.rows.filter(r => 
+      r.maksupaiva === payDate && 
+      !isRowDeleted(r) && // Filter out deleted income
+      // Include: vaikuttavat tulot + huomioidut tulot
+      (!NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(r.tulolaji) || 
+       r.huom?.includes("Huomioitu laskennassa"))
+    );
     const totalAmount = rowsForPayDate.reduce((sum, r) => sum + (r.alkuperainenTulo > 0 ? r.alkuperainenTulo : r.palkka), 0);
     
     const context: AllocationContext = {
@@ -740,6 +804,7 @@ export default function AllocateIncome() {
     setStartDate("20.1.2025");
     setEndDate("10.2.2025");
     setModalOpen(true);
+    setViewMode(false); // Ei lukittu näkymä
   };
 
   // Restore deleted income type
@@ -761,6 +826,50 @@ export default function AllocateIncome() {
 
     toast.success("Tulolaji palautettu", {
       description: `${row.tulolaji} on nyt aktiivinen.`,
+    });
+  };
+
+  // Delete income type (mark as deleted)
+  const deleteIncomeType = (row: IncomeRow) => {
+    setPeriods(prev => {
+      return prev.map(period => ({
+        ...period,
+        rows: period.rows.map(r => {
+          if (r.id === row.id) {
+            return {
+              ...r,
+              huom: `Poistettu (${new Date().toLocaleDateString('fi-FI')})`,
+            };
+          }
+          return r;
+        }),
+      }));
+    });
+
+    toast.success("Tulolaji poistettu", {
+      description: `${row.tulolaji} on poistettu laskennasta.`,
+    });
+  };
+
+  // Include non-benefit affecting income in calculation
+  const includeIncomeInCalculation = (row: IncomeRow) => {
+    setPeriods(prev => {
+      return prev.map(period => ({
+        ...period,
+        rows: period.rows.map(r => {
+          if (r.id === row.id) {
+            return {
+              ...r,
+              huom: `Huomioitu laskennassa (${new Date().toLocaleDateString('fi-FI')})`,
+            };
+          }
+          return r;
+        }),
+      }));
+    });
+
+    toast.success("Tulo huomioitu laskennassa", {
+      description: `${row.tulolaji} vaikuttaa nyt päivärahan laskentaan.`,
     });
   };
 
@@ -981,7 +1090,7 @@ export default function AllocateIncome() {
       
       if (allocationContext.mode === "single") {
         // Initialize with equal distribution
-        const equalAmount = Math.floor((allocationContext.totalAmount / monthCount) * 100) / 100;
+        const equalAmount = roundToCents(allocationContext.totalAmount / monthCount);
         months.forEach(m => {
           const key = `${m.year}-${m.month}`;
           newAmounts[key] = manualAmounts[key] ?? equalAmount;
@@ -990,7 +1099,7 @@ export default function AllocateIncome() {
         // Batch: initialize each income type separately
         for (const row of allocationContext.sourceRows) {
           const rowAmount = row.alkuperainenTulo > 0 ? row.alkuperainenTulo : row.palkka;
-          const equalAmount = Math.floor((rowAmount / monthCount) * 100) / 100;
+          const equalAmount = roundToCents(rowAmount / monthCount);
           
           months.forEach(m => {
             const key = `${row.id}-${m.year}-${m.month}`;
@@ -1007,17 +1116,31 @@ export default function AllocateIncome() {
   const applyAllocation = () => {
     if (!allocationContext || !validation.valid) return;
 
+    // Tallenna kohdistuksen tiedot myöhempää tarkastelua varten
+    const allocationData = {
+      id: `allocation-${Date.now()}`,
+      originalContext: allocationContext,
+      allocationMethod,
+      startDate,
+      endDate,
+      distributionType,
+      direction,
+      monthCount,
+      previewSplits: [...previewSplits], // Kopioi splits
+      timestamp: new Date().toISOString(),
+    };
+
     // Build allocation method description
     let allocationMethodDesc = "";
     if (allocationMethod === "employment") {
       allocationMethodDesc = `Palvelussuhteen kesto / ${distributionType === "byDays" ? "Päivien mukaan" : distributionType === "equalMonths" ? "Tasan kuukausille" : "Manuaalinen"} (${MOCK_EMPLOYMENT.startDate}–${MOCK_EMPLOYMENT.endDate})`;
     } else {
       if (distributionType === "byDays") {
-        allocationMethodDesc = `Ajanjakso / Päivien mukaan (${startDate}–${endDate})`;
+        allocationMethodDesc = `(${startDate}–${endDate})`;
       } else if (distributionType === "equalMonths") {
-        allocationMethodDesc = `Ajanjakso / Tasan kuukausille (${startDate}–${endDate})`;
+        allocationMethodDesc = ` (${startDate}–${endDate})`;
       } else {
-        allocationMethodDesc = `Ajanjakso / Manuaalinen (N=${monthCount})`;
+        allocationMethodDesc = ` (N=${monthCount})`;
       }
     }
 
@@ -1042,6 +1165,7 @@ export default function AllocateIncome() {
         kohdistusTOE: allocationMethodDesc,
         tyonantaja: sourceRow.tyonantaja,
         huom: `Kohdistettu ${monthStr}`,
+        allocationData, // Tallenna koko kohdistuksen tiedot
       };
     });
 
@@ -1094,6 +1218,48 @@ export default function AllocateIncome() {
 
     // Close modal
     setModalOpen(false);
+  };
+
+  // Remove allocation and restore original rows
+  const removeAllocation = () => {
+    if (!allocationContext) return;
+    
+    // Poista kohdistetut rivit ja palauta alkuperäiset
+    setPeriods(prev => {
+      return prev.map(period => ({
+        ...period,
+        rows: period.rows.filter(row => {
+          // Poista kohdistetut rivit
+          if (row.huom?.startsWith('Kohdistettu')) {
+            return false;
+          }
+          return true;
+        })
+      }));
+    });
+    
+    // Lisää alkuperäiset rivit takaisin
+    if (allocationContext.sourceRows) {
+      setPeriods(prev => {
+        const updatedPeriods = [...prev];
+        
+        allocationContext.sourceRows.forEach(sourceRow => {
+          // Etsi oikea kuukausi maksupäivän perusteella
+          const targetPeriod = updatedPeriods.find(p => 
+            p.rows.some(r => r.maksupaiva === sourceRow.maksupaiva)
+          );
+          
+          if (targetPeriod) {
+            targetPeriod.rows.push({
+              ...sourceRow,
+              alkuperainenTulo: 0, // Nollaa alkuperäinen tulo
+            });
+          }
+        });
+        
+        return updatedPeriods;
+      });
+    }
   };
 
   // Aggregate splits by month for display (batch mode)
@@ -1197,13 +1363,30 @@ export default function AllocateIncome() {
                           <td colSpan={7} className="p-0">
                             <div className="bg-gray-100 p-4">
                               <div className="flex justify-between items-center mb-3">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => setAddIncomeModalOpen(true)}
-                                >
-                                  Lisää tulotieto
-                                </Button>
+                                {/* Vasen puoli - Kaksi painiketta vierekkäin */}
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setAddIncomeModalOpen(true)}
+                                  >
+                                    Lisää tulotieto
+                                  </Button>
+                                  
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setShowNonBenefitAffecting(!showNonBenefitAffecting)}
+                                    className={showNonBenefitAffecting ? "bg-blue-100 text-blue-800" : ""}
+                                  >
+                                    {showNonBenefitAffecting 
+                                      ? "Piilota poistetut ja ei-vaikuttavat tulot" 
+                                      : `Näytä poistetut ja ei-vaikuttavat tulot (${getHiddenRowsCount(period)})`
+                                    }
+                                  </Button>
+                                </div>
+                                
+                                {/* Oikea puoli - Peruuta muutokset */}
                                 <Button variant="ghost" size="sm">
                                   Peruuta muutokset
                                 </Button>
@@ -1224,7 +1407,7 @@ export default function AllocateIncome() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {period.rows.map((row, rowIdx) => (
+                                  {getVisibleRows(period).map((row, rowIdx) => (
                                     <tr
                                       key={row.id}
                                       className={cn(
@@ -1232,7 +1415,9 @@ export default function AllocateIncome() {
                                         isRowDeleted(row) 
                                           ? "bg-gray-100 text-gray-500" 
                                           : rowIdx % 2 === 0 ? "bg-white" : "bg-gray-50",
-                                        row.huom && !isRowDeleted(row) && "bg-yellow-50"
+                                        row.huom && !isRowDeleted(row) && !row.huom?.includes("Huomioitu laskennassa") && "bg-yellow-50", // Keltainen vain jos ei huomioitu
+                                        NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) && 
+                                          !row.huom?.includes("Huomioitu laskennassa") && "bg-orange-50" // Oranssi vain jos ei huomioitu
                                       )}
                                     >
                                       <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500")}>
@@ -1251,7 +1436,7 @@ export default function AllocateIncome() {
                                         {row.alkuperainenTulo > 0 ? formatCurrency(row.alkuperainenTulo) : ""}
                                       </td>
                                       <td className={cn("px-3 py-2 text-xs whitespace-nowrap", isRowDeleted(row) && "text-gray-500")}>
-                                        {row.ansaintaAika}
+                                        {/* {row.ansaintaAika} */}
                                       </td>
                                       <td className={cn("px-3 py-2 text-xs whitespace-nowrap", isRowDeleted(row) && "text-gray-500")}>
                                         {row.kohdistusTOE || ""}
@@ -1283,6 +1468,34 @@ export default function AllocateIncome() {
                                                 </Button>
                                               ) : (
                                                 <>
+                                                  {/* Näytä kohdistustiedot vain kohdistetuille riveille */}
+                                                  {row.huom?.startsWith('Kohdistettu') && (
+                                                    <Button
+                                                      variant="ghost"
+                                                      className="justify-start text-sm font-normal text-blue-600 hover:text-blue-700"
+                                                      onClick={() => {
+                                                        // Hae tallennetut kohdistuksen tiedot
+                                                        const savedAllocation = row.allocationData;
+                                                        
+                                                        if (savedAllocation) {
+                                                          // Palauta koko kohdistuksen konteksti
+                                                          setAllocationContext(savedAllocation.originalContext);
+                                                          setAllocationMethod(savedAllocation.allocationMethod);
+                                                          setStartDate(savedAllocation.startDate);
+                                                          setEndDate(savedAllocation.endDate);
+                                                          setDistributionType(savedAllocation.distributionType);
+                                                          setDirection(savedAllocation.direction);
+                                                          setMonthCount(savedAllocation.monthCount);
+                                                          
+                                                          setModalOpen(true);
+                                                          setViewMode(true); // Lukittu näkymä
+                                                        }
+                                                      }}
+                                                    >
+                                                      <Eye className="h-4 w-4 mr-2" />
+                                                      Näytä kohdistustiedot
+                                                    </Button>
+                                                  )}
                                                   <Button
                                                     variant="ghost"
                                                     className="justify-start text-sm font-normal"
@@ -1296,6 +1509,28 @@ export default function AllocateIncome() {
                                                     onClick={() => openAllocationModalBatch(row, period)}
                                                   >
                                                     Kohdista maksupäivän tulolajit
+                                                  </Button>
+                                                  
+                                                  {/* Huomioi tulo laskennassa painike ei-vaikuttaville tuloille */}
+                                                  {NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) && (
+                                                    <Button
+                                                      variant="ghost"
+                                                      className="justify-start text-sm font-normal text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                      onClick={() => includeIncomeInCalculation(row)}
+                                                    >
+                                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                      Huomioi tulo laskennassa
+                                                    </Button>
+                                                  )}
+                                                  
+                                                  {/* Poista tulolaji painike alimmaiseksi */}
+                                                  <Button
+                                                    variant="ghost"
+                                                    className="justify-start text-sm font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    onClick={() => deleteIncomeType(row)}
+                                                  >
+                                                    <AlertCircle className="h-4 w-4 mr-2" />
+                                                    Poista tulolaji
                                                   </Button>
                                                 </>
                                               )}
@@ -1344,12 +1579,15 @@ export default function AllocateIncome() {
       </div>
 
       {/* Allocation Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog open={modalOpen} onOpenChange={(open) => {
+        setModalOpen(open);
+        if (!open) setViewMode(false); // Nollaa lukitus kun suljetaan
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="space-y-2">
               <DialogTitle>
-                {allocationContext?.mode === "single" ? "TULOLAJIN KOHDISTUS" : "MAKSUPÄIVÄN TULOLAJIEN KOHDISTUS"}
+                {viewMode ? "Kohdistustietojen tarkastelu" : (allocationContext?.mode === "single" ? "TULOLAJIN KOHDISTUS" : "MAKSUPÄIVÄN TULOLAJIEN KOHDISTUS")}
               </DialogTitle>
               <div className="flex gap-2 items-center">
                 <span className="text-sm text-gray-600">Maksupäivä:</span>
@@ -1359,6 +1597,14 @@ export default function AllocateIncome() {
               </div>
             </div>
           </DialogHeader>
+
+          {/* Lukitus-tila näkyy VAIN silmäikonin kautta */}
+          {viewMode && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+              <p className="font-medium">Kohdistustietojen tarkastelu</p>
+              <p className="text-xs mt-1">Näet alkuperäiset kohdistustiedot. Voit muokata tietoja tarvittaessa.</p>
+            </div>
+          )}
 
           {allocationContext && (
             <div className="space-y-6">
@@ -1387,7 +1633,7 @@ export default function AllocateIncome() {
               {/* Allocation Method */}
               <div className="space-y-2">
                 <Label>Kohdistustapa</Label>
-                <Select value={allocationMethod} onValueChange={(v) => setAllocationMethod(v as AllocationMethod)}>
+                <Select value={allocationMethod} onValueChange={(v) => setAllocationMethod(v as AllocationMethod)} disabled={viewMode}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1407,7 +1653,7 @@ export default function AllocateIncome() {
               {distributionType === "manual" && (
                 <div className="space-y-2">
                   <Label>Jaon suunta</Label>
-                  <Select value={direction} onValueChange={(v) => setDirection(v as Direction)}>
+                  <Select value={direction} onValueChange={(v) => setDirection(v as Direction)} disabled={viewMode}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1430,6 +1676,7 @@ export default function AllocateIncome() {
                       value="byDays"
                       checked={distributionType === "byDays"}
                       onChange={(e) => setDistributionType(e.target.value as DistributionType)}
+                      disabled={viewMode}
                     />
                     <span className="text-sm">Päivien mukaan</span>
                   </label>
@@ -1440,6 +1687,7 @@ export default function AllocateIncome() {
                       value="equalMonths"
                       checked={distributionType === "equalMonths"}
                       onChange={(e) => setDistributionType(e.target.value as DistributionType)}
+                      disabled={viewMode}
                     />
                     <span className="text-sm">Tasan kuukausille</span>
                   </label>
@@ -1450,6 +1698,7 @@ export default function AllocateIncome() {
                       value="manual"
                       checked={distributionType === "manual"}
                       onChange={(e) => setDistributionType(e.target.value as DistributionType)}
+                      disabled={viewMode}
                     />
                     <span className="text-sm">Manuaalinen</span>
                   </label>
@@ -1466,8 +1715,8 @@ export default function AllocateIncome() {
                       value={startDate} 
                       onChange={(e) => setStartDate(e.target.value)}
                       placeholder="DD.MM.YYYY"
-                      disabled={allocationMethod === "employment"}
-                      className={cn(allocationMethod === "employment" && "bg-gray-100 cursor-not-allowed")}
+                      disabled={allocationMethod === "employment" || viewMode}
+                      className={cn((allocationMethod === "employment" || viewMode) && "bg-gray-100 cursor-not-allowed")}
                     />
                   </div>
 
@@ -1478,8 +1727,8 @@ export default function AllocateIncome() {
                       value={endDate} 
                       onChange={(e) => setEndDate(e.target.value)}
                       placeholder="DD.MM.YYYY"
-                      disabled={allocationMethod === "employment"}
-                      className={cn(allocationMethod === "employment" && "bg-gray-100 cursor-not-allowed")}
+                      disabled={allocationMethod === "employment" || viewMode}
+                      className={cn((allocationMethod === "employment" || viewMode) && "bg-gray-100 cursor-not-allowed")}
                     />
                   </div>
                 </div>
@@ -1505,7 +1754,7 @@ export default function AllocateIncome() {
                       </span>
                     </div>
                   ) : (
-                    <Select value={String(monthCount)} onValueChange={(v) => setMonthCount(Number(v))}>
+                    <Select value={String(monthCount)} onValueChange={(v) => setMonthCount(Number(v))} disabled={viewMode}>
                       <SelectTrigger className="w-40">
                         <SelectValue />
                       </SelectTrigger>
@@ -1544,6 +1793,7 @@ export default function AllocateIncome() {
                                 setManualAmounts(prev => ({ ...prev, [key]: val }));
                               }}
                               className="w-40"
+                              disabled={viewMode}
                             />
                             <span className="text-sm text-gray-500">€</span>
                           </div>
@@ -1578,6 +1828,7 @@ export default function AllocateIncome() {
                                         setManualAmounts(prev => ({ ...prev, [key]: val }));
                                       }}
                                       className="w-32 text-sm"
+                                      disabled={viewMode}
                                     />
                                     <span className="text-xs text-gray-500">€</span>
                                   </div>
@@ -1746,16 +1997,31 @@ export default function AllocateIncome() {
           )}
 
           <DialogFooter>
+            {viewMode && (
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  // Poista kohdistus ja mahdollista uusi
+                  removeAllocation();
+                  setViewMode(false); // Poista lukitus
+                  // Modaali pysyy auki, käyttäjä voi tehdä uuden kohdistuksen
+                }}
+              >
+                Poista kohdistus ja luo uusi
+              </Button>
+            )}
             <DialogClose asChild>
               <Button variant="secondary">Peruuta</Button>
             </DialogClose>
-            <Button 
-              onClick={applyAllocation} 
-              disabled={!validation.valid}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300"
-            >
-              Suorita kohdistus
-            </Button>
+            {!viewMode && (
+              <Button 
+                onClick={applyAllocation} 
+                disabled={!validation.valid}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300"
+              >
+                Suorita kohdistus
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
