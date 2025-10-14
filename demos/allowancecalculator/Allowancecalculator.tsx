@@ -1318,7 +1318,7 @@ for (let i = 0; i < days; i++) {
 
               <div className="col-span-1 md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { key: "baseOnlyW", label: "Vain perusosa, työt.laji W" },
+                  { key: "baseOnlyW", label: "Vain perusosa" },
                   { key: "tyossaoloehto80", label: "Työssäoloehto 80%" },
                   { key: "yrittajaPaivaraha", label: "Yrittäjäpäiväraha" },
                   { key: "kulukorvaus", label: "Kulukorvaus" },
