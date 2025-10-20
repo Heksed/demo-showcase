@@ -27,10 +27,10 @@ function businessDaysBetween(startISO: string, endISO: string) {
   // counts business days from start (inclusive) to end (exclusive)
   const start = new Date(startISO);
   const end = new Date(endISO);
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return 0;
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
   let count = 0;
   const cur = new Date(start);
-  while (cur < end) {
+  while (cur <= end) {
     if (isBusinessDay(cur)) count++;
     cur.setDate(cur.getDate() + 1);
     cur.setHours(0, 0, 0, 0);
@@ -44,6 +44,36 @@ function addDaysISO(iso: string, n: number) {
   d.setDate(d.getDate() + n);
   d.setHours(0, 0, 0, 0);
   return d.toISOString().slice(0, 10);
+}
+
+function calculateBusinessDate(startDate: string, businessDaysOffset: number): string {
+  const start = new Date(startDate);
+  let dayCount = 0;
+  let currentDate = new Date(start);
+  
+  while (dayCount < businessDaysOffset) {
+    currentDate.setDate(currentDate.getDate() + 1);
+    if (isBusinessDay(currentDate)) {
+      dayCount++;
+    }
+  }
+  
+  return currentDate.toISOString().slice(0, 10);
+}
+
+function calculateDateByCumulativePaidDays(startDate: string, cumulativePaidDays: number): string {
+  const start = new Date(startDate);
+  let paidDayCount = 0;
+  let currentDate = new Date(start);
+  
+  while (paidDayCount < cumulativePaidDays) {
+    if (isBusinessDay(currentDate)) {
+      paidDayCount++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return currentDate.toISOString().slice(0, 10);
 }
 
 function euro(n: number) {
@@ -124,8 +154,8 @@ function earningsPartFromDaily(dailyWage: number, splitPointMonth = SPLIT_POINT_
 }
 
 function stepFactorByCumulativeDays(cumulativeDays: number) {
-  if (cumulativeDays >= 170) return { factor: 0.75, label: "Porrastus 75%" } as const;
-  if (cumulativeDays >= 40) return { factor: 0.80, label: "Porrastus 80%" } as const;
+  if (cumulativeDays > 170) return { factor: 0.75, label: "Porrastus 75%" } as const;
+  if (cumulativeDays > 40) return { factor: 0.80, label: "Porrastus 80%" } as const;
   return { factor: 1.0, label: "Ei porrastusta" } as const;
 }
 
@@ -266,7 +296,6 @@ export default function PaivarahaLaskuri() {
   const [periodStartDate, setPeriodStartDate] = useState<string>(new Date().toISOString().slice(0, 10)); // Period start date
   // Period end date (new)
   const [periodEndDate, setPeriodEndDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [autoPorrastus, setAutoPorrastus] = useState<boolean>(true);
 
   // Calculation parameters
   const [baseSalary, setBaseSalary] = useState<number>(2030.61); // €/month
@@ -278,10 +307,12 @@ export default function PaivarahaLaskuri() {
   const [manualPaidDays, setManualPaidDays] = useState<number>(0);
   const [memberFeePct, setMemberFeePct] = useState<number>(0); // %
   const [taxPct, setTaxPct] = useState<number>(25); // tax percentage
-  const [priorPaidDaysManual, setPriorPaidDaysManual] = useState<number>(0); // paid days before this period (manual)
 
   // Maximum duration selection (e.g. based on work history/age limits)
   const [maxDays, setMaxDays] = useState<number>(400); // 300 / 400 / 500
+
+  // Step factor override
+  const [stepFactorOverride, setStepFactorOverride] = useState<string>("auto");
 
   // Comparison
   const [compareMode, setCompareMode] = useState<boolean>(false);
@@ -387,7 +418,7 @@ const setFormulaPercent =
 
     // Automatic vs. manual accumulation of paid days before this period's start
     const priorPaidAuto = businessDaysBetween(benefitStartDate, periodStartDate);
-    const priorPaidDays = autoPorrastus ? priorPaidAuto : priorPaidDaysManual;
+    const priorPaidDays = priorPaidAuto;
 
     // Benefits total (after protected amount)
     const benefitsTotal = benefits.reduce((s, b) => s + Math.max((b.amount - (b.protectedAmount || 0)), 0), 0);
@@ -426,21 +457,23 @@ const setFormulaPercent =
       ? businessDaysBetween(periodStartDate, addDaysISO(periodEndDate, 1))
       : manualPaidDays;
     
-    const stepFactorByCumulativeDaysCfg = (cum: number) => {
-      if (cum >= cfg.step2Threshold) return { factor: cfg.step2Factor, label: `Porrastus ${Math.round(cfg.step2Factor*100)}%` } as const;
-      if (cum >= cfg.step1Threshold) return { factor: cfg.step1Factor, label: `Porrastus ${Math.round(cfg.step1Factor*100)}%` } as const;
+    const stepFactorByCumulativeDaysCfg = (dayInPeriod: number) => {
+      if (dayInPeriod > cfg.step2Threshold) return { factor: cfg.step2Factor, label: `Porrastus ${Math.round(cfg.step2Factor*100)}%` } as const;
+      if (dayInPeriod > cfg.step1Threshold) return { factor: cfg.step1Factor, label: `Porrastus ${Math.round(cfg.step1Factor*100)}%` } as const;
       return { factor: 1.0, label: "Ei porrastusta" } as const;
     };
 
     let sumFactor = 0;
     for (let i = 0; i < days; i++) {
-      const cumulative = priorPaidDays + (i + 1); // 1..days
-      const { factor } = stepFactorByCumulativeDaysCfg(cumulative);
+      const dayInPeriod = i + 1; // Jakson sisäinen päivä
+      const { factor } = stepFactorByCumulativeDaysCfg(dayInPeriod);
       sumFactor += factor;
     }
-    const stepFactor = days > 0 ? sumFactor / days : 1;
-    const startInfo = stepFactorByCumulativeDaysCfg(priorPaidDays + 1);
-    const endInfo = stepFactorByCumulativeDaysCfg(priorPaidDays + days);
+    const stepFactor = stepFactorOverride && stepFactorOverride !== "auto"
+      ? parseFloat(stepFactorOverride) 
+      : (days > 0 ? sumFactor / days : 1);
+    const startInfo = stepFactorByCumulativeDaysCfg(1);
+    const endInfo = stepFactorByCumulativeDaysCfg(days);
     const stepLabel = endInfo.factor < startInfo.factor ? endInfo.label : startInfo.label;
 
     // Täysi päiväraha (raaka, ennen suojia/capeja)
@@ -577,6 +610,67 @@ const setFormulaPercent =
       eightyRuleTriggered,
       eightyFloor,
       prevFullDailyRef,
+      // step periods
+      stepPeriods: (() => {
+        if (stepFactorOverride && stepFactorOverride !== "auto") {
+          return null; // Ei näytetä kun override on käytössä
+        }
+        
+        const periods = [];
+        let currentFactor = null;
+        let currentStart = 1;
+        let currentDays = 0;
+        let currentAmount = 0;
+        
+        for (let i = 0; i < days; i++) {
+          const dayInPeriod = i + 1; // Jakson sisäinen päivä (1, 2, 3, ...)
+          const { factor } = stepFactorByCumulativeDaysCfg(dayInPeriod);
+          const dailyAmount = adjustedDaily * factor;
+          
+          if (currentFactor !== factor) {
+            // Tallenna edellinen jakso
+            if (currentFactor !== null) {
+              periods.push({
+                factor: currentFactor,
+                percentage: Math.round(currentFactor * 100),
+                days: currentDays,
+                startDay: currentStart,
+                endDay: currentStart + currentDays - 1,
+                amount: roundToCents(currentAmount),
+                dailyAmount: roundToCents(adjustedDaily * currentFactor),
+                startDate: calculateDateByCumulativePaidDays(periodStartDate, priorPaidDays + currentStart),
+                endDate: calculateDateByCumulativePaidDays(periodStartDate, priorPaidDays + currentStart + currentDays - 1)
+              });
+            }
+            
+            // Aloita uusi jakso
+            currentFactor = factor;
+            currentStart = i + 1;
+            currentDays = 1;
+            currentAmount = dailyAmount;
+          } else {
+            currentDays++;
+            currentAmount += dailyAmount;
+          }
+        }
+        
+        // Tallenna viimeinen jakso
+        if (currentFactor !== null) {
+          periods.push({
+            factor: currentFactor,
+            percentage: Math.round(currentFactor * 100),
+            days: currentDays,
+            startDay: currentStart,
+            endDay: currentStart + currentDays - 1,
+            amount: roundToCents(currentAmount),
+            dailyAmount: roundToCents(adjustedDaily * currentFactor),
+            startDate: calculateDateByCumulativePaidDays(periodStartDate, priorPaidDays + currentStart),
+            endDate: calculateDateByCumulativePaidDays(periodStartDate, priorPaidDays + currentStart + currentDays - 1)
+          });
+        }
+        
+        return periods;
+      })(),
     };
   }, [
     formulaConfig,
@@ -589,7 +683,6 @@ const setFormulaPercent =
     manualPaidDays,
     periodStartDate,
     periodEndDate,
-    priorPaidDaysManual,
     taxPct,
     maxDays,
     flags.baseOnlyW,
@@ -600,8 +693,7 @@ const setFormulaPercent =
     calcDate,
     period,
     benefitStartDate,
-    periodStartDate,
-    autoPorrastus,
+    stepFactorOverride,
   ]);
 
   const periodRangeInvalid = useMemo(() => {
@@ -866,12 +958,12 @@ const setFormulaPercent =
   )}
 >
   {/* Vasemmalla: tilanne + etuudet */}
-  <div className="space-y-6 min-w-0">
+  <div className="space-y-2 min-w-0">
           <Card>
             <CardHeader>
               <CardTitle>Tilanne</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
             <div className="space-y-6">
                 <Label>Laskentapäivä *</Label>
                 <DevField
@@ -1049,7 +1141,33 @@ if (periodEndDate < periodStartDate) {
                 )}
               </div>
 
-        
+              {/* Porrastusvalinta */}
+              <div className="space-y-2 md:col-span-2">
+                <Label>Porrastus</Label>
+                <DevField
+                  fieldId="step-factor-override"
+                  fieldLabel="Porrastus (Step Factor Override)"
+                  userStory="User can override the automatic step factor calculation to see how the allowance would look at different stepping levels (80% or 75%)."
+                  business="Allows testing different benefit reduction scenarios. Normal stepping: 100% for first 40 days, 80% for days 41-170, 75% for days 171+. This override applies a fixed factor to the entire period."
+                  formula="stepFactor = selectedOverride || calculatedStepFactor"
+                  code={`const stepFactor = stepFactorOverride || calculatedStepFactor;
+const earningsPart = earningsPartRaw * stepFactor;
+const fullDaily = basePart + earningsPart;`}
+                  example="Select 80% to see how allowance looks if you're already in the 80% stepping phase, or 75% for the final stepping phase."
+                >
+                  <Select value={stepFactorOverride} onValueChange={setStepFactorOverride}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Automaattinen porrastus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Automaattinen porrastus</SelectItem>
+                      <SelectItem value="1.0">100% (ei porrastusta)</SelectItem>
+                      <SelectItem value="0.8">80% porrastus</SelectItem>
+                      <SelectItem value="0.75">75% porrastus</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </DevField>
+              </div>
 
               {/* Vertailu – kytkin */}
               <div className="space-y-2 md:col-span-2">
@@ -1248,74 +1366,6 @@ const net = gross - withholding - memberFee;`}
                 </Select>
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Porrastus</Label>
-                <DevField
-                  fieldId="porrastus-auto"
-                  fieldLabel="Porrastus (Benefit Stepping)"
-                  userStory="User enables automatic benefit stepping where the daily allowance gradually decreases as unemployment continues. This reflects the Finnish unemployment benefit system where payments reduce over time."
-                  business="Benefit stepping (porrastus) applies to those whose employment condition (TOE) was fulfilled on or after Sept 2, 2024. The benefit is paid at 100% for the first 40 days, 80% for days 41-170, and 75% after 170 days. Stepping is calculated relative to the full earnings-related allowance, not adjusted amounts. The benefit cannot return to 100% until the person fulfills the employment condition again."
-                  formula={`Days 1-40: 100% of full benefit
-                  Days 41-170: 80% of full benefit  
-                  Days 171+: 75% of full benefit
-
-                  avgFactor = Σ(factor per day) / totalDays`}
-                  code={`const stepFactorByCumulativeDays = (cum: number) => {
-                  if (cum >= 170) return { factor: 0.75, label: "Porrastus 75%" };
-                  if (cum >= 40) return { factor: 0.80, label: "Porrastus 80%" };
-                 return { factor: 1.0, label: "Ei porrastusta" };
-                };
-
-                // Calculate weighted average for period
-                let sumFactor = 0;
-                for (let i = 0; i < days; i++) {
-                const cumulative = priorPaidDays + (i + 1);
-                sumFactor += stepFactorByCumulativeDays(cumulative).factor;
-                }
-                const avgStepFactor = sumFactor / days;
-                const fullDaily = (basePart + earningsPart) * avgStepFactor;`}
-                  example="If prior paid days = 35 and current period = 10 days: Days 1-5 at 100%, days 6-10 at 80%. Average factor ≈ 0.90, so daily allowance is reduced to 90% of full amount."
-                >
-                  <div className="flex items-center gap-3 p-2 rounded-xl border bg-white">
-                    <Switch checked={autoPorrastus} onCheckedChange={setAutoPorrastus} />
-                    <span className="text-sm text-gray-600">
-                      Automaattinen porrastus jakson mukaan
-                    </span>
-                  </div>
-                </DevField>
-              </div>
-
-              {!autoPorrastus && (
-                <div className="space-y-2">
-                  <Label>Maksetut pv ennen jaksoa (manuaalinen)</Label>
-                  <DevField
-                    fieldId="prior-paid-days-manual"
-                    fieldLabel="Maksetut pv ennen jaksoa (Prior Paid Days Manual)"
-                    userStory="User manually enters the number of days they have already received unemployment benefits before this calculation period. This determines which benefit stepping level applies."
-                    business="Prior paid days determine the stepping factor. If total (prior + current period) exceeds 40 days, the 80% step applies. After 170 days, the 75% step applies. This is used when automatic calculation doesn't match actual benefit history."
-                    formula="cumulativeDays = priorPaidDays + currentDayIndex"
-                    code={`const priorPaidDays = autoPorrastus 
-  ? businessDaysBetween(benefitStartDate, periodStartDate)
-  : priorPaidDaysManual;
-
-for (let i = 0; i < days; i++) {
-  const cumulative = priorPaidDays + (i + 1);
-  const { factor } = stepFactorByCumulativeDays(cumulative);
-  sumFactor += factor;
-}`}
-                    example="If prior paid = 38 days and current period = 10 days: Days 1-2 at 100% (cumulative 39-40), days 3-10 at 80% (cumulative 41-48)."
-                  >
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={priorPaidDaysManual}
-                      onChange={(e) => setPriorPaidDaysManual(parseInt(e.target.value || "0", 10))}
-                    />
-                  </DevField>
-                </div>
-              )}
-
               <div className="col-span-1 md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { key: "baseOnlyW", label: "Vain perusosa" },
@@ -1400,7 +1450,7 @@ function perDiemForSegment(endCountry: string, hours: number, p: PerDiemParams, 
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4">
               {/* TULOT (SOVITTELU) */}
               {incomes.map((i) => (
                 <div
@@ -1559,11 +1609,10 @@ const reduction = excess / days;`}
             <CardHeader>
               <CardTitle>Päiväraha</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
             <CardContent
   className={cn("transition-all duration-300",compareMode && resultsCompare
-      ? "space-y-10 px-6 py-6" // enemmän tilaa kun vertailu päällä
-      : "space-y-6 px-4 py-4" // tiiviimpi oletus
+      ? "space-y-10 p-4" // enemmän tilaa kun vertailu päällä
+      : "space-y-6 p-4" // tiiviimpi oletus
   )}
 >
   {/* 80% suoja -notifikaatio */}
@@ -1773,11 +1822,87 @@ const reduction = excess / days;`}
     )}
   </div>
 </CardContent>
-
-
-   </CardContent>
           </Card>
         </div>
+
+        {/* Porrastusajanjaksot */}
+        {results.stepPeriods && results.stepPeriods.length > 0 && (
+          <Card className="mt-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Porrastusajanjaksot</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 p-4">
+              <div className="space-y-2">
+                {/* Yhtenäinen jana kolmessa osassa */}
+                <div className="space-y-1">
+                  {/* Ajanjakso tiedot palkin yläpuolella */}
+                  <div className="flex">
+                    {results.stepPeriods.map((period, index) => (
+                      <div 
+                        key={index}
+                        className="text-sm text-gray-600 text-center"
+                        style={{ 
+                          width: `${(period.days / results.days) * 100}%`,
+                          minWidth: '60px'
+                        }}
+                      >
+                        {periodStartDate && periodEndDate ? (
+                          `${new Date(period.startDate).toLocaleDateString('fi-FI')} - ${new Date(period.endDate).toLocaleDateString('fi-FI')}`
+                        ) : (
+                          `Päivät ${period.startDay}-${period.endDay}`
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Yhtenäinen palkki */}
+                  <div className="flex rounded-lg overflow-hidden">
+                    {results.stepPeriods.map((period, index) => (
+                      <div 
+                        key={index}
+                        className={`h-8 flex items-center justify-center text-sm font-medium text-white ${
+                          period.percentage === 100 ? 'bg-green-600' :
+                          period.percentage === 80 ? 'bg-green-500' :
+                          'bg-green-400'
+                        }`}
+                        style={{ 
+                          width: `${(period.days / results.days) * 100}%`,
+                          minWidth: '60px'
+                        }}
+                      >
+                        {period.percentage}%
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Jaksojen tiedot palkin alle */}
+                  <div className="flex">
+                    {results.stepPeriods.map((period, index) => (
+                      <div 
+                        key={index}
+                        className="text-sm text-center"
+                        style={{ 
+                          width: `${(period.days / results.days) * 100}%`,
+                          minWidth: '60px'
+                        }}
+                      >
+                        <div className="font-medium text-gray-900">
+                          {euro(period.amount)}
+                        </div>
+                        <div className="text-gray-600">
+                          {euro(period.dailyAmount)}/pv
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {period.days} pv
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
 
       {/* Breakdown section */}
@@ -1787,12 +1912,12 @@ const reduction = excess / days;`}
         </div>
 
         {/* Kaavakortti selkokielellä */}
-        <div className="mt-8">
+        <div className="mt-2">
           <Card>
             <CardHeader>
               <CardTitle>Laskukaavat</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Switch checked={editFormulas} onCheckedChange={setEditFormulas} />

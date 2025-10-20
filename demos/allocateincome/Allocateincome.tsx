@@ -31,6 +31,19 @@ type IncomeRow = {
   allocationData?: any; // Tallenna kohdistuksen tiedot
 };
 
+type ViikkoTOERow = {
+  id: string;
+  alkupäivä: string;
+  loppupäivä: string;
+  työnantaja: string;
+  selite: string;
+  palkka: number;
+  toeViikot: number;
+  jakaja: number;
+  toeTunnit: number;
+  tunnitYhteensä: number;
+};
+
 type MonthPeriod = {
   id: string;
   ajanjakso: string;
@@ -40,6 +53,7 @@ type MonthPeriod = {
   tyonantajat: string;
   pidennettavatJaksot: number;
   rows: IncomeRow[];
+  viikkoTOERows?: ViikkoTOERow[];
 };
 
 type AllocationMode = "single" | "batch";
@@ -295,136 +309,543 @@ const MOCK_ROWS_2025_01: IncomeRow[] = [
 ];
 
 const MOCK_PERIODS: MonthPeriod[] = [
-  {
-    id: "2026-01",
-    ajanjakso: "2026 Tammikuu",
-    toe: 1,
-    jakaja: 21.5,
-    palkka: 4000,
-    tyonantajat: "Nokia Oyj, Posti Oyj",
-    pidennettavatJaksot: 0,
-    rows: MOCK_INCOME_ROWS,
-  },
+  // 2025 kuukaudet - uusimmasta vanhimpaan
   {
     id: "2025-12",
     ajanjakso: "2025 Joulukuu",
-    toe: 1,
-    jakaja: 21.5,
-    palkka: 2700,
-    tyonantajat: "Nokia Oyj",
-    pidennettavatJaksot: 5,
-    rows: MOCK_ROWS_2025_12,
+    toe: 0.0,
+    jakaja: 10.5,
+    palkka: 2000,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "12-1", maksupaiva: "10.12.2025", tulolaji: "Aikapalkka", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "1.12.2025 - 31.12.2025", tyonantaja: "Posti Oyj" },
+      { id: "12-2", maksupaiva: "10.12.2025", tulolaji: "Lomaraha", palkka: 50, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "12-3", maksupaiva: "15.12.2025", tulolaji: "Tulospalkka", palkka: 30, alkuperainenTulo: 0, ansaintaAika: "1.12.2025 - 31.12.2025", tyonantaja: "Posti Oyj" },
+      { id: "12-4", maksupaiva: "20.12.2025", tulolaji: "Työkorvaus", palkka: 20, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "12-5", maksupaiva: "25.12.2025", tulolaji: "Kokouspalkkio", palkka: 20, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "12-6", maksupaiva: "30.12.2025", tulolaji: "Luentopalkkio", palkka: 30, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2025-11",
     ajanjakso: "2025 Marraskuu",
     toe: 0.5,
-    jakaja: 21.5,
-    palkka: 2000,
-    tyonantajat: "Nokia Oyj",
+    jakaja: 11.0,
+    palkka: 1800,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: MOCK_ROWS_2025_11,
+    rows: [
+      { id: "11-1", maksupaiva: "10.11.2025", tulolaji: "Aikapalkka", palkka: 300, alkuperainenTulo: 0, ansaintaAika: "1.11.2025 - 30.11.2025", tyonantaja: "Posti Oyj" },
+      { id: "11-2", maksupaiva: "10.11.2025", tulolaji: "Lomaraha", palkka: 50, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "11-3", maksupaiva: "15.11.2025", tulolaji: "Tulospalkka", palkka: 30, alkuperainenTulo: 0, ansaintaAika: "1.11.2025 - 30.11.2025", tyonantaja: "Posti Oyj" },
+      { id: "11-4", maksupaiva: "20.11.2025", tulolaji: "Työkorvaus", palkka: 20, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "11-5", maksupaiva: "25.11.2025", tulolaji: "Kokouspalkkio", palkka: 20, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+    ]
   },
   {
     id: "2025-10",
     ajanjakso: "2025 Lokakuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 200,
-    tyonantajat: "Nokia Oyj, Posti Oyj",
+    toe: 0.5,
+    jakaja: 12.0,
+    palkka: 1600,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "10-1", maksupaiva: "10.10.2025", tulolaji: "Aikapalkka", palkka: 250, alkuperainenTulo: 0, ansaintaAika: "1.10.2025 - 31.10.2025", tyonantaja: "Posti Oyj" },
+      { id: "10-2", maksupaiva: "10.10.2025", tulolaji: "Lomaraha", palkka: 50, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "10-3", maksupaiva: "15.10.2025", tulolaji: "Tulospalkka", palkka: 30, alkuperainenTulo: 0, ansaintaAika: "1.10.2025 - 31.10.2025", tyonantaja: "Posti Oyj" },
+      { id: "10-4", maksupaiva: "20.10.2025", tulolaji: "Työkorvaus", palkka: 20, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "10-5", maksupaiva: "25.10.2025", tulolaji: "Kokouspalkkio", palkka: 20, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "10-6", maksupaiva: "30.10.2025", tulolaji: "Luentopalkkio", palkka: 30, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2025-09",
     ajanjakso: "2025 Syyskuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 0,
-    tyonantajat: "",
+    palkka: 4100,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "9-1", maksupaiva: "10.9.2025", tulolaji: "Aikapalkka", palkka: 3300, alkuperainenTulo: 0, ansaintaAika: "1.9.2025 - 30.9.2025", tyonantaja: "Posti Oyj" },
+      { id: "9-2", maksupaiva: "10.9.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "9-3", maksupaiva: "15.9.2025", tulolaji: "Tulospalkka", palkka: 280, alkuperainenTulo: 0, ansaintaAika: "1.9.2025 - 30.9.2025", tyonantaja: "Posti Oyj" },
+      { id: "9-4", maksupaiva: "20.9.2025", tulolaji: "Työkorvaus", palkka: 140, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "9-5", maksupaiva: "25.9.2025", tulolaji: "Kokouspalkkio", palkka: 180, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "9-6", maksupaiva: "30.9.2025", tulolaji: "Luentopalkkio", palkka: 230, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2025-08",
     ajanjakso: "2025 Elokuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 0,
-    tyonantajat: "",
+    palkka: 4000,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "8-1", maksupaiva: "10.8.2025", tulolaji: "Aikapalkka", palkka: 3200, alkuperainenTulo: 0, ansaintaAika: "1.8.2025 - 31.8.2025", tyonantaja: "Posti Oyj" },
+      { id: "8-2", maksupaiva: "10.8.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "8-3", maksupaiva: "15.8.2025", tulolaji: "Tulospalkka", palkka: 260, alkuperainenTulo: 0, ansaintaAika: "1.8.2025 - 31.8.2025", tyonantaja: "Posti Oyj" },
+      { id: "8-4", maksupaiva: "20.8.2025", tulolaji: "Työkorvaus", palkka: 130, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "8-5", maksupaiva: "25.8.2025", tulolaji: "Kokouspalkkio", palkka: 170, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "8-6", maksupaiva: "30.8.2025", tulolaji: "Luentopalkkio", palkka: 220, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2025-07",
     ajanjakso: "2025 Heinäkuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 0,
-    tyonantajat: "",
+    palkka: 3900,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "7-1", maksupaiva: "10.7.2025", tulolaji: "Aikapalkka", palkka: 3100, alkuperainenTulo: 0, ansaintaAika: "1.7.2025 - 31.7.2025", tyonantaja: "Posti Oyj" },
+      { id: "7-2", maksupaiva: "10.7.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "7-3", maksupaiva: "15.7.2025", tulolaji: "Tulospalkka", palkka: 240, alkuperainenTulo: 0, ansaintaAika: "1.7.2025 - 31.7.2025", tyonantaja: "Posti Oyj" },
+      { id: "7-4", maksupaiva: "20.7.2025", tulolaji: "Työkorvaus", palkka: 120, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "7-5", maksupaiva: "25.7.2025", tulolaji: "Kokouspalkkio", palkka: 160, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "7-6", maksupaiva: "30.7.2025", tulolaji: "Luentopalkkio", palkka: 210, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2025-06",
     ajanjakso: "2025 Kesäkuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 0,
-    tyonantajat: "",
+    palkka: 3800,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "6-1", maksupaiva: "10.6.2025", tulolaji: "Aikapalkka", palkka: 3000, alkuperainenTulo: 0, ansaintaAika: "1.6.2025 - 30.6.2025", tyonantaja: "Posti Oyj" },
+      { id: "6-2", maksupaiva: "10.6.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "6-3", maksupaiva: "15.6.2025", tulolaji: "Tulospalkka", palkka: 220, alkuperainenTulo: 0, ansaintaAika: "1.6.2025 - 30.6.2025", tyonantaja: "Posti Oyj" },
+      { id: "6-4", maksupaiva: "20.6.2025", tulolaji: "Työkorvaus", palkka: 110, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "6-5", maksupaiva: "25.6.2025", tulolaji: "Kokouspalkkio", palkka: 140, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+      { id: "6-6", maksupaiva: "30.6.2025", tulolaji: "Luentopalkkio", palkka: 190, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2025-05",
     ajanjakso: "2025 Toukokuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 0,
-    tyonantajat: "",
+    palkka: 3800,
+    tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "5-1", maksupaiva: "10.5.2025", tulolaji: "Aikapalkka", palkka: 3200, alkuperainenTulo: 0, ansaintaAika: "1.5.2025 - 31.5.2025", tyonantaja: "Nokia Oyj" },
+      { id: "5-2", maksupaiva: "10.5.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "5-3", maksupaiva: "15.5.2025", tulolaji: "Tulospalkka", palkka: 210, alkuperainenTulo: 0, ansaintaAika: "1.5.2025 - 31.5.2025", tyonantaja: "Nokia Oyj" },
+      { id: "5-4", maksupaiva: "20.5.2025", tulolaji: "Työkorvaus", palkka: 110, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "5-5", maksupaiva: "25.5.2025", tulolaji: "Kokouspalkkio", palkka: 160, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "5-6", maksupaiva: "30.5.2025", tulolaji: "Luentopalkkio", palkka: 210, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" }
+    ]
   },
   {
     id: "2025-04",
     ajanjakso: "2025 Huhtikuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 0,
-    tyonantajat: "",
+    palkka: 3700,
+    tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
+    rows: [
+      { id: "4-1", maksupaiva: "10.4.2025", tulolaji: "Aikapalkka", palkka: 3100, alkuperainenTulo: 0, ansaintaAika: "1.4.2025 - 30.4.2025", tyonantaja: "Nokia Oyj" },
+      { id: "4-2", maksupaiva: "10.4.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "4-3", maksupaiva: "15.4.2025", tulolaji: "Tulospalkka", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "1.4.2025 - 30.4.2025", tyonantaja: "Nokia Oyj" },
+      { id: "4-4", maksupaiva: "20.4.2025", tulolaji: "Työkorvaus", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "4-5", maksupaiva: "25.4.2025", tulolaji: "Kokouspalkkio", palkka: 150, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "4-6", maksupaiva: "30.4.2025", tulolaji: "Luentopalkkio", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" }
+    ]
   },
   {
     id: "2025-03",
     ajanjakso: "2025 Maaliskuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 1800,
+    palkka: 3600,
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: MOCK_ROWS_2025_03,
+    rows: [
+      { id: "3-1", maksupaiva: "10.3.2025", tulolaji: "Aikapalkka", palkka: 2900, alkuperainenTulo: 0, ansaintaAika: "1.3.2025 - 31.3.2025", tyonantaja: "Nokia Oyj" },
+      { id: "3-2", maksupaiva: "10.3.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "3-3", maksupaiva: "15.3.2025", tulolaji: "Tulospalkka", palkka: 180, alkuperainenTulo: 0, ansaintaAika: "1.3.2025 - 31.3.2025", tyonantaja: "Nokia Oyj" },
+      { id: "3-4", maksupaiva: "20.3.2025", tulolaji: "Työkorvaus", palkka: 90, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "3-5", maksupaiva: "25.3.2025", tulolaji: "Kokouspalkkio", palkka: 130, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "3-6", maksupaiva: "30.3.2025", tulolaji: "Luentopalkkio", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" }
+    ]
   },
   {
     id: "2025-02",
     ajanjakso: "2025 Helmikuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 1900,
+    palkka: 3400,
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: MOCK_ROWS_2025_02,
+    rows: [
+      { id: "2-1", maksupaiva: "10.2.2025", tulolaji: "Aikapalkka", palkka: 2700, alkuperainenTulo: 0, ansaintaAika: "1.2.2025 - 28.2.2025", tyonantaja: "Nokia Oyj" },
+      { id: "2-2", maksupaiva: "10.2.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "2-3", maksupaiva: "15.2.2025", tulolaji: "Tulospalkka", palkka: 150, alkuperainenTulo: 0, ansaintaAika: "1.2.2025 - 28.2.2025", tyonantaja: "Nokia Oyj" },
+      { id: "2-4", maksupaiva: "20.2.2025", tulolaji: "Työkorvaus", palkka: 80, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "2-5", maksupaiva: "25.2.2025", tulolaji: "Kokouspalkkio", palkka: 120, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "2-6", maksupaiva: "28.2.2025", tulolaji: "Luentopalkkio", palkka: 180, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" }
+    ]
   },
   {
     id: "2025-01",
     ajanjakso: "2025 Tammikuu",
-    toe: 0,
+    toe: 1,
     jakaja: 21.5,
-    palkka: 2450,
+    palkka: 3200,
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: MOCK_ROWS_2025_01,
+    rows: [
+      { id: "1-1", maksupaiva: "10.1.2025", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 - 31.1.2025", tyonantaja: "Nokia Oyj" },
+      { id: "1-2", maksupaiva: "10.1.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "1-3", maksupaiva: "15.1.2025", tulolaji: "Tulospalkka", palkka: 120, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 - 31.1.2025", tyonantaja: "Nokia Oyj" },
+      { id: "1-4", maksupaiva: "20.1.2025", tulolaji: "Työkorvaus", palkka: 60, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "1-5", maksupaiva: "25.1.2025", tulolaji: "Kokouspalkkio", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" },
+      { id: "1-6", maksupaiva: "31.1.2025", tulolaji: "Luentopalkkio", palkka: 150, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj" }
+    ]
   },
+  // 2024 kuukaudet - koko vuosi ViikkoTOE-näkymää varten
+  {
+    id: "2024-12",
+    ajanjakso: "2024 Joulukuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-11",
+    ajanjakso: "2024 Marraskuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-10",
+    ajanjakso: "2024 Lokakuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-09",
+    ajanjakso: "2024 Syyskuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-08",
+    ajanjakso: "2024 Elokuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3500,
+    tyonantajat: "Osa-aikatyö Oy",
+    pidennettavatJaksot: 0,
+    rows: [],
+    viikkoTOERows: [
+      {
+        id: "v2024-08-1",
+        alkupäivä: "5.8.2024",    // Maanantai
+        loppupäivä: "11.8.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 1",
+        palkka: 800,              // Viikkopalkka
+        toeViikot: 1,            // 1 viikko
+        jakaja: 5,               // 5 arkipäivää
+        toeTunnit: 18,           // ≥18h/vko
+        tunnitYhteensä: 20
+      },
+      {
+        id: "v2024-08-2",
+        alkupäivä: "12.8.2024",   // Maanantai
+        loppupäivä: "18.8.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 2",
+        palkka: 800,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 20,
+        tunnitYhteensä: 22
+      },
+      {
+        id: "v2024-08-3",
+        alkupäivä: "19.8.2024",   // Maanantai
+        loppupäivä: "25.8.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 3",
+        palkka: 800,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 19,
+        tunnitYhteensä: 21
+      },
+      {
+        id: "v2024-08-4",
+        alkupäivä: "26.8.2024",   // Maanantai
+        loppupäivä: "31.8.2024",  // Sunnuntai (osittainen viikko)
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 4 (osittainen)",
+        palkka: 480,              // 3 arkipäivää / 5 = 0.6 × 800€
+        toeViikot: 0.6,          // Pro rata
+        jakaja: 3,               // 3 arkipäivää elokuulle
+        toeTunnit: 11,           // Pro rata
+        tunnitYhteensä: 12
+      }
+    ]
+  },
+  {
+    id: "2024-07",
+    ajanjakso: "2024 Heinäkuu",
+    toe: 0.5,
+    jakaja: 11.0,
+    palkka: 1600,
+    tyonantajat: "Osa-aikatyö Oy",
+    pidennettavatJaksot: 0,
+    rows: [],
+    viikkoTOERows: [
+      {
+        id: "v2024-07-1",
+        alkupäivä: "1.7.2024",    // Maanantai
+        loppupäivä: "7.7.2024",   // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 1",
+        palkka: 750,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 18,
+        tunnitYhteensä: 20
+      },
+      {
+        id: "v2024-07-2",
+        alkupäivä: "8.7.2024",    // Maanantai
+        loppupäivä: "14.7.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 2",
+        palkka: 750,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 19,
+        tunnitYhteensä: 21
+      },
+      {
+        id: "v2024-07-3",
+        alkupäivä: "15.7.2024",   // Maanantai
+        loppupäivä: "21.7.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 3",
+        palkka: 750,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 20,
+        tunnitYhteensä: 22
+      },
+      {
+        id: "v2024-07-4",
+        alkupäivä: "22.7.2024",   // Maanantai
+        loppupäivä: "28.7.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 4",
+        palkka: 750,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 18,
+        tunnitYhteensä: 20
+      },
+      {
+        id: "v2024-07-5",
+        alkupäivä: "29.7.2024",   // Maanantai
+        loppupäivä: "31.7.2024",  // Sunnuntai (osittainen viikko)
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 5 (osittainen)",
+        palkka: 150,              // 1 arkipäivä / 5 = 0.2 × 750€
+        toeViikot: 0.2,          // Pro rata
+        jakaja: 1,               // 1 arkipäivä heinäkuulle
+        toeTunnit: 4,            // Pro rata
+        tunnitYhteensä: 4
+      }
+    ]
+  },
+  {
+    id: "2024-06",
+    ajanjakso: "2024 Kesäkuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3200,
+    tyonantajat: "Osa-aikatyö Oy",
+    pidennettavatJaksot: 0,
+    rows: [],
+    viikkoTOERows: [
+      {
+        id: "v2024-06-1",
+        alkupäivä: "3.6.2024",    // Maanantai
+        loppupäivä: "9.6.2024",   // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 1",
+        palkka: 700,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 18,
+        tunnitYhteensä: 20
+      },
+      {
+        id: "v2024-06-2",
+        alkupäivä: "10.6.2024",   // Maanantai
+        loppupäivä: "16.6.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 2",
+        palkka: 700,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 19,
+        tunnitYhteensä: 21
+      },
+      {
+        id: "v2024-06-3",
+        alkupäivä: "17.6.2024",   // Maanantai
+        loppupäivä: "23.6.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 3",
+        palkka: 700,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 20,
+        tunnitYhteensä: 22
+      },
+      {
+        id: "v2024-06-4",
+        alkupäivä: "24.6.2024",   // Maanantai
+        loppupäivä: "30.6.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 4",
+        palkka: 700,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 18,
+        tunnitYhteensä: 20
+      }
+    ]
+  },
+  {
+    id: "2024-05",
+    ajanjakso: "2024 Toukokuu",
+    toe: 0.5,
+    jakaja: 10.5,
+    palkka: 1800,
+    tyonantajat: "Osa-aikatyö Oy",
+    pidennettavatJaksot: 0,
+    rows: [],
+    viikkoTOERows: [
+      {
+        id: "v2024-05-1",
+        alkupäivä: "6.5.2024",    // Maanantai
+        loppupäivä: "12.5.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 1",
+        palkka: 600,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 18,
+        tunnitYhteensä: 20
+      },
+      {
+        id: "v2024-05-2",
+        alkupäivä: "13.5.2024",   // Maanantai
+        loppupäivä: "19.5.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 2",
+        palkka: 600,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 19,
+        tunnitYhteensä: 21
+      },
+      {
+        id: "v2024-05-3",
+        alkupäivä: "20.5.2024",   // Maanantai
+        loppupäivä: "26.5.2024",  // Sunnuntai
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 3",
+        palkka: 600,
+        toeViikot: 1,
+        jakaja: 5,
+        toeTunnit: 20,
+        tunnitYhteensä: 22
+      },
+      {
+        id: "v2024-05-4",
+        alkupäivä: "27.5.2024",   // Maanantai
+        loppupäivä: "31.5.2024",  // Sunnuntai (osittainen viikko)
+        työnantaja: "Osa-aikatyö Oy",
+        selite: "Viikko 4 (osittainen)",
+        palkka: 300,              // 2.5 arkipäivää / 5 = 0.5 × 600€
+        toeViikot: 0.5,          // Pro rata
+        jakaja: 2.5,             // 2.5 arkipäivää toukokuulle
+        toeTunnit: 9,            // Pro rata
+        tunnitYhteensä: 10
+      }
+    ]
+  },
+  {
+    id: "2024-04",
+    ajanjakso: "2024 Huhtikuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-03",
+    ajanjakso: "2024 Maaliskuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-02",
+    ajanjakso: "2024 Helmikuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-01",
+    ajanjakso: "2024 Tammikuu",
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "Ei työtä",
+    pidennettavatJaksot: 0,
+    rows: []
+  }
 ];
 
 // --- Helper Functions ---
@@ -677,9 +1098,61 @@ function generateMonthsFromPayDate(payDate: string, monthCount: number, directio
 
 // --- Main Component ---
 export default function AllocateIncome() {
-  const [periods, setPeriods] = useState<MonthPeriod[]>(MOCK_PERIODS);
-  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set(["2026-01"]));
-  const [showNonBenefitAffecting, setShowNonBenefitAffecting] = useState(false);
+  const [definitionType, setDefinitionType] = useState<'eurotoe' | 'eurotoe6' | 'viikkotoe' | 'vuositulo' | 'ulkomaan'>('eurotoe');
+  const [periods, setPeriods] = useState<MonthPeriod[]>(() => {
+    // EuroTOE: vain 2025 kuukaudet (12kk)
+    if (definitionType === 'eurotoe' || definitionType === 'eurotoe6') {
+      return MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
+    }
+    // ViikkoTOE: 2025 kuukaudet + 2024 kuukaudet (24kk yhteensä)
+    if (definitionType === 'viikkotoe') {
+      return MOCK_PERIODS; // Kaikki kuukaudet
+    }
+    // Muut: vain 2025 kuukaudet
+    return MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
+  });
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set(["2025-12", "viikkotoe-combined"]));
+
+  // Päivitä periods kun definitionType muuttuu
+  useEffect(() => {
+    if (definitionType === 'eurotoe' || definitionType === 'eurotoe6') {
+      setPeriods(MOCK_PERIODS.filter(p => p.id.startsWith('2025-')));
+    } else if (definitionType === 'viikkotoe') {
+      // Yhdistä kaikki ViikkoTOE-kuukaudet yhdeksi periodiksi
+      const viikkoTOEPeriods = MOCK_PERIODS.filter(p => isViikkoTOEPeriod(p));
+      const euroTOEPeriods2025 = MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
+      const euroTOEPeriods2024After = MOCK_PERIODS.filter(p => 
+        p.id.startsWith('2024-') && !isViikkoTOEPeriod(p) && p.id >= '2024-09'
+      );
+      
+      const combinedViikkoTOE = {
+        id: "viikkotoe-combined",
+        ajanjakso: "ViikkoTOE-aika (2024-05 - 2024-08)",
+        
+        // Laske TOE-kuukaudet ViikkoTOE-datasta (viikot ÷ 4.33)
+        toe: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || [])
+          .reduce((sum, row) => sum + (row.toeViikot / 4.33), 0),
+        
+        // Laske jakaja (maksettavat arkipäivät)
+        jakaja: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || [])
+          .reduce((sum, row) => sum + row.jakaja, 0),
+        
+        // Laske palkka viikkopalkkojen perusteella
+        palkka: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || [])
+          .reduce((sum, row) => sum + row.palkka, 0),
+        
+        tyonantajat: [...new Set(viikkoTOEPeriods.map(p => p.tyonantajat))].join(", "),
+        pidennettavatJaksot: 0,
+        rows: [],
+        viikkoTOERows: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || [])
+      };
+      
+      // Järjestys: 2025-kuukaudet, 2024-kuukaudet (2.9.2024 jälkeen), ViikkoTOE-aika
+      setPeriods([...euroTOEPeriods2025, ...euroTOEPeriods2024After, combinedViikkoTOE]);
+    } else {
+      setPeriods(MOCK_PERIODS.filter(p => p.id.startsWith('2025-')));
+    }
+  }, [definitionType]);
   
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -728,33 +1201,515 @@ export default function AllocateIncome() {
     });
   };
 
-  // Filter rows to show based on showNonBenefitAffecting setting
-  const getVisibleRows = (period: MonthPeriod) => {
-    if (showNonBenefitAffecting) {
-      return period.rows; // Show all rows including deleted and non-benefit affecting
+  // Check if period is ViikkoTOE period (5-8.2024)
+  const isViikkoTOEPeriod = (period: MonthPeriod): boolean => {
+    // Parsitaan "2024 Elokuu" -> "2024-08"
+    const parts = period.ajanjakso.split(' ');
+    const year = parts[0];
+    const monthName = parts[1];
+    
+    const monthMap: { [key: string]: string } = {
+      'Tammikuu': '01', 'Helmikuu': '02', 'Maaliskuu': '03', 'Huhtikuu': '04',
+      'Toukokuu': '05', 'Kesäkuu': '06', 'Heinäkuu': '07', 'Elokuu': '08',
+      'Syyskuu': '09', 'Lokakuu': '10', 'Marraskuu': '11', 'Joulukuu': '12'
+    };
+    
+    const monthNumber = monthMap[monthName];
+    if (!monthNumber) return false;
+    
+    const periodDate = new Date(`${year}-${monthNumber}-01`);
+    const viikkoTOEStart = new Date('2024-05-01');
+    const viikkoTOEEnd = new Date('2024-08-31');
+    return periodDate >= viikkoTOEStart && periodDate <= viikkoTOEEnd;
+  };
+
+  // Calculate TOE value based on salary and working days (jakaja)
+  const calculateTOEValue = (period: MonthPeriod): number => {
+    const totalSalary = calculateEffectiveIncomeTotal(period);
+    
+    // EuroTOE-kertymälogiikka (1.9.2024 alkaen): vain kuukausiansio, ei työaikaa
+    if (totalSalary >= 930) {
+      return 1.0; // Täysi kuukausi: vähintään 930€
+    } else if (totalSalary >= 465) {
+      return 0.5; // Puolikas kuukausi: vähintään 465€ mutta alle 930€
+    } else {
+      return 0.0; // Ei kuukautta: alle 465€
     }
-    return period.rows.filter(row => 
-      !isRowDeleted(row) && // Hide deleted rows
-      // Show: vaikuttavat tulot + huomioidut tulot
+  };
+
+  // Check if row is deleted
+  const isRowDeleted = (row: IncomeRow): boolean => {
+    return row.huom?.toLowerCase().includes("poistettu") || false;
+  };
+
+  // Calculate effective income total from palkka column only
+  const calculateEffectiveIncomeTotal = (period: MonthPeriod): number => {
+    return period.rows
+      .filter(row => 
+        !isRowDeleted(row) && // Ei poistettuja
       (!NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) || 
-       row.huom?.includes("Huomioitu laskennassa"))
+         row.huom?.includes("Huomioitu laskennassa")) // Vaikuttavat tai huomioidut
+      )
+      .reduce((sum, row) => sum + row.palkka, 0); // Vain palkka-sarakkeen arvot
+  };
+
+  // ViikkoTOE muokkausfunktiot
+  const handleViikkoTOESave = (periodId: string, rowId: string, updatedRow: any) => {
+    setPeriods(prev => prev.map(period => {
+      if (period.id === periodId) {
+        const updatedViikkoRows = period.viikkoTOERows?.map(row => 
+          row.id === rowId ? updatedRow : row
+        ) || [];
+        
+        // Päivitä myös period.palkka ja period.toe
+        const newPalkka = updatedViikkoRows.reduce((sum, row) => sum + row.palkka, 0);
+        const newToe = updatedViikkoRows.reduce((sum, row) => sum + (row.toeViikot / 4.33), 0);
+        
+        return {
+          ...period,
+          viikkoTOERows: updatedViikkoRows,
+          palkka: newPalkka,
+          toe: newToe
+        };
+      }
+      return period;
+    }));
+  };
+
+  const handleViikkoTOEDelete = (periodId: string, rowId: string) => {
+    if (confirm('Haluatko varmasti poistaa tämän rivin?')) {
+      setPeriods(prev => prev.map(period => {
+        if (period.id === periodId) {
+          const updatedViikkoRows = period.viikkoTOERows?.filter(row => row.id !== rowId) || [];
+          
+          // Päivitä myös period.palkka ja period.toe
+          const newPalkka = updatedViikkoRows.reduce((sum, row) => sum + row.palkka, 0);
+          const newToe = updatedViikkoRows.reduce((sum, row) => sum + (row.toeViikot / 4.33), 0);
+          
+          return {
+            ...period,
+            viikkoTOERows: updatedViikkoRows,
+            palkka: newPalkka,
+            toe: newToe
+          };
+        }
+        return period;
+      }));
+    }
+  };
+
+  // Calculate TOE summary based on definition type
+  const summary = useMemo(() => {
+    // Peruslaskelmat
+    const totalTOEMonths = periods.reduce((sum, period) => sum + calculateTOEValue(period), 0);
+    const totalJakaja = periods.reduce((sum, period) => sum + period.jakaja, 0);
+    
+    // Korjaa totalSalary laskenta käyttämään oikeaa arvoa riippuen määrittelytyypistä
+    const totalSalary = definitionType === 'viikkotoe' ? 
+      periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateEffectiveIncomeTotal(p), 0) + 
+      periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.palkka, 0) : 
+      periods.reduce((sum, period) => sum + calculateEffectiveIncomeTotal(period), 0);
+
+    // Määrittelytyypin mukaan eri laskentalogiikka
+    let averageSalary = 0;
+    let dailySalary = 0;
+    let definitionPeriod = '';
+    let workingDaysTotal = 0;
+
+    switch (definitionType) {
+      case 'eurotoe':
+        // 12kk määrittelyjakso
+        averageSalary = periods.length > 0 ? totalSalary / periods.length : 0;
+        dailySalary = averageSalary / 21.5;
+        workingDaysTotal = totalJakaja;
+        definitionPeriod = periods.length > 0 
+          ? "01.01.2025 - 31.12.2025" // Määrittelyjakso: DD.MM.YYYY-DD.MM.YYYY muodossa
+          : '';
+        break;
+        
+      case 'eurotoe6':
+        // 6kk määrittelyjakso
+        const last6Months = periods.slice(-6);
+        const salary6Months = last6Months.reduce((sum, period) => 
+          sum + calculateEffectiveIncomeTotal(period), 0
+        );
+        const jakaja6Months = last6Months.reduce((sum, period) => sum + period.jakaja, 0);
+        averageSalary = last6Months.length > 0 ? salary6Months / last6Months.length : 0;
+        dailySalary = averageSalary / 21.5;
+        workingDaysTotal = jakaja6Months;
+        definitionPeriod = last6Months.length > 0 
+          ? "01.07.2025 - 31.12.2025" // 6kk määrittelyjakso: DD.MM.YYYY-DD.MM.YYYY muodossa
+          : '';
+        break;
+        
+      case 'viikkotoe':
+        // Sekajaksojen laskenta (EuroTOE + ViikkoTOE)
+        const euroTOEPeriods = periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0);
+        const viikkoTOEPeriods = periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0);
+        
+        const euroTOESalary = euroTOEPeriods.reduce((sum, p) => sum + calculateEffectiveIncomeTotal(p), 0);
+        const viikkoTOESalary = viikkoTOEPeriods.reduce((sum, p) => sum + p.palkka, 0);
+        
+        // Käytä totalSalary joka on nyt oikein laskettu
+        averageSalary = periods.length > 0 ? totalSalary / periods.length : 0;
+        dailySalary = averageSalary / 21.5;
+        workingDaysTotal = totalJakaja;
+        
+        // Laske dynaaminen tarkastelujakso: kuinka kauas taaksepäin pitää mennä saadakseen 12 TOE-kuukautta
+        let totalTOEMonths = 0;
+        let monthsBack = 0;
+        const completionDate = new Date('2025-12-15');
+        
+        // Laske TOE-kuukaudet taaksepäin kunnes saadaan 12 kuukautta
+        while (totalTOEMonths < 12 && monthsBack < 24) {
+          const checkDate = new Date(completionDate);
+          checkDate.setMonth(checkDate.getMonth() - monthsBack);
+          
+          // Tarkista onko tämä kuukausi EuroTOE vai ViikkoTOE
+          const year = checkDate.getFullYear();
+          const month = checkDate.getMonth() + 1;
+          const periodId = `${year}-${String(month).padStart(2, '0')}`;
+          
+          const period = MOCK_PERIODS.find(p => p.id === periodId);
+          if (period) {
+            if (isViikkoTOEPeriod(period)) {
+              totalTOEMonths += period.toe; // ViikkoTOE-kuukaudet
+            } else {
+              totalTOEMonths += calculateTOEValue(period); // EuroTOE-kuukaudet
+            }
+          }
+          
+          monthsBack++;
+        }
+        
+        // Laske tarkastelujakso
+        const reviewStartDate = new Date(completionDate);
+        reviewStartDate.setMonth(reviewStartDate.getMonth() - monthsBack);
+        
+        const reviewStartStr = `${String(reviewStartDate.getDate()).padStart(2, '0')}.${String(reviewStartDate.getMonth() + 1).padStart(2, '0')}.${reviewStartDate.getFullYear()}`;
+        const reviewEndStr = "15.12.2025";
+        
+        definitionPeriod = `${reviewStartStr} - ${reviewEndStr}`;
+        break;
+        
+      case 'vuositulo':
+        // Vuositulo (verotustiedot)
+        averageSalary = totalSalary; // Vuositulo
+        dailySalary = averageSalary / 365; // Vuosipäivät
+        workingDaysTotal = 365;
+        definitionPeriod = periods.length > 0 
+          ? "01.01.2025 - 31.12.2025" // Vuositulo määrittelyjakso: DD.MM.YYYY-DD.MM.YYYY muodossa
+          : '';
+        break;
+        
+      case 'ulkomaan':
+        // Ulkomaan työ (valuuttamuunnos)
+        averageSalary = periods.length > 0 ? totalSalary / periods.length : 0;
+        dailySalary = averageSalary / 21.5;
+        workingDaysTotal = totalJakaja;
+        definitionPeriod = periods.length > 0 
+          ? "01.01.2025 - 31.12.2025" // Ulkomaan työ määrittelyjakso: DD.MM.YYYY-DD.MM.YYYY muodossa
+          : '';
+        break;
+    }
+
+    // Työttömyysturvan laskenta (sama kaava kaikille)
+    const telDeductionRate = 0.0354;
+    const salaryAfterTelDeduction = averageSalary * (1 - telDeductionRate);
+    const basicDailyAllowance = 37.21;
+    const incomeThreshold = 3291;
+    
+    let unemploymentBenefit = 0;
+    if (salaryAfterTelDeduction <= incomeThreshold) {
+      unemploymentBenefit = salaryAfterTelDeduction * 0.45;
+    } else {
+      const firstPart = incomeThreshold * 0.45;
+      const excessPart = (salaryAfterTelDeduction - incomeThreshold) * 0.20;
+      unemploymentBenefit = firstPart + excessPart;
+    }
+    
+    const unemploymentBenefitPerDay = unemploymentBenefit / 21.5;
+    const fullDailyAllowance = basicDailyAllowance + unemploymentBenefitPerDay;
+    
+    const reviewPeriod = definitionType === 'viikkotoe' 
+      ? definitionPeriod // ViikkoTOE: käytä dynaamista laskentaa
+      : "01.01.2025 - 31.12.2025"; // Muut: kiinteä jakso
+    
+    const completionDate = periods.length > 0 
+      ? "15.12.2025" // Täyttymispäivä: joulukuun 15. päivä 2025
+      : '';
+    
+    const extendingPeriods = periods.reduce((sum, period) => 
+      sum + period.pidennettavatJaksot, 0
+    );
+    
+    return {
+      totalTOEMonths: definitionType === 'viikkotoe' ? 
+        periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateTOEValue(p), 0) + 
+        periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.toe, 0) : 
+        totalTOEMonths,
+      totalJakaja: workingDaysTotal,
+      totalSalary,
+      averageSalary,
+      dailySalary,
+      fullDailyAllowance,
+      reviewPeriod,
+      completionDate,
+      definitionPeriod,
+      extendingPeriods,
+      definitionType,
+      euroTOEMonths: definitionType === 'viikkotoe' ? 
+        periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateTOEValue(p), 0) : 0,
+      viikkoTOEMonths: definitionType === 'viikkotoe' ? 
+        periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.toe, 0) : 0
+    };
+  }, [periods, definitionType]);
+
+  // ViikkoTOE-taulukko komponentti
+  const ViikkoTOETable = ({ period }: { period: MonthPeriod }) => {
+    const [editingRow, setEditingRow] = useState<string | null>(null);
+    const [editData, setEditData] = useState<any>({});
+    
+    const handleEdit = (rowId: string) => {
+      const row = period.viikkoTOERows?.find(r => r.id === rowId);
+      if (row) {
+        setEditData({ ...row });
+        setEditingRow(rowId);
+      }
+    };
+    
+    const handleSave = (rowId: string) => {
+      handleViikkoTOESave(period.id, rowId, editData);
+      setEditingRow(null);
+      setEditData({});
+    };
+    
+    const handleCancel = () => {
+      setEditingRow(null);
+      setEditData({});
+    };
+    
+    const handleDelete = (rowId: string) => {
+      handleViikkoTOEDelete(period.id, rowId);
+    };
+    
+    const handleInputChange = (field: string, value: any) => {
+      setEditData((prev: any) => ({ ...prev, [field]: value }));
+    };
+    
+    return (
+      <div>
+        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+          <p className="text-sm text-yellow-800">
+            <strong>ViikkoTOE-historia:</strong> Tämä kuukausi on ennen 2.9.2024, 
+            joten käytetään ViikkoTOE-laskentaa. TOE-kertymä tarvitaan täydentämään 
+            nykyistä EuroTOE-aikaa.
+          </p>
+        </div>
+        
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">
+              Lisää viikkotieto
+            </Button>
+          </div>
+          <Button variant="ghost" size="sm">
+            Peruuta muutokset
+          </Button>
+        </div>
+
+        <table className="min-w-full border border-gray-300 bg-white">
+          <thead className="bg-[#003479] text-white">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium">Alkupäivä</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Loppupäivä</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Työnantaja</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Selite</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Palkka (€)</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">TOE-viikot (kpl)</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Maksettavat arkipäivät</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">TOE-tunnit</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Tunnit yhteensä</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Toiminto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(period.viikkoTOERows || []).map((row, idx) => (
+              <tr key={row.id} className="border-b">
+                {editingRow === row.id ? (
+                  // Editointitila
+                  <>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="text"
+                        value={editData.alkupäivä || ''}
+                        onChange={(e) => handleInputChange('alkupäivä', e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="text"
+                        value={editData.loppupäivä || ''}
+                        onChange={(e) => handleInputChange('loppupäivä', e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="text"
+                        value={editData.työnantaja || ''}
+                        onChange={(e) => handleInputChange('työnantaja', e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="text"
+                        value={editData.selite || ''}
+                        onChange={(e) => handleInputChange('selite', e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="number"
+                        value={editData.palkka || ''}
+                        onChange={(e) => handleInputChange('palkka', parseFloat(e.target.value) || 0)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        step="0.01"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="number"
+                        value={editData.toeViikot || ''}
+                        onChange={(e) => handleInputChange('toeViikot', parseFloat(e.target.value) || 0)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        step="0.1"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="number"
+                        value={editData.jakaja || ''}
+                        onChange={(e) => handleInputChange('jakaja', parseInt(e.target.value) || 0)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        min="0"
+                        max="5"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="number"
+                        value={editData.toeTunnit || ''}
+                        onChange={(e) => handleInputChange('toeTunnit', parseFloat(e.target.value) || 0)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        step="0.1"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <input
+                        type="number"
+                        value={editData.tunnitYhteensä || ''}
+                        onChange={(e) => handleInputChange('tunnitYhteensä', parseFloat(e.target.value) || 0)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        step="0.1"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-blue-600 hover:text-blue-800"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56 p-2" align="end">
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="ghost"
+                              className="justify-start text-sm font-normal text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleSave(row.id)}
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              Tallenna muutokset
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="justify-start text-sm font-normal text-gray-600 hover:text-gray-700"
+                              onClick={handleCancel}
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              Peruuta muutokset
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </td>
+                  </>
+                ) : (
+                  // Lukutila
+                  <>
+                    <td className="px-3 py-2 text-sm">{row.alkupäivä}</td>
+                    <td className="px-3 py-2 text-sm">{row.loppupäivä}</td>
+                    <td className="px-3 py-2 text-sm">{row.työnantaja}</td>
+                    <td className="px-3 py-2 text-sm">{row.selite}</td>
+                    <td className="px-3 py-2 text-sm">{formatCurrency(row.palkka)}</td>
+                    <td className="px-3 py-2 text-sm">{row.toeViikot}</td>
+                    <td className="px-3 py-2 text-sm">{row.jakaja}</td>
+                    <td className="px-3 py-2 text-sm">{row.toeTunnit}</td>
+                    <td className="px-3 py-2 text-sm">{row.tunnitYhteensä}</td>
+                    <td className="px-3 py-2 text-sm">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-blue-600 hover:text-blue-800"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56 p-2" align="end">
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="ghost"
+                              className="justify-start text-sm font-normal"
+                              onClick={() => handleEdit(row.id)}
+                            >
+                              Muokkaa viikkotietoa
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="justify-start text-sm font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDelete(row.id)}
+                            >
+                              <AlertCircle className="h-4 w-4 mr-2" />
+                              Poista viikkotieto
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
-  // Calculate count of hidden rows
-  const getHiddenRowsCount = (period: MonthPeriod) => {
-    if (showNonBenefitAffecting) {
-      return 0; // All rows are visible
-    }
-    
-    const hiddenCount = period.rows.filter(row => 
-      isRowDeleted(row) || // Deleted rows
-      (NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) && 
-       !row.huom?.includes("Huomioitu laskennassa")) // Non-benefit affecting (not included)
-    ).length;
-    
-    return hiddenCount;
+  // Filter rows to show - always show all rows including deleted ones
+  const getVisibleRows = (period: MonthPeriod) => {
+    return period.rows; // Show all rows including deleted ones
   };
+
 
   // Open allocation modal for single row
   const openAllocationModalSingle = (row: IncomeRow) => {
@@ -864,10 +1819,6 @@ export default function AllocateIncome() {
     });
   };
 
-  // Check if row is deleted
-  const isRowDeleted = (row: IncomeRow): boolean => {
-    return row.huom?.toLowerCase().includes("poistettu") || false;
-  };
 
   // Handle add income modal
   const handleAddIncome = () => {
@@ -1287,19 +2238,170 @@ export default function AllocateIncome() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-7xl space-y-4">
-        <header className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-semibold tracking-tight">Kohdista tulotiedot</h1>
+
+        {/* TOE Yhteenveto */}
+        <Card className="mb-4">
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              {/* Yläosa - Työssäoloehdon yhteenveto */}
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex flex-col gap-2">
+                  {/* Otsikot */}
+                  <div className="grid grid-cols-7 gap-4 text-sm">
+                    <div className="font-medium text-gray-700">Täyttymispäivä</div>
+                    <div className="font-medium text-gray-700">Tarkastelujakso</div>
+                    <div className="font-medium text-gray-700">Pidentävät jaksot pv</div>
+                    <div className="font-medium text-gray-700">Määrittelyjakso</div>
+                    <div className="font-medium text-gray-700">TOE-kuukaudet</div>
+                    <div className="font-medium text-gray-700">
+                      {definitionType === 'vuositulo' ? 'Vuositulo' : 'Jakaja'}
+                    </div>
+                    <div className="font-medium text-gray-700">
+                      {definitionType === 'vuositulo' ? 'Vuositulo' : 'TOE-palkka'}
+                    </div>
+                  </div>
+                  
+                  {/* Arvot */}
+                  <div className="grid grid-cols-7 gap-4 text-sm">
+                    <div className="text-gray-900">{summary.completionDate}</div>
+                    <div className="text-gray-900">{summary.reviewPeriod}</div>
+                    <div className="text-gray-900">{summary.extendingPeriods}</div>
+                    <div className="text-blue-600">{summary.definitionPeriod}</div>
+                    <div className="text-gray-900">
+                      {`${Math.round(summary.totalTOEMonths * 2) / 2}/12`}
+                    </div>
+                    <div className="text-gray-900">
+                      {definitionType === 'vuositulo' 
+                        ? formatCurrency(summary.totalSalary)
+                        : summary.totalJakaja
+                      }
+                    </div>
+                    <div className="text-gray-900">
+                      {definitionType === 'vuositulo' 
+                        ? formatCurrency(summary.totalSalary)
+                        : formatCurrency(summary.totalSalary)
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Keskiosa - Palkanmäärittelyn yhteenveto */}
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex flex-col gap-2">
+                  {/* Otsikot */}
+                  <div className="grid grid-cols-7 gap-4 text-sm" >
+                    <div className="font-medium text-gray-700">Perustepalkka/kk</div>
+                    <div className="font-medium text-gray-700">Perustepalkka/pvä</div>
+                    <div className="font-medium text-gray-700">Täysi päiväraha</div>
+                    <div className="font-medium text-gray-700">80% suoja</div>
+                    <div className="col-span-2 font-medium text-gray-700 whitespace-nowrap">TEL-vuosi ja vähennysprosentti</div>
+                    <div className="font-medium text-gray-700">Yrittäjän jälkisuoja</div>
+                  </div>
+                  
+                  {/* Arvot */}
+                  <div className="grid grid-cols-7 gap-4 text-sm">
+                    <div className="text-gray-900">{formatCurrency(summary.averageSalary)}</div>
+                    <div className="text-gray-900">{formatCurrency(summary.dailySalary)}</div>
+                    <div className="text-gray-900">{formatCurrency(summary.fullDailyAllowance)}</div>
+                    <div className="text-gray-900">Kyllä (vaikuttaa laskentaan)</div>
+                    <div className="text-gray-900">2025/3,54</div>
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 border border-gray-400 rounded-full mr-2"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Alaosa - Määrittelytyyppi ja TOE-alkupäivä */}
+              <div>
+                <div className="flex flex-col gap-2">
+                  {/* Otsikot */}
+                  <div className="grid grid-cols-7 gap-4 text-sm">
+                    <div className="col-span-5 font-medium text-gray-700">Määrittelytyyppi</div>
+                    <div className="col-span-2 font-medium text-gray-700">TOE-alkupäivä</div>
+                  </div>
+                  
+                  {/* Arvot */}
+                  <div className="grid grid-cols-7 gap-4 text-sm">
+                    <div className="col-span-5 flex gap-4">
+                      <label className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          name="definitionType" 
+                          value="eurotoe" 
+                          checked={definitionType === 'eurotoe'}
+                          onChange={(e) => setDefinitionType(e.target.value as any)}
+                          className="mr-1" 
+                        />
+                        EuroTOE
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          name="definitionType" 
+                          value="eurotoe6" 
+                          checked={definitionType === 'eurotoe6'}
+                          onChange={(e) => setDefinitionType(e.target.value as any)}
+                          className="mr-1" 
+                        />
+                        EuroTOE (6kk)
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          name="definitionType" 
+                          value="viikkotoe" 
+                          checked={definitionType === 'viikkotoe'}
+                          onChange={(e) => setDefinitionType(e.target.value as any)}
+                          className="mr-1" 
+                        />
+                        ViikkoTOE
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          name="definitionType" 
+                          value="vuositulo" 
+                          checked={definitionType === 'vuositulo'}
+                          onChange={(e) => setDefinitionType(e.target.value as any)}
+                          className="mr-1" 
+                        />
+                        Vuositulo
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          name="definitionType" 
+                          value="ulkomaan" 
+                          checked={definitionType === 'ulkomaan'}
+                          onChange={(e) => setDefinitionType(e.target.value as any)}
+                          className="mr-1" 
+                        />
+                        Ulkomaan työ
+                      </label>
+                    </div>
+                    <div className="col-span-2 text-blue-600">1.1.2026</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Suodata tulotietoja painike */}
+        <div className="flex justify-end mb-4">
           <Link href="/massincomesplit">
             <Button className="bg-[#0e4c92] hover:bg-[#0d4383]">Suodata tulotietoja</Button>
           </Link>
-        </header>
+        </div>
 
         {/* Periods Table */}
         <Card>
           <CardContent className="p-0">
             <div className="overflow-auto">
               <table className="min-w-full border-collapse">
-                <thead className="bg-[#003479] text-white">
+                <thead className="bg-gray-700 text-white">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium w-12"></th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Ajanjakso</th>
@@ -1314,7 +2416,15 @@ export default function AllocateIncome() {
                   {periods.map((period, idx) => (
                     <React.Fragment key={period.id}>
                       {/* Period Row */}
-                      <tr className={cn("border-b hover:bg-gray-50", idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
+                      <tr className={cn(
+                        "border-b hover:bg-gray-50",
+                        // 2024 kuukaudet ilman TOE-vaikutusta - harmaa tausta
+                        period.id.startsWith('2024-') && period.toe === 0 
+                          ? "bg-gray-100 text-gray-500" 
+                          : isViikkoTOEPeriod(period) 
+                            ? "bg-blue-50"  // ViikkoTOE: aina sininen
+                            : "bg-white"  // EuroTOE: aina valkoinen
+                      )}>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => togglePeriod(period.id)}
@@ -1335,9 +2445,17 @@ export default function AllocateIncome() {
                             {period.ajanjakso}
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-sm">{period.toe}</td>
+                        <td className="px-4 py-3 text-sm font-medium">
+                          {period.viikkoTOERows && period.viikkoTOERows.length > 0 
+                            ? Math.round(period.toe * 10) / 10
+                            : calculateTOEValue(period)}
+                        </td>
                         <td className="px-4 py-3 text-sm">{period.jakaja}</td>
-                        <td className="px-4 py-3 text-sm">{period.palkka}</td>
+                        <td className="px-4 py-3 text-sm font-medium">
+                          {period.viikkoTOERows && period.viikkoTOERows.length > 0 
+                            ? formatCurrency(period.palkka)
+                            : formatCurrency(calculateEffectiveIncomeTotal(period))}
+                        </td>
                         <td className="px-4 py-3 text-sm">{period.tyonantajat}</td>
                         <td className="px-4 py-3 text-sm">
                           {period.pidennettavatJaksot > 0 && (
@@ -1349,40 +2467,17 @@ export default function AllocateIncome() {
                       </tr>
 
                       {/* Expanded Income Rows */}
-                      {expandedPeriods.has(period.id) && period.rows.length > 0 && (
+                      {expandedPeriods.has(period.id) && (
                         <tr>
                           <td colSpan={7} className="p-0">
                             <div className="bg-gray-100 p-4">
-                              <div className="flex justify-between items-center mb-3">
-                                {/* Vasen puoli - Kaksi painiketta vierekkäin */}
-                                <div className="flex gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => setAddIncomeModalOpen(true)}
-                                  >
-                                    Lisää tulotieto
-                                  </Button>
-                                  
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => setShowNonBenefitAffecting(!showNonBenefitAffecting)}
-                                    className={showNonBenefitAffecting ? "bg-blue-100 text-blue-800" : ""}
-                                  >
-                                    {showNonBenefitAffecting 
-                                      ? "Piilota poistetut ja ei-vaikuttavat tulot" 
-                                      : `Näytä poistetut ja ei-vaikuttavat tulot (${getHiddenRowsCount(period)})`
-                                    }
-                                  </Button>
-                                </div>
-                                
-                                {/* Oikea puoli - Peruuta muutokset */}
-                                <Button variant="ghost" size="sm">
-                                  Peruuta muutokset
-                                </Button>
-                              </div>
-
+                              {definitionType === 'viikkotoe' && period.viikkoTOERows && period.viikkoTOERows.length > 0 ? (
+                                // ViikkoTOE-näkymä (kun ViikkoTOE valittuna ja periodilla on viikkoTOERows)
+                                <ViikkoTOETable period={period} />
+                                ) : (
+                                  // EuroTOE-näkymä (nykyinen, kun EuroTOE valittuna tai ei ViikkoTOE-kuukausi)
+                                  period.rows.length > 0 && (
+                                  <>
                               <table className="min-w-full border border-gray-300 bg-white">
                                 <thead className="bg-[#003479] text-white">
                                   <tr>
@@ -1403,12 +2498,14 @@ export default function AllocateIncome() {
                                       key={row.id}
                                       className={cn(
                                         "border-b",
+                                              // Poistetut tulolajit - harmaa tausta
                                         isRowDeleted(row) 
                                           ? "bg-gray-100 text-gray-500" 
-                                          : rowIdx % 2 === 0 ? "bg-white" : "bg-gray-50",
-                                        row.huom && !isRowDeleted(row) && !row.huom?.includes("Huomioitu laskennassa") && "bg-yellow-50", // Keltainen vain jos ei huomioitu
-                                        NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) && 
-                                          !row.huom?.includes("Huomioitu laskennassa") && "bg-orange-50" // Oranssi vain jos ei huomioitu
+                                                // Ei-vaikuttavat tulolajit - säilytetään nykyinen oranssi
+                                                : NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(row.tulolaji) && 
+                                                  !row.huom?.includes("Huomioitu laskennassa")
+                                                  ? "bg-orange-50" // Säilytetään nykyinen oranssi
+                                                  : "bg-white" // Vaikuttavat tulolajit - valkoinen tausta
                                       )}
                                     >
                                       <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500")}>
@@ -1533,6 +2630,28 @@ export default function AllocateIncome() {
                                   ))}
                                 </tbody>
                               </table>
+                              
+                              {/* Lisää tulotieto -painike taulukon alapuolella */}
+                              <div className="flex justify-between items-center mt-3">
+                                {/* Vasen puoli - Lisää tulotieto painike */}
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setAddIncomeModalOpen(true)}
+                                  >
+                                    Lisää tulotieto
+                                  </Button>
+                                </div>
+                                
+                                {/* Oikea puoli - Peruuta muutokset */}
+                                <Button variant="ghost" size="sm">
+                                  Peruuta muutokset
+                                </Button>
+                              </div>
+                                  </>
+                                )
+                              )}
                             </div>
                           </td>
                         </tr>
