@@ -85,7 +85,7 @@ export function getDaysInMonth(year: number, month: number): number {
 }
 
 // ---- Allocation helpers ----
-import type { Direction, MonthSplit } from "./types";
+import type { Direction, MonthSplit, IncomeRow, MonthPeriod } from "./types";
 
 export function distributeByDays(
   totalAmount: number,
@@ -126,6 +126,13 @@ export function distributeEqualMonths(
     const lastDay = new Date(s.year, s.month, 0);
     return { year: s.year, month: s.month, earningStart: formatDateISO(firstDay), earningEnd: formatDateISO(lastDay), amount };
   });
+}
+
+
+// ---- Table helpers ----
+export function getVisibleRows(period: MonthPeriod): IncomeRow[] {
+  // Preserve insertion order so split child rows appear right after their parent
+  return period.rows;
 }
 
 

@@ -31,7 +31,7 @@ export default function EuroTOETable({
   onOpenAllocationModalBatch: (row: IncomeRow) => void;
   includeIncomeInCalculation: (row: IncomeRow) => void;
   deleteIncomeType: (row: IncomeRow) => void;
-  openSplitModal: (periodId: string, rowId: string) => void;
+  openSplitModal: (rowId: string) => void;
   onShowSavedAllocation: (row: IncomeRow) => void;
 }) {
   return (
@@ -127,7 +127,7 @@ export default function EuroTOETable({
                         <Button
                           variant="ghost"
                           className="justify-start text-sm font-normal"
-                          onClick={() => openSplitModal(rows[0]?.id.split("-")[0] || "", row.id)}
+                          onClick={() => openSplitModal(row.id)}
                         >
                           Jaa tulolaji
                         </Button>

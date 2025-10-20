@@ -37,6 +37,7 @@ import useViikkoTOEHandlers from "./hooks/useViikkoTOEHandlers";
 import { formatCurrency } from "./utils";
 import { isoToFI } from "./utils";
 import { getFinnishMonthName } from "./utils";
+import { getVisibleRows } from "./utils";
 import { daysBetween } from "./utils";
 
 // distributeByDays / distributeEqualMonths moved to utils
@@ -97,9 +98,7 @@ export default function AllocateIncome() {
     isViikkoTOEPeriod,
   }) as any;
 
-  const getVisibleRows = (period: MonthPeriod) => {
-    return period.rows;
-  };
+  // getVisibleRows moved to utils to ensure split-child rows are shown correctly
   const { openAllocationModalSingle, openAllocationModalBatch } = useOpenAllocation(
     allocation,
     isRowDeleted,
