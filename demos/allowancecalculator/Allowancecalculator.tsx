@@ -27,13 +27,15 @@ function businessDaysBetween(startISO: string, endISO: string) {
   // counts business days from start (inclusive) to end (exclusive)
   const start = new Date(startISO);
   const end = new Date(endISO);
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return 0;
   let count = 0;
   const cur = new Date(start);
-  while (cur <= end) {
+  cur.setHours(0, 0, 0, 0);
+  const endDate = new Date(end);
+  endDate.setHours(0, 0, 0, 0);
+  while (cur < endDate) {
     if (isBusinessDay(cur)) count++;
     cur.setDate(cur.getDate() + 1);
-    cur.setHours(0, 0, 0, 0);
   }
   return count;
 }
@@ -154,8 +156,8 @@ function earningsPartFromDaily(dailyWage: number, splitPointMonth = SPLIT_POINT_
 }
 
 function stepFactorByCumulativeDays(cumulativeDays: number) {
-  if (cumulativeDays > 170) return { factor: 0.75, label: "Porrastus 75%" } as const;
-  if (cumulativeDays > 40) return { factor: 0.80, label: "Porrastus 80%" } as const;
+  if (cumulativeDays >= 170) return { factor: 0.75, label: "Porrastus 75%" } as const;
+  if (cumulativeDays >= 40) return { factor: 0.80, label: "Porrastus 80%" } as const;
   return { factor: 1.0, label: "Ei porrastusta" } as const;
 }
 
@@ -257,7 +259,9 @@ function runSelfTests() {
     console.error("[TEST] Error in tests", e);
   }
 }
-runSelfTests();
+if (process.env.NODE_ENV !== 'production') {
+  runSelfTests();
+}
 
 // ===============================
 // Types
