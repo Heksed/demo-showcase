@@ -1844,10 +1844,15 @@ export default function AllocateIncome() {
       tyonantaja: selectedEmployer || "Espoon kaupunki",
     };
 
-    // Add to the current period (2026-01 for demo)
+    // Add to the correct period based on payment date
     setPeriods(prev => {
+      // Parse payment date to determine target month/year
+      const [day, month, year] = paymentDate.split('.');
+      const monthName = getFinnishMonthName(parseInt(month));
+      const targetPeriodKey = `${year} ${monthName}`;
+      
       return prev.map(period => {
-        if (period.id === "2026-01") {
+        if (period.ajanjakso === targetPeriodKey) {
           return {
             ...period,
             rows: [...period.rows, newRow],
