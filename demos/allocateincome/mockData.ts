@@ -334,7 +334,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
         työnantaja: "Osa-aikatyö Oy",
         selite: "Viikko 4 (osittainen)",
         palkka: 480,
-        toeViikot: 0.6,
+        toeViikot: 1,
         jakaja: 3,
         toeTunnit: 11,
         tunnitYhteensä: 12
@@ -406,7 +406,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
         työnantaja: "Osa-aikatyö Oy",
         selite: "Viikko 5 (osittainen)",
         palkka: 150,
-        toeViikot: 0.2,
+        toeViikot: 0,
         jakaja: 1,
         toeTunnit: 4,
         tunnitYhteensä: 4
@@ -526,7 +526,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
         työnantaja: "Osa-aikatyö Oy",
         selite: "Viikko 4 (osittainen)",
         palkka: 300,
-        toeViikot: 0.5,
+        toeViikot: 1,
         jakaja: 2.5,
         toeTunnit: 9,
         tunnitYhteensä: 10

@@ -51,10 +51,19 @@ export default function usePeriodsModel(definitionType: DefinitionType) {
       const euroTOEPeriods2025 = MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
       const euroTOEPeriods2024After = MOCK_PERIODS.filter(p => p.id.startsWith('2024-') && !isViikkoTOEPeriod(p) && p.id >= '2024-09');
 
+      // Convert ViikkoTOE weeks to EuroTOE months with official logic
+      const convertToEuroTOEMonths = (viikkoTOEWeeks: number): number => {
+        // Virallinen muunnos: 2 viikkoa = 0.5 kuukautta
+        // Pyöristä lähimpään 0.5:een
+        return Math.round(viikkoTOEWeeks / 2) * 0.5;
+      };
+
+      const totalViikkoTOEWeeks = viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || []).reduce((sum, row) => sum + row.toeViikot, 0);
+
       const combinedViikkoTOE: MonthPeriod = {
         id: "viikkotoe-combined",
         ajanjakso: "ViikkoTOE-aika (2024-05 - 2024-08)",
-        toe: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || []).reduce((sum, row) => sum + (row.toeViikot / 4.33), 0),
+        toe: convertToEuroTOEMonths(totalViikkoTOEWeeks),
         jakaja: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || []).reduce((sum, row) => sum + row.jakaja, 0),
         palkka: viikkoTOEPeriods.flatMap(p => p.viikkoTOERows || []).reduce((sum, row) => sum + row.palkka, 0),
         tyonantajat: [...new Set(viikkoTOEPeriods.map(p => p.tyonantajat))].join(", "),
