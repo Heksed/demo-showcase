@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MoreVertical, AlertCircle, CheckCircle2, RotateCcw, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
@@ -25,11 +25,13 @@ export default function ViikkoTOETable({
   onSave,
   onDelete,
   formatCurrency,
+  onVähennysSummaChange
 }: {
   period: MonthPeriod;
   onSave: (periodId: string, rowId: string, updatedRow: any) => void;
   onDelete: (periodId: string, rowId: string) => void;
   formatCurrency: (n: number) => string;
+  onVähennysSummaChange: (summa: number) => void;
 }) {
   const [rowData, setRowData] = useState<{[key: string]: any}>({});
   const [expandedWeeks, setExpandedWeeks] = useState<boolean>(false);
@@ -59,17 +61,64 @@ export default function ViikkoTOETable({
   };
 
   // Suodatettu viikkotietojen lista
-  const filteredWeeks = (period.viikkoTOERows || []).filter(row => {
-    if (!filterStartDate && !filterEndDate) return true; // Näytä kaikki jos ei suodattimia
-    
-    const rowStartDate = parseFinnishDate(row.alkupäivä);
-    const rowEndDate = parseFinnishDate(row.loppupäivä);
-    
-    if (filterStartDate && rowEndDate && rowEndDate < new Date(filterStartDate)) return false;
-    if (filterEndDate && rowStartDate && rowStartDate > new Date(filterEndDate)) return false;
-    
-    return true;
-  });
+  const filteredWeeks = (period.viikkoTOERows || [])
+    .filter(row => {
+      if (!filterStartDate && !filterEndDate) return true; // Näytä kaikki jos ei suodattimia
+      
+      const rowStartDate = parseFinnishDate(row.alkupäivä);
+      const rowEndDate = parseFinnishDate(row.loppupäivä);
+      
+      if (filterStartDate && rowEndDate && rowEndDate < new Date(filterStartDate)) return false;
+      if (filterEndDate && rowStartDate && rowStartDate > new Date(filterEndDate)) return false;
+      
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by start date (newest first)
+      const dateA = parseFinnishDate(a.alkupäivä);
+      const dateB = parseFinnishDate(b.alkupäivä);
+      if (!dateA || !dateB) return 0;
+      return dateB.getTime() - dateA.getTime();
+    });
+
+  // Laske ViikkoTOE:n vähentävä summa useMemo:lla varmistamaan päivitys
+  const viikkoTOEVähennysSumma = useMemo(() => {
+    return period.viikkoTOERows?.reduce((sum, row) => {
+      const vähennys = rowData[row.id]?.vähennäTOE ?? 0;
+      return sum + vähennys;
+    }, 0) || 0;
+  }, [period.viikkoTOERows, rowData]);
+
+  // Ilmoita vähentävän summan muutoksesta parent komponentille
+  useEffect(() => {
+    onVähennysSummaChange(viikkoTOEVähennysSumma);
+  }, [viikkoTOEVähennysSumma]); // Poistettu onVähennysSummaChange dependency array:sta
+
+  // Laske ViikkoTOE:n tunnit-yhteissumma useMemo:lla varmistamaan päivitys
+  const viikkoTOETunnitSumma = useMemo(() => {
+    return period.viikkoTOERows?.reduce((sum, row) => {
+      const currentData = {
+        ...row,
+        ...rowData[row.id],
+        tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? 18
+      };
+      return sum + currentData.tunnitYhteensä;
+    }, 0) || 0;
+  }, [period.viikkoTOERows, rowData]);
+
+  // Laske ViikkoTOE:n toeTunnit-yhteissumma useMemo:lla varmistamaan päivitys
+  const viikkoTOEToeTunnitSumma = useMemo(() => {
+    return period.viikkoTOERows?.reduce((sum, row) => {
+      const currentData = {
+        ...row,
+        ...rowData[row.id],
+        tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? 18
+      };
+      // Calculate TOE hours based on current hours: if >= 18h then use actual hours, else 0
+      const toeTunnit = currentData.tunnitYhteensä >= 18 ? currentData.tunnitYhteensä : 0;
+      return sum + toeTunnit;
+    }, 0) || 0;
+  }, [period.viikkoTOERows, rowData]);
 
   const handleInputChange = (rowId: string, field: string, value: any) => {
     // Estä vain TOEviikot muokkaus - jakaja voi olla muokattavissa
@@ -78,15 +127,15 @@ export default function ViikkoTOETable({
     }
     
     const mockRow = period.viikkoTOERows?.find(r => r.id === rowId);
-    const currentRowData = rowData[rowId] || {
-      // Mock data muut kentät (ei palkka, tunnitYhteensä, toeViikot, jakaja)
-      ...mockRow,
-      // Korvaa mock datan default arvoilla
-      palkka: 0,
-      tunnitYhteensä: 18,
-      toeViikot: 1,
-      jakaja: 5
-    };
+      const currentRowData = rowData[rowId] || {
+        // Mock data muut kentät (ei palkka, tunnitYhteensä, toeViikot, jakaja)
+        ...mockRow,
+        // Korvaa mock datan default arvoilla
+        vähennäTOE: 0, // Käytä aina 0:ta default arvona
+        tunnitYhteensä: 18,
+        toeViikot: 1,
+        jakaja: 5
+      };
     
     let newData = { ...currentRowData, [field]: value };
     
@@ -119,18 +168,9 @@ export default function ViikkoTOETable({
 
   return (
     <div className="space-y-4">
-      {/* Summary Section */}
-      <div className="bg-blue-50 border border-blue-200 rounded p-3">
-        <div className="text-sm text-blue-800">
-          <strong>ViikkoTOE-historia:</strong> Tämä kuukausi on ennen 2.9.2024, 
-          joten käytetään ViikkoTOE-laskentaa. TOE-kertymä tarvitaan täydentämään 
-          nykyistä EuroTOE-aikaa.
-        </div>
-      </div>
-
       {/* Salary Details Section */}
-      <div className="border border-gray-300 bg-white rounded">
-        <div className="bg-gray-100 px-4 py-2 border-b border-gray-300 flex justify-between items-center">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="bg-white px-4 py-2 border-b border-gray-300 flex justify-between items-center">
           <h3 className="text-sm font-medium">Palkkatiedot</h3>
           <Button
             variant="ghost"
@@ -145,7 +185,7 @@ export default function ViikkoTOETable({
         {expandedSalary && (
           <div className="p-0">
             <table className="min-w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-[#003479] text-white">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium">Huom</th>
                   <th className="px-3 py-2 text-left text-xs font-medium">Maksupäivä</th>
@@ -287,39 +327,32 @@ export default function ViikkoTOETable({
         )}
       </div>
 
-      {/* Summary Row */}
-      <table className="min-w-full border border-gray-300 bg-white">
-        <thead className="bg-[#003479] text-white">
-          <tr>
-            <th className="px-3 py-2 text-left text-xs font-medium">Huom</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Alkupäivä</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Loppupäivä</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Työnantaja</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Selite</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Palkka</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">TOEviikot</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Jakaja</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">TOE-tunnit</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Tunnit yhteensä</th>
-            <th className="px-3 py-2 text-left text-xs font-medium">Toiminto</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Summary Row */}
-          <tr className="bg-gray-50">
-            <td className="px-3 py-2 text-sm"></td>
-            <td className="px-3 py-2 text-sm">
-              {period.viikkoTOERows?.[0]?.alkupäivä || ""}
-            </td>
-            <td className="px-3 py-2 text-sm">
-              {period.viikkoTOERows?.[period.viikkoTOERows.length - 1]?.loppupäivä || ""}
-            </td>
-            <td className="px-3 py-2 text-sm">
-              {period.viikkoTOERows?.[0]?.työnantaja || ""}
-            </td>
-            <td className="px-3 py-2 text-sm"></td>
-            <td className="px-3 py-2 text-sm font-medium">{formatCurrency(period.palkka)}</td>
-            <td className="px-3 py-2 text-sm font-medium">
+      {/* ViikkoTOE Yhteenvetokortti */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <div className="grid grid-cols-8 gap-3 mb-4">
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">Alkupäivä</div>
+            <div className="text-sm font-bold text-gray-900">{period.viikkoTOERows?.[0]?.alkupäivä || ""}</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">Loppupäivä</div>
+            <div className="text-sm font-bold text-gray-900">{period.viikkoTOERows?.[period.viikkoTOERows.length - 1]?.loppupäivä || ""}</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">Työnantaja</div>
+            <div className="text-sm font-bold text-gray-900">{period.viikkoTOERows?.[0]?.työnantaja || ""}</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">Palkat yhteensä</div>
+            <div className="text-sm font-bold text-gray-900">{formatCurrency(period.palkka - viikkoTOEVähennysSumma)}</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">TOEviikot</div>
+            <div className="text-sm font-bold text-gray-900">
               {Math.floor(period.viikkoTOERows?.reduce((sum, row) => {
                 const currentData = {
                   ...row,
@@ -328,8 +361,12 @@ export default function ViikkoTOETable({
                 };
                 return sum + currentData.toeViikot;
               }, 0) || 0)}
-            </td>
-            <td className="px-3 py-2 text-sm font-medium">
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">Jakaja</div>
+            <div className="text-sm font-bold text-gray-900">
               {Math.round(period.viikkoTOERows?.reduce((sum, row) => {
                 const currentData = {
                   ...row,
@@ -338,65 +375,73 @@ export default function ViikkoTOETable({
                 };
                 return sum + currentData.jakaja;
               }, 0) || 0)}
-            </td>
-            <td className="px-3 py-2 text-sm font-medium">
-              {period.viikkoTOERows?.reduce((sum, row) => sum + row.toeTunnit, 0) || 0}
-            </td>
-            <td className="px-3 py-2 text-sm font-medium">
-              {period.viikkoTOERows?.reduce((sum, row) => sum + row.tunnitYhteensä, 0) || 0}
-            </td>
-            <td className="px-3 py-2 text-sm"></td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* Date Filter Section */}
-      <div className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-200 rounded">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Alkupäivä:</label>
-          <input 
-            type="date" 
-            value={filterStartDate} 
-            onChange={(e) => setFilterStartDate(e.target.value)} 
-            className="px-2 py-1 border border-gray-300 rounded text-sm" 
-          />
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">TOE-tunnit</div>
+            <div className="text-sm font-bold text-gray-900">{viikkoTOEToeTunnitSumma}</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-xs font-medium text-gray-600 mb-1">Tunnit yhteensä</div>
+            <div className="text-sm font-bold text-gray-900">{viikkoTOETunnitSumma}</div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Loppupäivä:</label>
-          <input 
-            type="date" 
-            value={filterEndDate} 
-            onChange={(e) => setFilterEndDate(e.target.value)} 
-            className="px-2 py-1 border border-gray-300 rounded text-sm" 
-          />
-        </div>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => {
-            setFilterStartDate('');
-            setFilterEndDate('');
-          }}
-        >
-          Näytä kaikki
-        </Button>
+        
+        <div className="w-full h-1 bg-teal-500 rounded-full"></div>
       </div>
 
-      {/* Muokkaa viikkotietoja Button */}
-      <div className="flex justify-start">
+      {/* Date Filter Section ja Muokkaa viikkotietoja Button */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Alkupäivä:</label>
+            <input 
+              type="date" 
+              value={filterStartDate} 
+              onChange={(e) => {
+                setFilterStartDate(e.target.value);
+                if (e.target.value && !expandedWeeks) {
+                  setExpandedWeeks(true);
+                }
+              }} 
+              className="px-2 py-1 border border-gray-300 rounded text-sm" 
+              max="2024-09-01"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Loppupäivä:</label>
+            <input 
+              type="date" 
+              value={filterEndDate} 
+              onChange={(e) => {
+                setFilterEndDate(e.target.value);
+                if (e.target.value && !expandedWeeks) {
+                  setExpandedWeeks(true);
+                }
+              }} 
+              className="px-2 py-1 border border-gray-300 rounded text-sm" 
+              max="2024-09-01"
+            />
+          </div>
+        </div>
+        
         <Button 
           variant="outline" 
           size="sm"
           onClick={() => setExpandedWeeks(!expandedWeeks)}
         >
-          {expandedWeeks ? 'Piilota viikkotiedot' : 'Muokkaa viikkotietoja'}
+          {expandedWeeks ? 'Piilota viikkotiedot' : 'Näytä kaikki viikot'}
         </Button>
+        </div>
       </div>
 
       {/* Detailed Weekly Rows */}
       {expandedWeeks && (
         <table className="min-w-full border border-gray-300 bg-white">
-          <thead className="bg-gray-100">
+          <thead className="bg-[#003479] text-white">
             <tr>
               <th className="px-3 py-2 text-left text-xs font-medium">Huom</th>
               <th className="px-3 py-2 text-left text-xs font-medium">Alkupäivä</th>
@@ -430,8 +475,8 @@ export default function ViikkoTOETable({
                   <td className="px-3 py-2 text-sm">
                     <input 
                       type="number" 
-                      value={currentData.palkka || 0} 
-                      onChange={(e) => handleInputChange(row.id, 'palkka', parseFloat(e.target.value) || 0)} 
+                      value={currentData.vähennäTOE || 0} 
+                      onChange={(e) => handleInputChange(row.id, 'vähennäTOE', parseFloat(e.target.value) || 0)} 
                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm" 
                       step="0.01" 
                     />
@@ -460,14 +505,28 @@ export default function ViikkoTOETable({
                     />
                   </td>
                   <td className="px-3 py-2 text-sm">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(period.id, row.id)}
-                      className="h-7 px-2 text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600 hover:text-blue-800">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="end">
+                        <div className="flex flex-col gap-1">
+                          <Button variant="ghost" className="justify-start text-sm font-normal">
+                            Muokkaa viikkotietoa
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            className="justify-start text-sm font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => onDelete(period.id, row.id)}
+                          >
+                            <AlertCircle className="h-4 w-4 mr-2" />
+                            Poista viikkotieto
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </td>
                 </tr>
               );
@@ -480,7 +539,7 @@ export default function ViikkoTOETable({
               <td className="px-3 py-2 text-sm"></td>
               <td className="px-3 py-2 text-sm"></td>
               <td className="px-3 py-2 text-sm">
-                {period.viikkoTOERows?.reduce((sum, row) => sum + row.tunnitYhteensä, 0) || 0}
+                {viikkoTOETunnitSumma}
               </td>
               <td className="px-3 py-2 text-sm">
                 {period.viikkoTOERows?.reduce((sum, row) => {

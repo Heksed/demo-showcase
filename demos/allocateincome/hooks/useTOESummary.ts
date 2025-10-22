@@ -7,17 +7,21 @@ type DefinitionType = 'eurotoe' | 'eurotoe6' | 'viikkotoe' | 'vuositulo' | 'ulko
 type Params = {
   periods: MonthPeriod[];
   definitionType: DefinitionType;
+  definitionOverride?: {start: string, end: string} | null;
   calculateTOEValue: (period: MonthPeriod) => number;
   calculateEffectiveIncomeTotal: (period: MonthPeriod) => number;
   isViikkoTOEPeriod: (period: MonthPeriod) => boolean;
+  viikkoTOEVähennysSummat?: {[periodId: string]: number};
 };
 
 export default function useTOESummary({
   periods,
   definitionType,
+  definitionOverride,
   calculateTOEValue,
   calculateEffectiveIncomeTotal,
   isViikkoTOEPeriod,
+  viikkoTOEVähennysSummat = {},
 }: Params) {
   const summary = useMemo(() => {
     const totalTOEMonthsCalc = periods.reduce((sum, period) => sum + calculateTOEValue(period), 0);
@@ -25,7 +29,7 @@ export default function useTOESummary({
 
     const totalSalary = definitionType === 'viikkotoe' ?
       periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateEffectiveIncomeTotal(p), 0) +
-      periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.palkka, 0) :
+      periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.palkka - (viikkoTOEVähennysSummat[p.id] || 0), 0) :
       periods.reduce((sum, period) => sum + calculateEffectiveIncomeTotal(period), 0);
 
     let averageSalary = 0;
@@ -151,7 +155,7 @@ export default function useTOESummary({
         ? periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.toe, 0)
         : 0,
     } as any;
-  }, [periods, definitionType]);
+  }, [periods, definitionType, viikkoTOEVähennysSummat]);
 
   return summary;
 }

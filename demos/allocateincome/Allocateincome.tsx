@@ -47,7 +47,16 @@ import { daysBetween } from "./utils";
 // --- Main Component ---
 export default function AllocateIncome() {
   const [definitionType, setDefinitionType] = useState<'eurotoe' | 'eurotoe6' | 'viikkotoe' | 'vuositulo' | 'ulkomaan'>('eurotoe');
+  const [definitionOverride, setDefinitionOverride] = useState<{start: string, end: string} | null>(null);
+  const [viikkoTOEVähennysSummat, setViikkoTOEVähennysSummat] = useState<{[periodId: string]: number}>({});
   const { periods, setPeriods, expandedPeriods, togglePeriod, isViikkoTOEPeriod } = usePeriodsModel(definitionType as any);
+
+  const handleVähennysSummaChange = (periodId: string, summa: number) => {
+    setViikkoTOEVähennysSummat(prev => ({
+      ...prev,
+      [periodId]: summa
+    }));
+  };
 
   // --- Split income modal state moved to hook ---
   const split = useSplitIncome(setPeriods);
@@ -93,9 +102,11 @@ export default function AllocateIncome() {
   const summary = useTOESummary({
     periods,
       definitionType,
+    definitionOverride,
     calculateTOEValue,
     calculateEffectiveIncomeTotal,
     isViikkoTOEPeriod,
+    viikkoTOEVähennysSummat,
   }) as any;
 
   // getVisibleRows moved to utils to ensure split-child rows are shown correctly
@@ -167,6 +178,7 @@ export default function AllocateIncome() {
           onOpenAddIncome={() => addIncome.setOpen(true)}
           onViikkoTOESave={handleViikkoTOESave}
           onViikkoTOEDelete={handleViikkoTOEDelete}
+          onVähennysSummaChange={handleVähennysSummaChange}
           formatCurrency={formatCurrency}
         />
 

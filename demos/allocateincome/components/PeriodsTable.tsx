@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -33,6 +33,7 @@ type Props = {
   onOpenAddIncome: () => void;
   onViikkoTOESave: (periodId: string, rowId: string, updatedRow: any) => void;
   onViikkoTOEDelete: (periodId: string, rowId: string) => void;
+  onVähennysSummaChange: (periodId: string, summa: number) => void;
   formatCurrency: (n: number) => string;
 };
 
@@ -57,8 +58,19 @@ export default function PeriodsTable({
   onOpenAddIncome,
   onViikkoTOESave,
   onViikkoTOEDelete,
+  onVähennysSummaChange,
   formatCurrency,
 }: Props) {
+  const [viikkoTOEVähennysSummat, setViikkoTOEVähennysSummat] = useState<{[periodId: string]: number}>({});
+
+  const handleVähennysSummaChange = (periodId: string, summa: number) => {
+    setViikkoTOEVähennysSummat(prev => ({
+      ...prev,
+      [periodId]: summa
+    }));
+    onVähennysSummaChange(periodId, summa);
+  };
+
   return (
     <Card>
       <CardContent className="p-0">
@@ -110,7 +122,7 @@ export default function PeriodsTable({
                     <td className="px-4 py-3 text-sm">{period.jakaja}</td>
                     <td className="px-4 py-3 text-sm font-medium">
                       {period.viikkoTOERows && period.viikkoTOERows.length > 0
-                        ? formatCurrency(period.palkka)
+                        ? formatCurrency(period.palkka - (viikkoTOEVähennysSummat[period.id] || 0))
                         : formatCurrency(calculateEffectiveIncomeTotal(period))}
                     </td>
                     <td className="px-4 py-3 text-sm">{period.tyonantajat}</td>
@@ -131,6 +143,7 @@ export default function PeriodsTable({
                               onSave={onViikkoTOESave}
                               onDelete={onViikkoTOEDelete}
                               formatCurrency={formatCurrency}
+                              onVähennysSummaChange={(summa) => handleVähennysSummaChange(period.id, summa)}
                             />
                           ) : (
                             period.rows.length > 0 && (
