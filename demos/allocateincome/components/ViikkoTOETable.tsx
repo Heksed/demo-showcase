@@ -33,7 +33,9 @@ export default function ViikkoTOETable({
 }) {
   const [rowData, setRowData] = useState<{[key: string]: any}>({});
   const [expandedWeeks, setExpandedWeeks] = useState<boolean>(false);
-  const [expandedSalary, setExpandedSalary] = useState<boolean>(true);
+  const [expandedSalary, setExpandedSalary] = useState<boolean>(false);
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
 
   // Calculate TOE weeks: 0 if <=17h, 1 if >=18h
   const calculateTOEWeeks = (hours: number): number => {
@@ -56,22 +58,49 @@ export default function ViikkoTOETable({
     return Math.round(viikkoTOEWeeks / 2) * 0.5;
   };
 
+  // Suodatettu viikkotietojen lista
+  const filteredWeeks = (period.viikkoTOERows || []).filter(row => {
+    if (!filterStartDate && !filterEndDate) return true; // Näytä kaikki jos ei suodattimia
+    
+    const rowStartDate = parseFinnishDate(row.alkupäivä);
+    const rowEndDate = parseFinnishDate(row.loppupäivä);
+    
+    if (filterStartDate && rowEndDate && rowEndDate < new Date(filterStartDate)) return false;
+    if (filterEndDate && rowStartDate && rowStartDate > new Date(filterEndDate)) return false;
+    
+    return true;
+  });
+
   const handleInputChange = (rowId: string, field: string, value: any) => {
     // Estä vain TOEviikot muokkaus - jakaja voi olla muokattavissa
     if (field === 'toeViikot') {
       return;
     }
     
-    const currentRowData = rowData[rowId] || period.viikkoTOERows?.find(r => r.id === rowId) || {};
-    const newData = { ...currentRowData, [field]: value };
+    const mockRow = period.viikkoTOERows?.find(r => r.id === rowId);
+    const currentRowData = rowData[rowId] || {
+      // Mock data muut kentät (ei palkka, tunnitYhteensä, toeViikot, jakaja)
+      ...mockRow,
+      // Korvaa mock datan default arvoilla
+      palkka: 0,
+      tunnitYhteensä: 18,
+      toeViikot: 1,
+      jakaja: 5
+    };
+    
+    let newData = { ...currentRowData, [field]: value };
     
     // Laske automaattisesti jos tunnit muuttuvat
     if (field === 'tunnitYhteensä') {
-      newData.toeViikot = calculateTOEWeeks(value || 0);
+      const hours = parseFloat(value) || 0; // Käytä 0 jos ei ole numeroa
+      newData.toeViikot = calculateTOEWeeks(hours);
       // Aseta jakaja aina tuntimääriin perustuen
-      newData.jakaja = calculateWorkingDays(value || 0);
+      newData.jakaja = calculateWorkingDays(hours);
       
       // Tallenna automaattisesti
+      onSave(period.id, rowId, newData);
+    } else if (field === 'palkka' || field === 'jakaja') {
+      // Tallenna myös jos palkka tai jakaja muuttuu
       onSave(period.id, rowId, newData);
     }
     
@@ -291,10 +320,24 @@ export default function ViikkoTOETable({
             <td className="px-3 py-2 text-sm"></td>
             <td className="px-3 py-2 text-sm font-medium">{formatCurrency(period.palkka)}</td>
             <td className="px-3 py-2 text-sm font-medium">
-              {Math.floor(period.viikkoTOERows?.reduce((sum, row) => sum + row.toeViikot, 0) || 0)}
+              {Math.floor(period.viikkoTOERows?.reduce((sum, row) => {
+                const currentData = {
+                  ...row,
+                  ...rowData[row.id],
+                  toeViikot: rowData[row.id]?.toeViikot ?? (row.tunnitYhteensä >= 18 ? 1 : 0)
+                };
+                return sum + currentData.toeViikot;
+              }, 0) || 0)}
             </td>
             <td className="px-3 py-2 text-sm font-medium">
-              {period.viikkoTOERows?.reduce((sum, row) => sum + row.jakaja, 0) || 0}
+              {Math.round(period.viikkoTOERows?.reduce((sum, row) => {
+                const currentData = {
+                  ...row,
+                  ...rowData[row.id],
+                  jakaja: rowData[row.id]?.jakaja ?? (row.tunnitYhteensä >= 18 ? 5 : 0)
+                };
+                return sum + currentData.jakaja;
+              }, 0) || 0)}
             </td>
             <td className="px-3 py-2 text-sm font-medium">
               {period.viikkoTOERows?.reduce((sum, row) => sum + row.toeTunnit, 0) || 0}
@@ -306,6 +349,38 @@ export default function ViikkoTOETable({
           </tr>
         </tbody>
       </table>
+
+      {/* Date Filter Section */}
+      <div className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-200 rounded">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Alkupäivä:</label>
+          <input 
+            type="date" 
+            value={filterStartDate} 
+            onChange={(e) => setFilterStartDate(e.target.value)} 
+            className="px-2 py-1 border border-gray-300 rounded text-sm" 
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Loppupäivä:</label>
+          <input 
+            type="date" 
+            value={filterEndDate} 
+            onChange={(e) => setFilterEndDate(e.target.value)} 
+            className="px-2 py-1 border border-gray-300 rounded text-sm" 
+          />
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => {
+            setFilterStartDate('');
+            setFilterEndDate('');
+          }}
+        >
+          Näytä kaikki
+        </Button>
+      </div>
 
       {/* Muokkaa viikkotietoja Button */}
       <div className="flex justify-start">
@@ -335,8 +410,16 @@ export default function ViikkoTOETable({
             </tr>
           </thead>
           <tbody>
-            {(period.viikkoTOERows || []).map((row) => {
-              const currentData = rowData[row.id] || row;
+            {filteredWeeks.map((row) => {
+              const currentData = {
+                ...row, // Mock data kaikki kentät
+                ...rowData[row.id], // Muokatut arvot jos on
+                // Default arvot jos ei ole muokattu
+                palkka: rowData[row.id]?.palkka ?? 0,
+                tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? 18,
+                toeViikot: rowData[row.id]?.toeViikot ?? 1,
+                jakaja: rowData[row.id]?.jakaja ?? 5
+              };
               
               return (
                 <tr key={row.id} className="border-b">
@@ -344,23 +427,31 @@ export default function ViikkoTOETable({
                   <td className="px-3 py-2 text-sm">{currentData.alkupäivä}</td>
                   <td className="px-3 py-2 text-sm">{currentData.loppupäivä}</td>
                   <td className="px-3 py-2 text-sm">{currentData.työnantaja}</td>
-                  <td className="px-3 py-2 text-sm">{formatCurrency(currentData.palkka)}</td>
                   <td className="px-3 py-2 text-sm">
                     <input 
                       type="number" 
-                      value={currentData.tunnitYhteensä || ''} 
+                      value={currentData.palkka || 0} 
+                      onChange={(e) => handleInputChange(row.id, 'palkka', parseFloat(e.target.value) || 0)} 
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm" 
+                      step="0.01" 
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-sm">
+                    <input 
+                      type="number" 
+                      value={currentData.tunnitYhteensä || 18} 
                       onChange={(e) => handleInputChange(row.id, 'tunnitYhteensä', parseFloat(e.target.value) || 0)} 
                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm" 
                       step="0.1" 
                     />
                   </td>
                   <td className="px-3 py-2 text-sm">
-                    <span className="font-medium text-blue-600">{calculateTOEWeeks(currentData.tunnitYhteensä || 0)}</span>
+                    <span className="font-medium text-blue-600">{calculateTOEWeeks(currentData.tunnitYhteensä || 18)}</span>
                   </td>
                   <td className="px-3 py-2 text-sm">
                     <input 
                       type="number" 
-                      value={currentData.jakaja || calculateWorkingDays(currentData.tunnitYhteensä || 0)} 
+                      value={currentData.jakaja ?? 5} 
                       onChange={(e) => handleInputChange(row.id, 'jakaja', parseFloat(e.target.value) || 0)} 
                       className="w-16 px-1 py-1 border border-gray-300 rounded text-xs" 
                       min="0"
@@ -392,10 +483,24 @@ export default function ViikkoTOETable({
                 {period.viikkoTOERows?.reduce((sum, row) => sum + row.tunnitYhteensä, 0) || 0}
               </td>
               <td className="px-3 py-2 text-sm">
-                {period.viikkoTOERows?.reduce((sum, row) => sum + row.toeViikot, 0) || 0}
+                {period.viikkoTOERows?.reduce((sum, row) => {
+                  const currentData = {
+                    ...row,
+                    ...rowData[row.id],
+                    toeViikot: rowData[row.id]?.toeViikot ?? (row.tunnitYhteensä >= 18 ? 1 : 0)
+                  };
+                  return sum + currentData.toeViikot;
+                }, 0) || 0}
               </td>
               <td className="px-3 py-2 text-sm">
-                {period.viikkoTOERows?.reduce((sum, row) => sum + row.jakaja, 0) || 0}
+                {Math.round(period.viikkoTOERows?.reduce((sum, row) => {
+                const currentData = {
+                  ...row,
+                  ...rowData[row.id],
+                  jakaja: rowData[row.id]?.jakaja ?? (row.tunnitYhteensä >= 18 ? 5 : 0)
+                };
+                return sum + currentData.jakaja;
+              }, 0) || 0)}
               </td>
               <td className="px-3 py-2 text-sm"></td>
             </tr>
