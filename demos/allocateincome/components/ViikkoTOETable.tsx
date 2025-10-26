@@ -24,12 +24,14 @@ export default function ViikkoTOETable({
   period,
   onSave,
   onDelete,
+  onAdd,
   formatCurrency,
   onVähennysSummaChange
 }: {
   period: MonthPeriod;
   onSave: (periodId: string, rowId: string, updatedRow: any) => void;
   onDelete: (periodId: string, rowId: string) => void;
+  onAdd?: (periodId: string, newRowData: any) => void;
   formatCurrency: (n: number) => string;
   onVähennysSummaChange: (summa: number) => void;
 }) {
@@ -38,6 +40,17 @@ export default function ViikkoTOETable({
   const [expandedSalary, setExpandedSalary] = useState<boolean>(false);
   const [filterStartDate, setFilterStartDate] = useState<string>('');
   const [filterEndDate, setFilterEndDate] = useState<string>('');
+  const [isAddingRow, setIsAddingRow] = useState(false);
+  const [newRowData, setNewRowData] = useState<any>({
+    alkupäivä: '',
+    loppupäivä: '',
+    työnantaja: '',
+    lisäteksti: '',
+    vähennäTOE: 0,
+    tunnitYhteensä: 0,
+    toeViikot: 0,
+    jakaja: 0
+  });
 
   // Calculate TOE weeks: 0 if <=17h, 1 if >=18h
   const calculateTOEWeeks = (hours: number): number => {
@@ -100,7 +113,7 @@ export default function ViikkoTOETable({
       const currentData = {
         ...row,
         ...rowData[row.id],
-        tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? 18
+        tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? row.tunnitYhteensä ?? 0
       };
       return sum + currentData.tunnitYhteensä;
     }, 0) || 0;
@@ -112,7 +125,7 @@ export default function ViikkoTOETable({
       const currentData = {
         ...row,
         ...rowData[row.id],
-        tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? 18
+        tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? row.tunnitYhteensä ?? 0
       };
       // Calculate TOE hours based on current hours: if >= 18h then use actual hours, else 0
       const toeTunnit = currentData.tunnitYhteensä >= 18 ? currentData.tunnitYhteensä : 0;
@@ -121,39 +134,26 @@ export default function ViikkoTOETable({
   }, [period.viikkoTOERows, rowData]);
 
   const handleInputChange = (rowId: string, field: string, value: any) => {
-    // Estä vain TOEviikot muokkaus - jakaja voi olla muokattavissa
-    if (field === 'toeViikot') {
-      return;
-    }
-    
     const mockRow = period.viikkoTOERows?.find(r => r.id === rowId);
       const currentRowData = rowData[rowId] || {
         // Mock data muut kentät (ei palkka, tunnitYhteensä, toeViikot, jakaja)
         ...mockRow,
         // Korvaa mock datan default arvoilla
         vähennäTOE: 0, // Käytä aina 0:ta default arvona
-        tunnitYhteensä: 18,
-        toeViikot: 1,
-        jakaja: 5
+        tunnitYhteensä: mockRow?.tunnitYhteensä ?? 0,
+        toeViikot: mockRow?.toeViikot ?? 0,
+        jakaja: mockRow?.jakaja ?? 0
       };
     
     let newData = { ...currentRowData, [field]: value };
     
-    // Laske automaattisesti jos tunnit muuttuvat
-    if (field === 'tunnitYhteensä') {
-      const hours = parseFloat(value) || 0; // Käytä 0 jos ei ole numeroa
-      newData.toeViikot = calculateTOEWeeks(hours);
-      // Aseta jakaja aina tuntimääriin perustuen
-      newData.jakaja = calculateWorkingDays(hours);
-      
-      // Tallenna automaattisesti
-      onSave(period.id, rowId, newData);
-    } else if (field === 'palkka' || field === 'jakaja') {
-      // Tallenna myös jos palkka tai jakaja muuttuu
+    // Kaikki kentät ovat nyt itsenäisiä - ei automaattisia laskentoja
+    setRowData(prev => ({ ...prev, [rowId]: newData }));
+    
+    // Tallennetaan vain jos käyttäjä muuttaa
+    if (field === 'toeViikot' || field === 'tunnitYhteensä' || field === 'jakaja' || field === 'vähennäTOE' || field === 'lisäteksti') {
       onSave(period.id, rowId, newData);
     }
-    
-    setRowData(prev => ({ ...prev, [rowId]: newData }));
   };
 
   const toISO = (fi: string): string => {
@@ -164,6 +164,57 @@ export default function ViikkoTOETable({
   const fromISO = (iso: string): string => {
     if (!iso) return "";
     return isoToFI(iso);
+  };
+
+  const handleAddNewRow = () => {
+    setIsAddingRow(true);
+    setNewRowData({
+      alkupäivä: '',
+      loppupäivä: '',
+      työnantaja: '',
+      lisäteksti: '',
+      vähennäTOE: 0,
+      tunnitYhteensä: 0,
+      toeViikot: 0,
+      jakaja: 0
+    });
+  };
+
+  const handleAutoSave = () => {
+    if (newRowData.alkupäivä && newRowData.loppupäivä && onAdd) {
+      // Varmista että vähennäTOE ei ole tyhjä
+      const finalData = {
+        ...newRowData,
+        vähennäTOE: newRowData.vähennäTOE || 0
+      };
+      
+      onAdd(period.id, finalData);
+      setIsAddingRow(false);
+      setNewRowData({
+        alkupäivä: '',
+        loppupäivä: '',
+        työnantaja: '',
+        lisäteksti: '',
+        vähennäTOE: 0,
+        tunnitYhteensä: 0,
+        toeViikot: 0,
+        jakaja: 0
+      });
+    }
+  };
+
+  const handleCancelAdd = () => {
+    setIsAddingRow(false);
+    setNewRowData({
+      alkupäivä: '',
+      loppupäivä: '',
+      työnantaja: '',
+      lisäteksti: '',
+      vähennäTOE: 0,
+      tunnitYhteensä: 0,
+      toeViikot: 0,
+      jakaja: 0
+    });
   };
 
   return (
@@ -293,7 +344,7 @@ export default function ViikkoTOETable({
                           <td className="px-3 py-2 text-sm">{tulolaji.tulolaji}</td>
                           <td className="px-3 py-2 text-sm">{formatCurrency(tulolaji.palkka)}</td> {/* Päivittyy */}
                           <td className="px-3 py-2 text-sm">{formatCurrency(tulolaji.alkuperainenTulo)}</td> {/* Ei muutu */}
-                          <td className="px-3 py-2 text-sm">{tulolaji.ansaintaAika}</td>
+                          <td className="px-3 py-2 text-sm">{(tulolaji.tulolaji === "Tulospalkkio" || tulolaji.tulolaji === "Bonus") && !tulolaji.huom?.startsWith('Kohdistettu') ? tulolaji.ansaintaAika : ""}</td>
                           <td className="px-3 py-2 text-sm">{tulolaji.kohdistusTOE}</td>
                           <td className="px-3 py-2 text-sm">{tulolaji.tyonantajat}</td>
                           <td className="px-3 py-2 text-sm">
@@ -357,7 +408,7 @@ export default function ViikkoTOETable({
                 const currentData = {
                   ...row,
                   ...rowData[row.id],
-                  toeViikot: rowData[row.id]?.toeViikot ?? (row.tunnitYhteensä >= 18 ? 1 : 0)
+                  toeViikot: rowData[row.id]?.toeViikot ?? row.toeViikot ?? 0
                 };
                 return sum + currentData.toeViikot;
               }, 0) || 0)}
@@ -371,7 +422,7 @@ export default function ViikkoTOETable({
                 const currentData = {
                   ...row,
                   ...rowData[row.id],
-                  jakaja: rowData[row.id]?.jakaja ?? (row.tunnitYhteensä >= 18 ? 5 : 0)
+                  jakaja: rowData[row.id]?.jakaja ?? row.jakaja ?? 0
                 };
                 return sum + currentData.jakaja;
               }, 0) || 0)}
@@ -433,7 +484,7 @@ export default function ViikkoTOETable({
           size="sm"
           onClick={() => setExpandedWeeks(!expandedWeeks)}
         >
-          {expandedWeeks ? 'Piilota viikkotiedot' : 'Näytä kaikki viikot'}
+          {expandedWeeks ? 'Piilota ajanjaksot' : 'Näytä ajanjaksot'}
         </Button>
         </div>
       </div>
@@ -447,6 +498,7 @@ export default function ViikkoTOETable({
               <th className="px-3 py-2 text-left text-xs font-medium">Alkupäivä</th>
               <th className="px-3 py-2 text-left text-xs font-medium">Loppupäivä</th>
               <th className="px-3 py-2 text-left text-xs font-medium">Työnantaja</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Lisäteksti</th>
               <th className="px-3 py-2 text-left text-xs font-medium">Palkka</th>
               <th className="px-3 py-2 text-left text-xs font-medium">Tunnit</th>
               <th className="px-3 py-2 text-left text-xs font-medium">TOEviikot</th>
@@ -455,15 +507,113 @@ export default function ViikkoTOETable({
             </tr>
           </thead>
           <tbody>
+            {/* New row form */}
+            {isAddingRow && (
+              <tr className="bg-blue-50 border-2 border-blue-300">
+                <td className="px-3 py-2 text-sm"></td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="date"
+                    value={toISO(newRowData.alkupäivä)}
+                    onChange={(e) => setNewRowData({...newRowData, alkupäivä: fromISO(e.target.value)})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    max="2024-09-01"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="date"
+                    value={toISO(newRowData.loppupäivä)}
+                    onChange={(e) => setNewRowData({...newRowData, loppupäivä: fromISO(e.target.value)})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    max="2024-09-01"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="text"
+                    value={newRowData.työnantaja}
+                    onChange={(e) => setNewRowData({...newRowData, työnantaja: e.target.value})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="text"
+                    value={newRowData.lisäteksti || ""}
+                    onChange={(e) => setNewRowData({...newRowData, lisäteksti: e.target.value})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    placeholder="Lisää teksti..."
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="number"
+                    value={newRowData.vähennäTOE || 0}
+                    onChange={(e) => setNewRowData({...newRowData, vähennäTOE: parseFloat(e.target.value) || 0})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    step="0.01"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="number"
+                    value={newRowData.tunnitYhteensä || 18}
+                    onChange={(e) => setNewRowData({...newRowData, tunnitYhteensä: parseInt(e.target.value) || 0})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    step="1"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="number"
+                    value={newRowData.toeViikot || 1}
+                    onChange={(e) => setNewRowData({...newRowData, toeViikot: parseFloat(e.target.value) || 0})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    step="0.5"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <input
+                    type="number"
+                    value={newRowData.jakaja || 5}
+                    onChange={(e) => setNewRowData({...newRowData, jakaja: parseInt(e.target.value) || 0})}
+                    onBlur={() => setTimeout(handleAutoSave, 200)}
+                    className="w-16 px-1 py-1 border border-gray-300 rounded text-xs"
+                    min="0"
+                    max="5"
+                    step="1"
+                  />
+                </td>
+                <td className="px-3 py-2 text-sm">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-red-600 hover:text-red-700"
+                    onClick={handleCancelAdd}
+                  >
+                    Peruuta
+                  </Button>
+                </td>
+              </tr>
+            )}
+            
             {filteredWeeks.map((row) => {
               const currentData = {
                 ...row, // Mock data kaikki kentät
                 ...rowData[row.id], // Muokatut arvot jos on
-                // Default arvot jos ei ole muokattu
+                // Default arvot jos ei ole muokattu - käytä mock datan arvoja tai 0
                 palkka: rowData[row.id]?.palkka ?? 0,
-                tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? 18,
-                toeViikot: rowData[row.id]?.toeViikot ?? 1,
-                jakaja: rowData[row.id]?.jakaja ?? 5
+                tunnitYhteensä: rowData[row.id]?.tunnitYhteensä ?? row.tunnitYhteensä ?? 0,
+                toeViikot: rowData[row.id]?.toeViikot ?? row.toeViikot ?? 0,
+                jakaja: rowData[row.id]?.jakaja ?? row.jakaja ?? 0
               };
               
               return (
@@ -472,6 +622,15 @@ export default function ViikkoTOETable({
                   <td className="px-3 py-2 text-sm">{currentData.alkupäivä}</td>
                   <td className="px-3 py-2 text-sm">{currentData.loppupäivä}</td>
                   <td className="px-3 py-2 text-sm">{currentData.työnantaja}</td>
+                  <td className="px-3 py-2 text-sm">
+                    <input 
+                      type="text" 
+                      value={currentData.lisäteksti || ""} 
+                      onChange={(e) => handleInputChange(row.id, 'lisäteksti', e.target.value)} 
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm" 
+                      placeholder="Lisää teksti..."
+                    />
+                  </td>
                   <td className="px-3 py-2 text-sm">
                     <input 
                       type="number" 
@@ -484,19 +643,25 @@ export default function ViikkoTOETable({
                   <td className="px-3 py-2 text-sm">
                     <input 
                       type="number" 
-                      value={currentData.tunnitYhteensä || 18} 
+                      value={currentData.tunnitYhteensä ?? 0} 
                       onChange={(e) => handleInputChange(row.id, 'tunnitYhteensä', parseFloat(e.target.value) || 0)} 
                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm" 
-                      step="0.1" 
+                      step="1" 
                     />
-                  </td>
-                  <td className="px-3 py-2 text-sm">
-                    <span className="font-medium text-blue-600">{calculateTOEWeeks(currentData.tunnitYhteensä || 18)}</span>
                   </td>
                   <td className="px-3 py-2 text-sm">
                     <input 
                       type="number" 
-                      value={currentData.jakaja ?? 5} 
+                      value={currentData.toeViikot ?? 0} 
+                      onChange={(e) => handleInputChange(row.id, 'toeViikot', parseFloat(e.target.value) || 0)} 
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm" 
+                      step="0.5"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-sm">
+                    <input 
+                      type="number" 
+                      value={currentData.jakaja ?? 0} 
                       onChange={(e) => handleInputChange(row.id, 'jakaja', parseFloat(e.target.value) || 0)} 
                       className="w-16 px-1 py-1 border border-gray-300 rounded text-xs" 
                       min="0"
@@ -538,6 +703,7 @@ export default function ViikkoTOETable({
               <td className="px-3 py-2 text-sm"></td>
               <td className="px-3 py-2 text-sm"></td>
               <td className="px-3 py-2 text-sm"></td>
+              <td className="px-3 py-2 text-sm"></td>
               <td className="px-3 py-2 text-sm">
                 {viikkoTOETunnitSumma}
               </td>
@@ -546,7 +712,7 @@ export default function ViikkoTOETable({
                   const currentData = {
                     ...row,
                     ...rowData[row.id],
-                    toeViikot: rowData[row.id]?.toeViikot ?? (row.tunnitYhteensä >= 18 ? 1 : 0)
+                    toeViikot: rowData[row.id]?.toeViikot ?? row.toeViikot ?? 0
                   };
                   return sum + currentData.toeViikot;
                 }, 0) || 0}
@@ -556,7 +722,7 @@ export default function ViikkoTOETable({
                 const currentData = {
                   ...row,
                   ...rowData[row.id],
-                  jakaja: rowData[row.id]?.jakaja ?? (row.tunnitYhteensä >= 18 ? 5 : 0)
+                  jakaja: rowData[row.id]?.jakaja ?? row.jakaja ?? 0
                 };
                 return sum + currentData.jakaja;
               }, 0) || 0)}
@@ -569,7 +735,10 @@ export default function ViikkoTOETable({
 
 
       {/* Action Buttons */}
-      <div className="flex justify-end">
+      <div className="flex justify-between">
+        <Button variant="ghost" size="sm" onClick={handleAddNewRow} disabled={isAddingRow}>
+          Lisää jakso
+        </Button>
         <Button variant="ghost" size="sm">Peruuta muutokset</Button>
       </div>
     </div>

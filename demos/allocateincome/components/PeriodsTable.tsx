@@ -33,6 +33,7 @@ type Props = {
   onOpenAddIncome: () => void;
   onViikkoTOESave: (periodId: string, rowId: string, updatedRow: any) => void;
   onViikkoTOEDelete: (periodId: string, rowId: string) => void;
+  onViikkoTOEAdd?: (periodId: string, newRowData: any) => void;
   onVähennysSummaChange: (periodId: string, summa: number) => void;
   formatCurrency: (n: number) => string;
 };
@@ -58,6 +59,7 @@ export default function PeriodsTable({
   onOpenAddIncome,
   onViikkoTOESave,
   onViikkoTOEDelete,
+  onViikkoTOEAdd,
   onVähennysSummaChange,
   formatCurrency,
 }: Props) {
@@ -116,7 +118,7 @@ export default function PeriodsTable({
                     </td>
                     <td className="px-4 py-3 text-sm font-medium">
                       {period.viikkoTOERows && period.viikkoTOERows.length > 0
-                        ? Math.round(period.toe * 10) / 10
+                        ? period.toe
                         : calculateTOEValue(period)}
                     </td>
                     <td className="px-4 py-3 text-sm">{period.jakaja}</td>
@@ -142,6 +144,7 @@ export default function PeriodsTable({
                               period={period}
                               onSave={onViikkoTOESave}
                               onDelete={onViikkoTOEDelete}
+                              onAdd={onViikkoTOEAdd}
                               formatCurrency={formatCurrency}
                               onVähennysSummaChange={(summa) => handleVähennysSummaChange(period.id, summa)}
                             />

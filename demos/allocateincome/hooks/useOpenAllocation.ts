@@ -22,6 +22,19 @@ export default function useOpenAllocation(
       totalAmount: row.alkuperainenTulo > 0 ? row.alkuperainenTulo : row.palkka,
     } as AllocationContext;
     allocation.setAllocationContext(context);
+    
+    // Check if this is Tulospalkkio/Bonus and has ansainta-aika
+    if ((row.tulolaji === "Tulospalkkio" || row.tulolaji === "Bonus") && row.ansaintaAika) {
+      const [startStr, endStr] = row.ansaintaAika.split(' - ');
+      allocation.setStartDate(startStr);
+      allocation.setEndDate(endStr);
+      allocation.setAllocationMethod("period");
+      allocation.setModalOpen(true);
+      allocation.setViewMode(false);
+      return;
+    }
+    
+    // Default behavior for other income types
     allocation.setAllocationMethod("period");
     allocation.setStartDate("20.1.2025");
     allocation.setEndDate("10.2.2025");

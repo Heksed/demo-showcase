@@ -19,6 +19,7 @@ export type ViikkoTOERow = {
   alkupäivä: string;
   loppupäivä: string;
   työnantaja: string;
+  lisäteksti?: string;
   selite: string;
   palkka: number;
   toeViikot: number;
@@ -69,6 +70,8 @@ export const INCOME_TYPES: string[] = [
   "Jokin etuus",
   "Aloitepalkkio",
   "Kilometrikorvaus",
+  "Tulospalkkio",
+  "Bonus",
 ];
 
 export const NON_BENEFIT_AFFECTING_INCOME_TYPES: string[] = [

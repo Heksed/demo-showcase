@@ -22,7 +22,6 @@ export const MOCK_INCOME_ROWS: IncomeRow[] = [
   { id: "1-5", maksupaiva: "8.1.2026", tulolaji: "Jokin etuus", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-6", maksupaiva: "15.1.2026", tulolaji: "Aikapalkka", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-7", maksupaiva: "15.1.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
-  { id: "1-8", maksupaiva: "15.1.2026", tulolaji: "Työkorvaus", palkka: 300, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-9", maksupaiva: "8.1.2026", tulolaji: "Kokouspalkkio", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-10", maksupaiva: "8.1.2026", tulolaji: "Luentopalkkio", palkka: 150, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
 ];
@@ -34,6 +33,7 @@ export const MOCK_ROWS_2025_12: IncomeRow[] = [
   { id: "12-4", maksupaiva: "20.12.2025", tulolaji: "Työkorvaus", palkka: 140, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
   { id: "12-5", maksupaiva: "25.12.2025", tulolaji: "Kokouspalkkio", palkka: 180, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
   { id: "12-6", maksupaiva: "30.12.2025", tulolaji: "Luentopalkkio", palkka: 230, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
+  { id: "12-7", maksupaiva: "31.12.2025", tulolaji: "Tulospalkkio", palkka: 1500, alkuperainenTulo: 1500, ansaintaAika: "1.1.2025 - 31.12.2025", tyonantaja: "Posti Oyj" },
 ];
 
 export const MOCK_ROWS_2025_11: IncomeRow[] = [
@@ -284,69 +284,20 @@ export const MOCK_PERIODS: MonthPeriod[] = [
   {
     id: "2024-08",
     ajanjakso: "2024 Elokuu",
-    toe: 1,
-    jakaja: 21.5,
-    palkka: 3500,
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
     tyonantajat: "Osa-aikatyö Oy",
     pidennettavatJaksot: 0,
     rows: [],
-    viikkoTOERows: [
-      {
-        id: "v2024-08-1",
-        alkupäivä: "5.8.2024",
-        loppupäivä: "11.8.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 1",
-        palkka: 800,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 18,
-        tunnitYhteensä: 20
-      },
-      {
-        id: "v2024-08-2",
-        alkupäivä: "12.8.2024",
-        loppupäivä: "18.8.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 2",
-        palkka: 800,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 20,
-        tunnitYhteensä: 22
-      },
-      {
-        id: "v2024-08-3",
-        alkupäivä: "19.8.2024",
-        loppupäivä: "25.8.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 3",
-        palkka: 800,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 19,
-        tunnitYhteensä: 21
-      },
-      {
-        id: "v2024-08-4",
-        alkupäivä: "26.8.2024",
-        loppupäivä: "31.8.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 4 (osittainen)",
-        palkka: 480,
-        toeViikot: 1,
-        jakaja: 3,
-        toeTunnit: 11,
-        tunnitYhteensä: 12
-      }
-    ]
+    viikkoTOERows: []
   },
   {
     id: "2024-07",
     ajanjakso: "2024 Heinäkuu",
-    toe: 0.5,
-    jakaja: 11.0,
-    palkka: 1600,
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
     tyonantajat: "Osa-aikatyö Oy",
     pidennettavatJaksot: 0,
     rows: [],
@@ -354,184 +305,51 @@ export const MOCK_PERIODS: MonthPeriod[] = [
       {
         id: "v2024-07-1",
         alkupäivä: "1.7.2024",
-        loppupäivä: "7.7.2024",
+        loppupäivä: "31.8.2024",
         työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 1",
-        palkka: 750,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 18,
-        tunnitYhteensä: 20
-      },
-      {
-        id: "v2024-07-2",
-        alkupäivä: "8.7.2024",
-        loppupäivä: "14.7.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 2",
-        palkka: 750,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 19,
-        tunnitYhteensä: 21
-      },
-      {
-        id: "v2024-07-3",
-        alkupäivä: "15.7.2024",
-        loppupäivä: "21.7.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 3",
-        palkka: 750,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 20,
-        tunnitYhteensä: 22
-      },
-      {
-        id: "v2024-07-4",
-        alkupäivä: "22.7.2024",
-        loppupäivä: "28.7.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 4",
-        palkka: 750,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 18,
-        tunnitYhteensä: 20
-      },
-      {
-        id: "v2024-07-5",
-        alkupäivä: "29.7.2024",
-        loppupäivä: "31.7.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 5 (osittainen)",
-        palkka: 150,
-        toeViikot: 0,
-        jakaja: 1,
-        toeTunnit: 4,
-        tunnitYhteensä: 4
+        selite: "Jakso 2 (1.7-31.8)",
+        palkka: 5000,
+        toeViikot: 9,
+        jakaja: 45,
+        toeTunnit: 162,
+        tunnitYhteensä: 180
       }
     ]
   },
   {
     id: "2024-06",
     ajanjakso: "2024 Kesäkuu",
-    toe: 1,
-    jakaja: 21.5,
-    palkka: 3200,
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
     tyonantajat: "Osa-aikatyö Oy",
     pidennettavatJaksot: 0,
     rows: [],
     viikkoTOERows: [
       {
         id: "v2024-06-1",
-        alkupäivä: "3.6.2024",
-        loppupäivä: "9.6.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 1",
-        palkka: 700,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 18,
-        tunnitYhteensä: 20
-      },
-      {
-        id: "v2024-06-2",
-        alkupäivä: "10.6.2024",
-        loppupäivä: "16.6.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 2",
-        palkka: 700,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 19,
-        tunnitYhteensä: 21
-      },
-      {
-        id: "v2024-06-3",
-        alkupäivä: "17.6.2024",
-        loppupäivä: "23.6.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 3",
-        palkka: 700,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 20,
-        tunnitYhteensä: 22
-      },
-      {
-        id: "v2024-06-4",
-        alkupäivä: "24.6.2024",
+        alkupäivä: "5.5.2024",
         loppupäivä: "30.6.2024",
         työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 4",
-        palkka: 700,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 18,
-        tunnitYhteensä: 20
+        selite: "Jakso 1 (5.5-30.6)",
+        palkka: 4000,
+        toeViikot: 8,
+        jakaja: 40,
+        toeTunnit: 144,
+        tunnitYhteensä: 160
       }
     ]
   },
   {
     id: "2024-05",
     ajanjakso: "2024 Toukokuu",
-    toe: 0.5,
-    jakaja: 10.5,
-    palkka: 1800,
+    toe: 0,
+    jakaja: 0,
+    palkka: 0,
     tyonantajat: "Osa-aikatyö Oy",
     pidennettavatJaksot: 0,
     rows: [],
-    viikkoTOERows: [
-      {
-        id: "v2024-05-1",
-        alkupäivä: "6.5.2024",
-        loppupäivä: "12.5.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 1",
-        palkka: 600,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 18,
-        tunnitYhteensä: 20
-      },
-      {
-        id: "v2024-05-2",
-        alkupäivä: "13.5.2024",
-        loppupäivä: "19.5.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 2",
-        palkka: 600,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 19,
-        tunnitYhteensä: 21
-      },
-      {
-        id: "v2024-05-3",
-        alkupäivä: "20.5.2024",
-        loppupäivä: "26.5.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 3",
-        palkka: 600,
-        toeViikot: 1,
-        jakaja: 5,
-        toeTunnit: 20,
-        tunnitYhteensä: 22
-      },
-      {
-        id: "v2024-05-4",
-        alkupäivä: "27.5.2024",
-        loppupäivä: "31.5.2024",
-        työnantaja: "Osa-aikatyö Oy",
-        selite: "Viikko 4 (osittainen)",
-        palkka: 300,
-        toeViikot: 1,
-        jakaja: 2.5,
-        toeTunnit: 9,
-        tunnitYhteensä: 10
-      }
-    ]
+    viikkoTOERows: []
   },
   {
     id: "2024-04",

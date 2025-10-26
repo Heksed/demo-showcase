@@ -35,6 +35,7 @@ export default function EuroTOETable({
   onShowSavedAllocation: (row: IncomeRow) => void;
 }) {
   return (
+    <>
     <table className="min-w-full border border-gray-300 bg-white">
       <thead className="bg-[#003479] text-white">
         <tr>
@@ -67,7 +68,23 @@ export default function EuroTOETable({
             <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500 line-through")}>{row.tulolaji}</td>
             <td className={cn("px-3 py-2 text-xs text-right", isRowDeleted(row) && "text-gray-500")}>{formatCurrency(row.palkka)}</td>
             <td className={cn("px-3 py-2 text-xs text-right", isRowDeleted(row) && "text-gray-500")}>{row.alkuperainenTulo > 0 ? formatCurrency(row.alkuperainenTulo) : ""}</td>
-            <td className={cn("px-3 py-2 text-xs whitespace-nowrap", isRowDeleted(row) && "text-gray-500")}>{/* {row.ansaintaAika} */}</td>
+            <td 
+              className={cn(
+                "px-3 py-2 text-xs whitespace-nowrap",
+                isRowDeleted(row) 
+                  ? "text-gray-500 cursor-not-allowed" 
+                  : row.ansaintaAika && (row.tulolaji === "Tulospalkkio" || row.tulolaji === "Bonus")
+                    ? "cursor-pointer hover:bg-blue-50 hover:text-blue-700 underline"
+                    : ""
+              )}
+              onClick={() => {
+                if (!isRowDeleted(row)) {
+                  openAllocationModalSingle(row);
+                }
+              }}
+            >
+              {(row.tulolaji === "Tulospalkkio" || row.tulolaji === "Bonus") && !row.huom?.startsWith('Kohdistettu') ? (row.ansaintaAika || "-") : ""}
+            </td>
             <td className={cn("px-3 py-2 text-xs whitespace-nowrap", isRowDeleted(row) && "text-gray-500")}>{row.kohdistusTOE || ""}</td>
             <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500")}>{row.tyonantaja}</td>
             <td className="px-3 py-2 text-xs">
@@ -149,6 +166,7 @@ export default function EuroTOETable({
         ))}
       </tbody>
     </table>
+    </>
   );
 }
 

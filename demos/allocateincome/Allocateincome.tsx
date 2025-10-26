@@ -97,7 +97,7 @@ export default function AllocateIncome() {
       .reduce((sum, row) => sum + row.palkka, 0);
   };
 
-  const { handleViikkoTOESave, handleViikkoTOEDelete } = useViikkoTOEHandlers(setPeriods);
+  const { handleViikkoTOESave, handleViikkoTOEDelete, handleViikkoTOEAdd } = useViikkoTOEHandlers(setPeriods);
 
   const summary = useTOESummary({
     periods,
@@ -178,6 +178,7 @@ export default function AllocateIncome() {
           onOpenAddIncome={() => addIncome.setOpen(true)}
           onViikkoTOESave={handleViikkoTOESave}
           onViikkoTOEDelete={handleViikkoTOEDelete}
+          onViikkoTOEAdd={handleViikkoTOEAdd}
           onVähennysSummaChange={handleVähennysSummaChange}
           formatCurrency={formatCurrency}
         />

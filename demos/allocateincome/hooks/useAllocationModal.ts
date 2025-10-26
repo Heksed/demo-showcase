@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AllocationContext, AllocationMethod, Direction, DistributionType, IncomeRow, MonthPeriod, MonthSplit } from "../types";
 import { MOCK_EMPLOYMENT } from "../mockData";
-import { parseDate, formatDateISO, isoToFI, splitByMonths, distributeByDays, distributeEqualMonths, roundToCents } from "../utils";
+import { parseDate, formatDateISO, isoToFI, splitByMonths, distributeByDays, distributeEqualMonths, distributeByWorkingDays, roundToCents } from "../utils";
 import { toast } from "sonner";
 
 type Params = {
@@ -69,6 +69,57 @@ export default function useAllocationModal({ setPeriods, getFinnishMonthName }: 
   const previewSplits = useMemo<MonthSplit[]>(() => {
     if (!allocationContext) return [];
     try {
+      // Check if this is Tulospalkkio or Bonus with ansainta-aika
+      const isSpecialIncomeType = allocationContext.sourceRows.some(row => 
+        (row.tulolaji === "Tulospalkkio" || row.tulolaji === "Bonus") && row.ansaintaAika
+      );
+      
+      if (isSpecialIncomeType && allocationContext.sourceRows[0]?.ansaintaAika) {
+        // Parse ansainta-aika (format: "DD.MM.YYYY - DD.MM.YYYY")
+        const earningPeriod = allocationContext.sourceRows[0].ansaintaAika;
+        const [startStr, endStr] = earningPeriod.split(' - ');
+        const earningStart = parseDate(startStr);
+        const earningEnd = parseDate(endStr);
+        
+        if (!earningStart || !earningEnd) return [];
+        
+        const monthSplits = splitByMonths(earningStart, earningEnd);
+        if (monthSplits.length === 0) return [];
+        
+        // Use working days allocation
+        if (allocationContext.mode === "single") {
+          return distributeByWorkingDays(
+            allocationContext.totalAmount,
+            earningStart,
+            earningEnd,
+            monthSplits,
+            direction
+          );
+        } else {
+          // Batch mode
+          const all: MonthSplit[] = [];
+          for (const row of allocationContext.sourceRows) {
+            const rowAmount = row.alkuperainenTulo > 0 ? row.alkuperainenTulo : row.palkka;
+            const [rStartStr, rEndStr] = row.ansaintaAika?.split(' - ') || [];
+            const rStart = rStartStr ? parseDate(rStartStr) : earningStart;
+            const rEnd = rEndStr ? parseDate(rEndStr) : earningEnd;
+            
+            if (!rStart || !rEnd) continue;
+            
+            const splits = distributeByWorkingDays(
+              rowAmount,
+              rStart,
+              rEnd,
+              monthSplits,
+              direction
+            );
+            splits.forEach(s => { (s as any).incomeType = row.tulolaji; });
+            all.push(...splits);
+          }
+          return all;
+        }
+      }
+      
       if (distributionType === "byDays" || distributionType === "equalMonths") {
         const start = parseDate(startDate);
         const end = parseDate(endDate);
