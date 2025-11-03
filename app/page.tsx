@@ -1,6 +1,6 @@
 import React from "react";
 import { DemoCard } from "../components/cards/Democard";
-import { ArrowLeftRight, CheckSquare, Calculator, Split } from "lucide-react";
+import { ArrowLeftRight, CheckSquare, Calculator, Split, FileText } from "lucide-react";
 
 
 const demos = [
@@ -59,6 +59,20 @@ const demos = [
       "Powered by pure TypeScript",
       "Relocating finances since 2024",
       "Your money's best friend",
+    ],
+  },
+  {
+    slug: "modularforms",
+    title: "Modular forms",
+    description: "Build forms the modular way",
+    icon: <FileText size={24} />,
+    funFacts: [
+      "Forms made easy",
+      "Modular by design",
+      "Build anything",
+      "Type-safe forms",
+      "Component-based magic",
+      "Flexibility first",
     ],
   },
 ];
