@@ -269,6 +269,17 @@ export const MOCK_RECOVERY_DATA: RecoveryData = {
     hearingRequestText: "Pyydämme sinua antamaan näkemyksesi takaisinperinnästä ja sen määrästä määräajalla mennessä",
     paymentProposalText: "Voit maksaa takaisinperinnän maksuerittäin. Vastaamme sinulle maksuehdottuksesta erikseen.\n\nJos haluat keskustella maksuehdottuksesta, ota yhteyttä puhelimitse:",
   },
+  letterHeader: {
+    logoUrl: "/Profilepicture.png",
+    organizationName: "Työttömyyskassa",
+    address: "Mannerheimintie 12\n00100 Helsinki",
+  },
+  letterFooter: {
+    contactInfo: "Työttömyyskassa\nMannerheimintie 12\n00100 Helsinki",
+    website: "www.tyottomyyskassa.fi",
+    email: "asiakaspalvelu@tyottomyyskassa.fi",
+    phone: "09 1234 5678",
+  },
 };
 
 // Initial form sections configuration - only user-selectable sections

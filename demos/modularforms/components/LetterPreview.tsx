@@ -72,8 +72,43 @@ export default function LetterPreview({
         <div className={`mt-4 ${definition.communication === "posti" ? "bg-white" : ""}`}>
           {/* Letter format */}
           <div className={`${definition.communication === "posti" ? "p-10 border-2 border-gray-300 min-h-[800px] shadow-sm" : "p-6"}`}>
-            {/* Header - Only for post */}
-            {definition.communication === "posti" && (
+            {/* Letter Header with Logo and Organization - Always shown */}
+            {recoveryData.letterHeader && (
+              <div className="mb-8 pb-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {recoveryData.letterHeader.logoUrl && (
+                      <div className="flex items-center justify-center">
+                        <img 
+                          src={recoveryData.letterHeader.logoUrl} 
+                          alt={`${recoveryData.letterHeader.organizationName} logo`} 
+                          className="h-12 w-auto max-w-32 object-contain" 
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <h2 className="text-lg font-bold">{recoveryData.letterHeader.organizationName}</h2>
+                      {recoveryData.letterHeader.address && (
+                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-line">
+                          {recoveryData.letterHeader.address}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {definition.communication === "posti" && (
+                    <div className="text-right text-sm text-gray-600">
+                      <div className="text-left whitespace-pre-line mb-2">
+                        {recipientAddress}
+                      </div>
+                      <div>Helsinki, {formatLetterDate()}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Header - Only for post if no letterHeader */}
+            {!recoveryData.letterHeader && definition.communication === "posti" && (
               <div className="mb-8 text-right">
                 <div className="text-sm text-gray-600 mb-4">
                   <div className="text-left whitespace-pre-line mb-2">
@@ -315,7 +350,31 @@ export default function LetterPreview({
                 <div className="text-sm">
                   <p className="mb-4">Ystävällisin terveisin,</p>
                   <div className="mt-8">
-                    <p className="font-semibold">Työttömyyskassa</p>
+                    <p className="font-semibold">
+                      {recoveryData.letterHeader?.organizationName || "Työttömyyskassa"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Letter Footer with Contact Information - Always shown */}
+            {recoveryData.letterFooter && (
+              <div className={`mt-12 pt-6 border-t border-gray-200 ${definition.communication === "posti" ? "" : "mt-8"}`}>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <div className="whitespace-pre-line font-medium">
+                    {recoveryData.letterFooter.contactInfo}
+                  </div>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    {recoveryData.letterFooter.phone && (
+                      <span>Puhelin: {recoveryData.letterFooter.phone}</span>
+                    )}
+                    {recoveryData.letterFooter.email && (
+                      <span>Sähköposti: {recoveryData.letterFooter.email}</span>
+                    )}
+                    {recoveryData.letterFooter.website && (
+                      <span>Verkkosivu: {recoveryData.letterFooter.website}</span>
+                    )}
                   </div>
                 </div>
               </div>

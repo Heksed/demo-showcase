@@ -101,5 +101,19 @@ export type RecoveryData = {
     hearingRequestText?: string; // "Pyydämme sinua antamaan näkemyksesi..." text
     paymentProposalText?: string; // Payment proposal text
   };
+
+  // Letter header and footer
+  letterHeader?: {
+    logoUrl?: string; // URL to logo image
+    organizationName: string;
+    address?: string;
+  };
+  
+  letterFooter?: {
+    contactInfo: string; // Yleiset yhteystiedot
+    website?: string;
+    email?: string;
+    phone?: string;
+  };
 };
 

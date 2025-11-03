@@ -233,14 +233,13 @@ export default function Modularforms() {
         />
 
         {/* Action buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4 pb-2">
+        <div className="flex items-center justify-start gap-3 pt-4 pb-2">
           <Button
-            variant="outline"
-            onClick={handlePreview}
+            onClick={handleSaveAndSend}
             className="flex items-center gap-2"
           >
-            <Eye className="h-4 w-4" />
-            Esikatselu
+            <Send className="h-4 w-4" />
+            Tallenna ja lähetä
           </Button>
           <Button
             variant="outline"
@@ -251,11 +250,12 @@ export default function Modularforms() {
             Tallenna keskeneräisenä
           </Button>
           <Button
-            onClick={handleSaveAndSend}
+            variant="outline"
+            onClick={handlePreview}
             className="flex items-center gap-2"
           >
-            <Send className="h-4 w-4" />
-            Tallenna ja lähetä
+            <Eye className="h-4 w-4" />
+            Esikatselu
           </Button>
         </div>
       </div>
