@@ -9,7 +9,6 @@ const demos = [
   { slug: "massincomesplit", title: "Mass Income Split" },
   { slug: "allocateincome", title: "Allocate income" },
   { slug: "modularforms", title: "Modular forms" },
-  { slug: "benefitpayments", title: "Benefit payments" },
 ];
 
 export default function DemoNavigation({ currentSlug }: { currentSlug: string }) {

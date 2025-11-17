@@ -1,6 +1,6 @@
 import React from "react";
 import { DemoCard } from "../components/cards/Democard";
-import { ArrowLeftRight, CheckSquare, Calculator, Split, FileText, Receipt } from "lucide-react";
+import { ArrowLeftRight, CheckSquare, Calculator, Split, FileText } from "lucide-react";
 
 
 const demos = [
@@ -73,20 +73,6 @@ const demos = [
       "Type-safe forms",
       "Component-based magic",
       "Flexibility first",
-    ],
-  },
-  {
-    slug: "benefitpayments",
-    title: "Benefit payments",
-    description: "Track paid benefit periods and corrections",
-    icon: <Receipt size={24} />,
-    funFacts: [
-      "Payment history at a glance",
-      "Income register integration",
-      "Correction analysis ready",
-      "Full audit trail",
-      "Complete payment tracking",
-      "Data-driven decisions",
     ],
   },
 ];
