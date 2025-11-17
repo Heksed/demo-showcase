@@ -336,8 +336,9 @@ function groupSingleDayRowsIntoPeriods(singleDayRows: SingleDayRow[]): DailyPaym
     } else {
       // Start new period
       if (currentPeriod) {
-        // Remove fullDailySum before adding to periods (it's not in DailyPaymentRow type)
-        const { fullDailySum, ...periodWithoutTemp } = currentPeriod;
+        // fullDailySum is now part of the type (optional), but we can remove it if needed
+        // Since it's optional, we can just push the period as-is, or explicitly remove it
+        const { fullDailySum: _, ...periodWithoutTemp } = currentPeriod as DailyPaymentRow;
         periods.push(periodWithoutTemp);
       }
       
@@ -368,8 +369,9 @@ function groupSingleDayRowsIntoPeriods(singleDayRows: SingleDayRow[]): DailyPaym
   
   // Don't forget the last period
   if (currentPeriod) {
-    // Remove fullDailySum before adding to periods (it's not in DailyPaymentRow type)
-    const { fullDailySum, ...periodWithoutTemp } = currentPeriod;
+    // fullDailySum is now part of the type (optional), but we can remove it if needed
+    // Since it's optional, we can just push the period as-is, or explicitly remove it
+    const { fullDailySum: _, ...periodWithoutTemp } = currentPeriod as DailyPaymentRow;
     periods.push(periodWithoutTemp);
   }
   
