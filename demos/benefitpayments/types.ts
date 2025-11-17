@@ -66,6 +66,7 @@ export type DailyPaymentRow = {
   memberFee: number; // Jäsenmaksu yhteensä jaksolla
   gross: number; // Brutto yhteensä jaksolla
   net: number; // Netto yhteensä jaksolla
+  fullDailySum?: number; // Väliaikainen: täysi päiväraha ennen tulosovittelua (summa, ei näytetä taulukossa)
 };
 
 // Yhteenveto
