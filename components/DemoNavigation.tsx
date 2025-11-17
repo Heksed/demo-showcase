@@ -7,7 +7,9 @@ const demos = [
   { slug: "allowancecalculator", title: "Daily allowance calculator" },
   { slug: "massapaatokset", title: "Mass decisions" },
   { slug: "massincomesplit", title: "Mass Income Split" },
-  { slug: "allocateincome", title: "Tulotietojen kohdistaminen" },
+  { slug: "allocateincome", title: "Allocate income" },
+  { slug: "modularforms", title: "Modular forms" },
+  { slug: "benefitpayments", title: "Benefit payments" },
 ];
 
 export default function DemoNavigation({ currentSlug }: { currentSlug: string }) {

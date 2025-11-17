@@ -1,11 +1,12 @@
 "use client";
 
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { ChevronUp, ChevronDown } from "lucide-react";
-import type { RecoveryData, FormSection, TextModule, FormDefinition } from "../types";
+import { ChevronUp, ChevronDown, X, FileText, Plus, AlertTriangle } from "lucide-react";
+import type { RecoveryData, FormSection, TextModule, FormDefinition, PageBreak } from "../types";
 
 interface FormDocumentProps {
   recoveryData: RecoveryData;
@@ -14,8 +15,441 @@ interface FormDocumentProps {
   definition: FormDefinition;
   onModuleMove?: (sectionId: string, moduleId: string, direction: "up" | "down") => void;
   onModuleContentChange?: (sectionId: string, moduleId: string, newContent: string) => void;
+  onModuleRemove?: (sectionId: string, moduleId: string) => void;
+  onPageBreakAdd?: (elementId: string) => void;
+  onPageBreakRemove?: (pageBreakId: string) => void;
   onRecoveryDataChange?: (updates: Partial<RecoveryData>) => void;
+  onElementMove?: (elementId: string, direction: "up" | "down") => void;
 }
+
+// Element ID:t järjestyksessä (sama järjestys kuin LetterPreview.tsx)
+const ELEMENT_IDS: readonly string[] = [
+  "section-system_generated",
+  "section-overpayment_reason",
+  "section-total_amounts",
+  "section-recovery",
+  "section-recovery_justification",
+  "section-period_breakdown",
+  "section-additional_payment",
+  "section-decision_correction",
+  "section-waiver",
+  "section-recovery_hearing",
+  "section-payment_proposal",
+  "section-misuse_suspicion",
+  "section-misuse_hearing",
+] as const;
+
+// A4-sivun mitat (mm)
+const A4_HEIGHT_MM = 297;
+const MARGIN_TOP_MM = 20;
+const MARGIN_BOTTOM_MM = 20;
+
+// Header ja footer korkeudet (laskettu Tailwind CSS -luokista)
+// Header: mb-8 (32px) + pb-6 (24px) + logo h-12 (48px) + teksti ≈ 100-120px ≈ 26-32mm
+// Footer: mt-12 (48px) + pt-6 (24px) + teksti ≈ 80-100px ≈ 21-26mm
+// Otsikko: mb-6 (24px) ≈ 6mm
+const HEADER_HEIGHT_MM = 30; // Etusivulla (logo, osoite, päivämäärä jne.) - todellinen korkeus
+const FOOTER_HEIGHT_MM = 25; // Kaikilla sivuilla - todellinen korkeus
+const TITLE_HEIGHT_MM = 6; // Otsikko "PÄÄTÖKSEN POISTAMINEN..." - todellinen korkeus
+
+// Käytettävissä oleva korkeus yhdelle sivulle
+// Ottaa huomioon marginaalit, headerin (ensimmäisellä sivulla), footerin ja otsikon (ensimmäisellä sivulla)
+const getAvailableHeightForPage = (isFirstPage: boolean = false): number => {
+  const marginHeight = MARGIN_TOP_MM + MARGIN_BOTTOM_MM;
+  const headerHeight = isFirstPage ? HEADER_HEIGHT_MM : 0;
+  const footerHeight = FOOTER_HEIGHT_MM;
+  const titleHeight = isFirstPage ? TITLE_HEIGHT_MM : 0;
+  // Käytettävissä oleva korkeus = A4 - marginaalit - header (jos ensimmäinen sivu) - footer - otsikko (jos ensimmäinen sivu)
+  // Ensimmäisellä sivulla: 297 - 40 - 30 - 25 - 6 = 196mm
+  // Seuraavilla sivuilla: 297 - 40 - 0 - 25 - 0 = 232mm
+  return A4_HEIGHT_MM - marginHeight - headerHeight - footerHeight - titleHeight;
+};
+
+// Piilotettu mittauskomponentti, joka renderöi sisällön samalla tavalla kuin esikatselussa
+const HiddenPreviewMeasurement = ({
+  elementId,
+  recoveryData,
+  formSections,
+  definition,
+  onHeightMeasured,
+}: {
+  elementId: string;
+  recoveryData: RecoveryData;
+  formSections: FormSection[];
+  definition: FormDefinition;
+  onHeightMeasured: (height: number) => void;
+}) => {
+  const measureRef = useRef<HTMLDivElement>(null);
+  
+  // Määritä padding samalla tavalla kuin esikatselussa
+  const paddingClass = definition.communication === "posti" ? "p-10" : "p-6";
+
+  const getSectionModules = (sectionId: string) => {
+    const section = formSections.find((s) => s.id === sectionId);
+    const systemGeneratedSections = [
+      "system_generated",
+      "overpayment_reason",
+      "recovery_justification",
+      "recovery_hearing",
+    ];
+    if (systemGeneratedSections.includes(sectionId)) {
+      if (section && section.selectedModules.length > 0) {
+        return section.selectedModules;
+      }
+      return [];
+    }
+    if (!section || !section.enabled) return [];
+    return section.selectedModules;
+  };
+
+  const renderModuleContent = (modules: typeof formSections[0]['selectedModules']) => {
+    if (modules.length === 0) return null;
+    return (
+      <div className="space-y-3 mt-2">
+        {modules.map((module) => (
+          <p key={module.id} className="text-sm leading-relaxed">
+            {module.content}
+          </p>
+        ))}
+      </div>
+    );
+  };
+
+  const renderPreviewContent = () => {
+    switch (elementId) {
+      case "section-system_generated":
+        return (
+          <div className="space-y-3 mb-6">
+            <p className="text-sm leading-relaxed">{recoveryData.systemGeneratedText}</p>
+            {renderModuleContent(getSectionModules("system_generated"))}
+          </div>
+        );
+      case "section-overpayment_reason":
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">LIIKAMAKSUN SYY</h2>
+            <p className="text-sm leading-relaxed">{recoveryData.overpaymentReason.reason}</p>
+            {renderModuleContent(getSectionModules("overpayment_reason"))}
+          </div>
+        );
+      case "section-total_amounts":
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">Liikamaksun määrä yhteensä</h2>
+            <div className="text-sm space-y-1 bg-gray-50 p-4 rounded border">
+              <p>Brutto: {recoveryData.totalAmounts.gross.toFixed(2)} euroa</p>
+              <p>Vero: {recoveryData.totalAmounts.tax.toFixed(2)} euroa</p>
+              <p>Netto: {recoveryData.totalAmounts.net.toFixed(2)} euroa</p>
+              <p>
+                Kulukorvaus:{" "}
+                {recoveryData.totalAmounts.expenseCompensation.toFixed(2)} euroa
+              </p>
+              <p>
+                Jäsenmaksu:{" "}
+                {recoveryData.totalAmounts.membershipFee.toFixed(2)} euroa
+              </p>
+            </div>
+          </div>
+        );
+      case "section-recovery":
+        if (getSectionModules("recovery").length === 0) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              Takaisinperinnän perusteluteksti
+            </h2>
+            {renderModuleContent(getSectionModules("recovery"))}
+          </div>
+        );
+      case "section-recovery_justification":
+        if (getSectionModules("recovery_justification").length === 0) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              Kassakohtainen tape perusteluteksti
+            </h2>
+            <p className="text-xs text-gray-600">
+              (Muokattava poislukien euromäärät)
+            </p>
+            {renderModuleContent(getSectionModules("recovery_justification"))}
+            <p className="text-sm mt-2">
+              Takaisinperintä on yhteensä{" "}
+              {recoveryData.totalAmounts.gross.toFixed(2)} euroa.
+            </p>
+          </div>
+        );
+      case "section-period_breakdown":
+        if (!definition.checkboxes.periodSpecification) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              Jaksokohtainen erittely liikamaksun määrästä
+            </h2>
+            <div className="text-sm space-y-3">
+              {recoveryData.periodBreakdown.map((period, idx) => (
+                <div key={idx} className="bg-gray-50 p-4 rounded border">
+                  <p className="font-medium mb-2">{period.period}</p>
+                  <div className="space-y-1">
+                    <p>Brutto: {period.gross.toFixed(2)} €</p>
+                    <p>Vero: {period.tax.toFixed(2)} €</p>
+                    <p>Jäsenmaksu: {period.membershipFee.toFixed(2)} €</p>
+                    <p>Netto: {period.net.toFixed(2)} €</p>
+                    <p>Kulukorvaus: {period.expenseCompensation.toFixed(2)} €</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case "section-additional_payment":
+        if (!recoveryData.additionalPayment ||
+            (getSectionModules("additional_payment").length === 0 &&
+             recoveryData.additionalPayment.periods.length === 0)) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              LISÄÄ MAKSETTAVA ETUUS
+            </h2>
+            <h3 className="font-medium text-sm">
+              Kassakohtainen lisämaksun perusteluteksti
+            </h3>
+            {renderModuleContent(getSectionModules("additional_payment"))}
+            {recoveryData.additionalPayment.periods.length > 0 && (
+              <div className="text-sm space-y-2 mt-3">
+                {recoveryData.additionalPayment.periods.map((period, idx) => (
+                  <div key={idx}>
+                    <span className="font-medium">{period.period}:</span>{" "}
+                    Maksettu {period.paid.toFixed(2)}, Korjattu{" "}
+                    {period.corrected.toFixed(2)}, Erotus{" "}
+                    {period.difference.toFixed(2)}
+                  </div>
+                ))}
+                <p className="font-medium mt-2">
+                  Brutto yhteensä:{" "}
+                  {recoveryData.additionalPayment.grossTotal.toFixed(2)} euroa
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      case "section-decision_correction":
+        if (!recoveryData.decisionCorrection || !definition.checkboxes.decisionsToCorrect) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              VIRHEELLISEN PÄÄTÖKSEN KORJAAMINEN
+            </h2>
+            {renderModuleContent(getSectionModules("decision_correction"))}
+            {recoveryData.decisionCorrection.decisionsToCorrect &&
+             recoveryData.decisionCorrection.decisionsToCorrect.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm font-medium mb-2">Korjattavat päätökset:</p>
+                <div className="text-sm bg-gray-50 p-4 rounded border">
+                  {recoveryData.decisionCorrection.decisionsToCorrect
+                    .map((decision) => decision.type)
+                    .join(" + ")}{" "}
+                  (
+                  {recoveryData.decisionCorrection.decisionsToCorrect
+                    .map((decision) => decision.code)
+                    .join(" + ")}
+                  )
+                </div>
+              </div>
+            )}
+            <p className="text-sm mt-2">
+              Edeltävä päätös {recoveryData.decisionCorrection.decisionDate}{" "}
+              {recoveryData.decisionCorrection.decisionNumber} on virheellinen
+              ja se korjataan antamalla uudet päätökset.
+            </p>
+            <h3 className="font-medium text-sm mt-2">
+              {recoveryData.customTexts?.decisionCorrectionText || "Voit antaa suostumuksen..."}
+            </h3>
+          </div>
+        );
+      case "section-waiver":
+        if (getSectionModules("waiver").length === 0) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              TAKAISINPERINNÄSTÄ LUOPUMINEN
+            </h2>
+            {renderModuleContent(getSectionModules("waiver"))}
+          </div>
+        );
+      case "section-recovery_hearing":
+        if (getSectionModules("recovery_hearing").length === 0) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              KULEMINEN TAKAISINPERINTÄASIASSA
+            </h2>
+            {renderModuleContent(getSectionModules("recovery_hearing"))}
+            <p className="text-sm mt-2">
+              {recoveryData.customTexts?.hearingRequestText || "Pyydämme sinua antamaan näkemyksesi takaisinperinnästä ja sen määrästä määräajalla mennessä"}{" "}
+              {recoveryData.hearingDeadline} mennessä.
+            </p>
+            <p className="text-sm">
+              Lisätietoja saat puhelimitse: {recoveryData.contactNumber}
+            </p>
+          </div>
+        );
+      case "section-payment_proposal":
+        if (!definition.checkboxes.paymentProposal) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              MAKSUEHDOTUS
+            </h2>
+            <div className="text-sm space-y-2 bg-gray-50 p-4 rounded border">
+              <p className="font-medium">Voit maksaa takaisinperinnän erissä seuraavasti:</p>
+              <div className="mt-3 space-y-2">
+                <p className="whitespace-pre-wrap">
+                  {recoveryData.customTexts?.paymentProposalText || "Voit maksaa takaisinperinnän maksuerittäin. Vastaamme sinulle maksuehdottuksesta erikseen."}
+                </p>
+                <p className="mt-2">
+                  Jos haluat keskustella maksuehdottuksesta, ota yhteyttä puhelimitse: {recoveryData.contactNumber}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      case "section-misuse_suspicion":
+        if (getSectionModules("misuse_suspicion").length === 0) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              Väärinkäytösepäilyn perusteluteksti
+            </h2>
+            {renderModuleContent(getSectionModules("misuse_suspicion"))}
+          </div>
+        );
+      case "section-misuse_hearing":
+        if (getSectionModules("misuse_hearing").length === 0) return null;
+        return (
+          <div className="space-y-3 mb-6">
+            <h2 className="font-semibold text-base">
+              KULEMINEN VÄÄRINKÄYTÖSEPÄILYSSÄ
+            </h2>
+            {renderModuleContent(getSectionModules("misuse_hearing"))}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  useEffect(() => {
+    if (!measureRef.current) return;
+
+    // Käytä requestAnimationFrame varmistaaksesi, että DOM on päivitetty
+    const timeoutId = setTimeout(() => {
+      if (!measureRef.current) return;
+
+      // Mittaa korkeus pikseleinä
+      const heightPx = measureRef.current.offsetHeight;
+      
+      // Muunna pikselit millimetreiksi (96 DPI -> mm)
+      // 1 tuuma = 25.4 mm, 96 DPI = 96 pikseliä per tuuma
+      const heightMm = (heightPx / 96) * 25.4;
+      
+      // Varmista, että korkeus on positiivinen
+      if (heightMm > 0) {
+        onHeightMeasured(heightMm);
+      }
+    }, 100); // Pieni viive varmistaaksesi, että DOM on päivitetty
+
+    return () => clearTimeout(timeoutId);
+  }, [recoveryData, formSections, definition, elementId, onHeightMeasured]);
+
+  const content = renderPreviewContent();
+  if (!content) return null;
+
+  return (
+    <div
+      ref={measureRef}
+      style={{
+        position: "absolute",
+        top: "-9999px",
+        left: "-9999px",
+        width: "210mm", // A4 leveys
+        visibility: "hidden",
+        pointerEvents: "none",
+        opacity: 0,
+        zIndex: -1,
+      }}
+    >
+      <div className={paddingClass}>
+        {content}
+      </div>
+    </div>
+  );
+};
+
+// Automaattisesti kasvava Textarea-komponentti
+const AutoResizeTextarea = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+    maxHeight?: number;
+  }
+>(({ className, value, onChange, maxHeight = 400, ...props }, ref) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Yhdistä ulkoinen ref ja sisäinen ref
+  React.useImperativeHandle(ref, () => textareaRef.current as HTMLTextAreaElement, []);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Nollaa korkeus, jotta scrollHeight lasketaan oikein
+    textarea.style.height = "auto";
+    
+    // Aseta korkeus sisällön mukaan, mutta enintään maxHeight
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${newHeight}px`;
+    
+    // Jos sisältö ylittää maxHeight, näytä scrollbar
+    if (textarea.scrollHeight > maxHeight) {
+      textarea.style.overflowY = "auto";
+    } else {
+      textarea.style.overflowY = "hidden";
+    }
+  }, [value, maxHeight]);
+
+  // Käsittele myös onChange-tapahtuma, jotta korkeus päivittyy reaaliaikaisesti
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onChange?.(e);
+    
+    // Päivitä korkeus heti muutoksen jälkeen
+    setTimeout(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      
+      textarea.style.height = "auto";
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${newHeight}px`;
+      
+      if (textarea.scrollHeight > maxHeight) {
+        textarea.style.overflowY = "auto";
+      } else {
+        textarea.style.overflowY = "hidden";
+      }
+    }, 0);
+  };
+
+  return (
+    <Textarea
+      ref={textareaRef}
+      className={className}
+      value={value}
+      onChange={handleChange}
+      style={{ resize: "none" }}
+      {...props}
+    />
+  );
+});
+
+AutoResizeTextarea.displayName = "AutoResizeTextarea";
 
 export default function FormDocument({
   recoveryData,
@@ -24,8 +458,17 @@ export default function FormDocument({
   definition,
   onModuleMove,
   onModuleContentChange,
+  onModuleRemove,
+  onPageBreakAdd,
+  onPageBreakRemove,
   onRecoveryDataChange,
+  onElementMove,
 }: FormDocumentProps) {
+  const [hoveredElement, setHoveredElement] = useState<string | null>(null);
+  const [elementHeights, setElementHeights] = useState<Record<string, number>>({});
+  
+  // Hae elementtien järjestys (jos määritelty, muuten käytä oletusjärjestystä)
+  const elementOrder = definition.elementOrder || [...ELEMENT_IDS];
   // Helper to get modules for a section - preserve order from selectedModules
   // For system-generated sections, we don't need to check formSections
   // They come directly from recoveryData but can still have modules if selected
@@ -51,131 +494,553 @@ export default function FormDocument({
     return section.selectedModules;
   };
 
-  // Helper to render module content with up/down buttons for reordering and editable textarea
-  const renderModules = (modules: TextModule[], sectionId: string) => {
-    if (modules.length === 0) return null;
+  // Helper: Tarkista onko elementissä sivunvaihto
+  const getPageBreakForElement = (elementId: string): PageBreak | undefined => {
+    return definition.pageBreaks?.find((pb) => pb.elementId === elementId);
+  };
+
+  // Helper: Laske sivunumero elementille
+  const getPageNumberForElement = (elementId: string): number | null => {
+    const pageBreak = getPageBreakForElement(elementId);
+    if (!pageBreak) return null;
+
+    // Järjestä sivunvaihdot sivunumeron mukaan
+    const sortedBreaks = [...(definition.pageBreaks || [])].sort(
+      (a, b) => a.pageNumber - b.pageNumber
+    );
+    const index = sortedBreaks.findIndex((pb) => pb.id === pageBreak.id);
+    return index >= 0 ? index + 1 : null;
+  };
+
+  // Helper: Renderöi sivunvaihdon indikaattori
+  const renderPageBreakIndicator = (elementId: string) => {
+    const pageBreak = getPageBreakForElement(elementId);
+    if (!pageBreak) return null;
+
+    const pageNumber = getPageNumberForElement(elementId);
+    if (!pageNumber) return null;
+
     return (
-      <div className="space-y-2 mt-2">
-        {modules.map((module, index) => (
-          <div
-            key={module.id}
-            className="flex items-start gap-2 p-2 hover:bg-gray-50 rounded group"
+      <div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 border-l-4 border-blue-500 rounded print:hidden">
+        <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+        <span className="text-sm font-medium text-blue-700">
+          Sivu {pageNumber} päättyy tähän
+        </span>
+        {onPageBreakRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 ml-auto flex-shrink-0"
+            onClick={() => onPageBreakRemove(pageBreak.id)}
+            aria-label="Poista sivunvaihto"
           >
-            {onModuleMove && (
-              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
-                  onClick={() => onModuleMove(sectionId, module.id, "up")}
-                  disabled={index === 0}
-                  aria-label="Siirrä ylös"
-                >
-                  <ChevronUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
-                  onClick={() => onModuleMove(sectionId, module.id, "down")}
-                  disabled={index === modules.length - 1}
-                  aria-label="Siirrä alas"
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-            {onModuleContentChange ? (
-              <Textarea
-                value={module.content}
-                onChange={(e) => onModuleContentChange(sectionId, module.id, e.target.value)}
-                className="text-sm flex-1 min-h-[60px] resize-y"
-                placeholder="Syötä perusteluteksti..."
-              />
-            ) : (
-              <p className="text-sm flex-1">{module.content}</p>
-            )}
-          </div>
-        ))}
+            <X className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     );
   };
 
-  return (
-    <Card>
-      <CardContent className="p-6 space-y-6">
-        {/* Title */}
-        <h1 className="text-xl font-bold mb-4">
-          PÄÄTÖKSEN POISTAMINEN JA KUULEMINEN TAKAISINPERINTÄÄ KOSKEVASSA ASIASSA
-        </h1>
+  // Helper: Etsi edellinen näkyvä elementti
+  const getPreviousVisibleElement = (elementId: string): string | null => {
+    const currentIndex = elementOrder.indexOf(elementId);
+    if (currentIndex <= 0) return null;
 
-        {/* 1. System-generated text with modules */}
-        <div className="space-y-2">
-          {onRecoveryDataChange ? (
-            <Textarea
-              value={recoveryData.systemGeneratedText}
-              onChange={(e) =>
-                onRecoveryDataChange({ systemGeneratedText: e.target.value })
-              }
-              className="text-sm min-h-[80px] resize-y"
-              placeholder="Järjestelmän automaattisesti tuoma perusteksti..."
-            />
-          ) : (
-            <p className="text-sm">{recoveryData.systemGeneratedText}</p>
-          )}
-          {renderModules(getSectionModules("system_generated"), "system_generated")}
-        </div>
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const prevElementId = elementOrder[i];
+      const isVisible = checkElementVisibility(prevElementId);
+      if (isVisible) {
+        return prevElementId;
+      }
+    }
+    return null;
+  };
 
-        {/* 2. Overpayment reason */}
-        <div className="space-y-2">
-          <h2 className="font-semibold text-base">LIIKAMAKSUN SYY</h2>
-          {onRecoveryDataChange ? (
-            <Textarea
-              value={recoveryData.overpaymentReason.reason}
-              onChange={(e) =>
-                onRecoveryDataChange({
-                  overpaymentReason: { reason: e.target.value },
-                })
-              }
-              className="text-sm min-h-[80px] resize-y"
-              placeholder="Liikamaksun syy..."
-            />
-          ) : (
-            <p className="text-sm">{recoveryData.overpaymentReason.reason}</p>
-          )}
-          {renderModules(getSectionModules("overpayment_reason"), "overpayment_reason")}
-        </div>
+  // Helper: Etsi seuraava näkyvä elementti
+  const getNextVisibleElement = (elementId: string): string | null => {
+    const currentIndex = elementOrder.indexOf(elementId);
+    if (currentIndex < 0 || currentIndex >= elementOrder.length - 1) return null;
 
-        {/* 3. Total amounts */}
-        <div className="space-y-2">
-          <h2 className="font-semibold text-base">Liikamaksun määrä yhteensä</h2>
-          <div className="text-sm space-y-1 bg-gray-50 p-3 rounded">
-            <p>Brutto: {recoveryData.totalAmounts.gross.toFixed(2)} euroa</p>
-            <p>Vero: {recoveryData.totalAmounts.tax.toFixed(2)} euroa</p>
-            <p>Netto: {recoveryData.totalAmounts.net.toFixed(2)} euroa</p>
-            <p>
-              Kulukorvaus:{" "}
-              {recoveryData.totalAmounts.expenseCompensation.toFixed(2)} euroa
-            </p>
-            <p>
-              Jäsenmaksu:{" "}
-              {recoveryData.totalAmounts.membershipFee.toFixed(2)} euroa
-            </p>
+    for (let i = currentIndex + 1; i < elementOrder.length; i++) {
+      const nextElementId = elementOrder[i];
+      const isVisible = checkElementVisibility(nextElementId);
+      if (isVisible) {
+        return nextElementId;
+      }
+    }
+    return null;
+  };
+
+  // Helper: Renderöi sivunvaihdon lisäysnappi
+  // Näytetään kun:
+  // 1. Nykyinen elementti lähestyy täyttymistä TAI
+  // 2. Seuraava elementti lähestyy täyttymistä (jolloin nykyinen elementti on "edellinen elementti" seuraavalle)
+  const renderPageBreakOptions = (elementId: string, isOverCapacity: boolean) => {
+    if (!onPageBreakAdd) return null;
+
+    const hasPageBreak = !!getPageBreakForElement(elementId);
+    
+    // Tarkista, lähestyykö seuraava elementti täyttymistä
+    const nextElementId = getNextVisibleElement(elementId);
+    // Käytä memoized arvoja sen sijaan että lasketaan uudelleen
+    const nextElementCapacityCheck = nextElementId ? pageCapacityChecks[nextElementId] : null;
+    const nextElementIsOverCapacity = nextElementCapacityCheck?.isOverCapacity || false;
+
+    // Näytä nappi, jos:
+    // 1. Nykyinen elementti lähestyy täyttymistä TAI
+    // 2. Seuraava elementti lähestyy täyttymistä (jolloin nykyinen elementti on "edellinen elementti" seuraavalle)
+    const shouldShowButton = (isOverCapacity || nextElementIsOverCapacity) && !hasPageBreak;
+
+    if (!shouldShowButton) return null;
+
+    return (
+      <div className="flex items-center justify-center mt-2 print:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageBreakAdd(elementId)}
+          className="text-xs"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Lisää sivunvaihto tähän
+        </Button>
+      </div>
+    );
+  };
+
+  // Laske kumulatiivinen korkeus tiettyyn elementtiin asti nykyiseltä sivulta
+  // Ottaa huomioon sivunvaihdot: jos sivunvaihto tulee vastaan, nollaa kumulatiivinen korkeus
+  const calculateCumulativeHeight = (upToElementId: string): number => {
+    let cumulativeHeight = 0;
+    
+    // Käytä elementOrder-taulukkoa, joka voi olla eri järjestyksessä kuin ELEMENT_IDS
+    const currentIndex = elementOrder.indexOf(upToElementId);
+    if (currentIndex < 0) return 0;
+    
+    let lastPageBreakIndex = -1;
+    
+    if (currentIndex > 0) {
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        const prevElementId = elementOrder[i];
+        const pageBreak = getPageBreakForElement(prevElementId);
+        if (pageBreak) {
+          lastPageBreakIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Laske kumulatiivinen korkeus alkaen viimeisimmästä sivunvaihdosta (tai alusta, jos ei ole sivunvaihtoja)
+    // Sivunvaihto tapahtuu elementin JÄLKEEN, joten seuraava elementti on uudella sivulla
+    const startIndex = lastPageBreakIndex + 1;
+    
+    for (let i = startIndex; i <= currentIndex; i++) {
+      const currentElementId = elementOrder[i];
+      
+      // Tarkista onko elementti näkyvissä
+      const isVisible = checkElementVisibility(currentElementId);
+      if (!isVisible) continue;
+
+      // Lisää elementin korkeus kumulatiiviseen korkeuteen
+      const height = elementHeights[currentElementId] || 0;
+      cumulativeHeight += height;
+    }
+
+    return cumulativeHeight;
+  };
+
+  // Tarkista onko elementti näkyvissä
+  const checkElementVisibility = (elementId: string): boolean => {
+    const sectionId = elementId.replace("section-", "");
+    
+    // System-generated sections ovat aina näkyvissä
+    const systemGeneratedSections = [
+      "system_generated",
+      "overpayment_reason",
+      "total_amounts",
+    ];
+    if (systemGeneratedSections.includes(sectionId)) {
+      return true;
+    }
+
+    // Tarkista onko osio käytössä
+    const section = formSections.find((s) => s.id === sectionId);
+    if (!section) {
+      // Jos osiota ei löydy, tarkista erikoistapaukset
+      if (sectionId === "recovery") {
+        return getSectionModules("recovery").length > 0;
+      }
+      if (sectionId === "recovery_justification") {
+        return getSectionModules("recovery_justification").length > 0;
+      }
+      if (sectionId === "period_breakdown") {
+        return definition.checkboxes.periodSpecification;
+      }
+      if (sectionId === "additional_payment") {
+        return !!(
+          recoveryData.additionalPayment &&
+          (getSectionModules("additional_payment").length > 0 ||
+            recoveryData.additionalPayment.periods.length > 0)
+        );
+      }
+      if (sectionId === "decision_correction") {
+        return !!(
+          recoveryData.decisionCorrection &&
+          definition.checkboxes.decisionsToCorrect
+        );
+      }
+      if (sectionId === "waiver") {
+        return getSectionModules("waiver").length > 0;
+      }
+      if (sectionId === "recovery_hearing") {
+        return getSectionModules("recovery_hearing").length > 0;
+      }
+      if (sectionId === "payment_proposal") {
+        return definition.checkboxes.paymentProposal;
+      }
+      if (sectionId === "misuse_suspicion") {
+        return getSectionModules("misuse_suspicion").length > 0;
+      }
+      if (sectionId === "misuse_hearing") {
+        return getSectionModules("misuse_hearing").length > 0;
+      }
+      return false;
+    }
+
+    return section.enabled;
+  };
+
+  // Laske millä sivulla elementti on (1 = ensimmäinen sivu, 2 = toinen sivu, jne.)
+  const getCurrentPageForElement = (elementId: string): number => {
+    let currentPage = 1;
+    
+    for (const currentElementId of ELEMENT_IDS) {
+      // Jos tämä on kohdeelementti, palauta nykyinen sivu
+      if (currentElementId === elementId) {
+        return currentPage;
+      }
+      
+      // Jos tässä elementissä on sivunvaihto, siirry seuraavalle sivulle
+      const pageBreak = getPageBreakForElement(currentElementId);
+      if (pageBreak) {
+        currentPage++;
+      }
+    }
+    
+    return currentPage;
+  };
+
+  // Helper: Laske onko elementti ensimmäisellä sivulla
+  const isFirstPage = (elementId: string): boolean => {
+    const currentIndex = elementOrder.indexOf(elementId);
+    if (currentIndex < 0) return false;
+    
+    // Jos elementin edellä ei ole sivunvaihtoja, se on ensimmäisellä sivulla
+    for (let i = 0; i < currentIndex; i++) {
+      const prevElementId = elementOrder[i];
+      const pageBreak = getPageBreakForElement(prevElementId);
+      if (pageBreak) {
+        return false; // Löytyi sivunvaihto, joten tämä ei ole ensimmäinen sivu
+      }
+    }
+    return true; // Ei löytynyt sivunvaihtoja, joten tämä on ensimmäinen sivu
+  };
+
+  // Tarkista onko kapasiteetti ylittynyt nykyisellä sivulla
+  // Ottaa huomioon headerin (ensimmäisellä sivulla), footerin ja otsikon (ensimmäisellä sivulla)
+  // Näytetään varoitus jo ennen kuin sivu täyttyy (90% täyttynyt), jotta henkilö tietää että nyt täytyy kohta tehdä page break
+  // Toimii kaikilla sivuilla, ei vain ensimmäisellä
+  const checkPageCapacity = (elementId: string): { isOverCapacity: boolean; usedHeight: number; availableHeight: number } => {
+    // Tarkista onko tämä ensimmäinen sivu
+    const firstPage = isFirstPage(elementId);
+    // Käytettävissä oleva korkeus = A4 - marginaalit - header (jos ensimmäinen sivu) - footer - otsikko (jos ensimmäinen sivu)
+    // Ensimmäisellä sivulla: 297 - 40 - 30 - 25 - 6 = 196mm
+    // Seuraavilla sivuilla: 297 - 40 - 0 - 25 - 0 = 232mm
+    const availableHeight = getAvailableHeightForPage(firstPage);
+    
+    // Laske kumulatiivinen korkeus kaikista elementeistä nykyiseltä sivulta tähän elementtiin asti
+    // (calculateCumulativeHeight ottaa jo huomioon sivunvaihdot ja nollaa kumulatiivisen korkeuden sivunvaihdon jälkeen)
+    const usedHeight = calculateCumulativeHeight(elementId);
+    
+    // Varoitus näytetään jo kun käytetty korkeus on yli 90% käytettävissä olevasta korkeudesta
+    const WARNING_THRESHOLD = 0.9; // 90%
+    const warningThreshold = availableHeight * WARNING_THRESHOLD;
+    
+    // Tarkista, onko tämä ensimmäinen elementti nykyisellä sivulla, joka aiheuttaa varoituksen
+    // (eli edellinen elementti ei vielä ylittänyt varoituskynnystä, mutta tämä elementti ylittää)
+    let isFirstWarning = false;
+    if (usedHeight > warningThreshold) {
+      // Käytä elementOrder-taulukkoa, joka voi olla eri järjestyksessä kuin ELEMENT_IDS
+      const currentIndex = elementOrder.indexOf(elementId);
+      if (currentIndex < 0) {
+        return { isOverCapacity: false, usedHeight, availableHeight };
+      }
+      
+      // Etsi viimeisin sivunvaihto ennen tätä elementtiä
+      let lastPageBreakIndex = -1;
+      if (currentIndex > 0) {
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          const prevElementId = elementOrder[i];
+          const pageBreak = getPageBreakForElement(prevElementId);
+          if (pageBreak) {
+            lastPageBreakIndex = i;
+            break;
+          }
+        }
+      }
+      
+      // Etsi ensimmäinen näkyvä elementti nykyiseltä sivulta
+      const startIndex = lastPageBreakIndex + 1;
+      let firstVisibleElementIndex = -1;
+      
+      for (let i = startIndex; i <= currentIndex; i++) {
+        const elementIdToCheck = elementOrder[i];
+        const isVisible = checkElementVisibility(elementIdToCheck);
+        if (isVisible) {
+          firstVisibleElementIndex = i;
+          break;
+        }
+      }
+      
+      // Jos tämä on ensimmäinen näkyvä elementti nykyisellä sivulla, se on ensimmäinen varoitus
+      if (currentIndex === firstVisibleElementIndex) {
+        isFirstWarning = true;
+      } else if (firstVisibleElementIndex >= 0 && currentIndex > firstVisibleElementIndex) {
+        // Etsi edellinen näkyvä elementti nykyiseltä sivulta
+        let foundPrevious = false;
+        for (let i = currentIndex - 1; i >= startIndex; i--) {
+          const prevElementId = elementOrder[i];
+          const isVisible = checkElementVisibility(prevElementId);
+          if (isVisible) {
+            foundPrevious = true;
+            const prevUsedHeight = calculateCumulativeHeight(prevElementId);
+            // Jos edellinen elementti ei vielä ylittänyt varoituskynnystä, tämä on ensimmäinen varoitus
+            if (prevUsedHeight <= warningThreshold) {
+              isFirstWarning = true;
+            }
+            break;
+          }
+        }
+        
+        // Jos ei löydy edellistä näkyvää elementtiä, tämä on ensimmäinen varoitus
+        if (!foundPrevious) {
+          isFirstWarning = true;
+        }
+      } else if (currentIndex === 0) {
+        // Jos tämä on ensimmäinen elementti ja se ylittää varoituskynnyksen, se on ensimmäinen varoitus
+        isFirstWarning = true;
+      }
+    }
+    
+    // Varoitus näytetään, jos käytetty korkeus ylittää varoituskynnyksen (90%)
+    // ja tämä on ensimmäinen elementti nykyisellä sivulla, joka aiheuttaa varoituksen
+    const isOverCapacity = usedHeight > warningThreshold && isFirstWarning;
+
+    return { isOverCapacity, usedHeight, availableHeight };
+  };
+
+  // Handler korkeuden mittaukselle
+  const handleHeightMeasured = (elementId: string, height: number) => {
+    setElementHeights((prev) => {
+      // Päivitä vain jos korkeus on muuttunut merkittävästi (yli 1mm ero)
+      const prevHeight = prev[elementId] || 0;
+      if (Math.abs(prevHeight - height) > 1) {
+        return { ...prev, [elementId]: height };
+      }
+      return prev;
+    });
+  };
+
+  // Memoize page capacity checks to avoid recalculating on every render
+  // Lasketaan vain kun elementHeights, definition.pageBreaks, formSections, recoveryData tai elementOrder muuttuu
+  // Huom: Funktiot (checkElementVisibility, checkPageCapacity, calculateCumulativeHeight) eivät muutu,
+  // joten ne eivät tarvitse olla riippuvuuksissa
+  const pageCapacityChecks = useMemo(() => {
+    const checks: Record<string, { isOverCapacity: boolean; usedHeight: number; availableHeight: number }> = {};
+    
+    elementOrder.forEach((elementId) => {
+      // Laske vain näkyville elementeille
+      if (checkElementVisibility(elementId)) {
+        checks[elementId] = checkPageCapacity(elementId);
+      }
+    });
+    
+    return checks;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elementHeights, definition.pageBreaks, formSections, recoveryData, elementOrder]);
+
+  // Helper: Renderöi elementin siirtonapit (ylös/alas)
+  const renderElementMoveButtons = (elementId: string) => {
+    if (!onElementMove) return null;
+
+    const currentIndex = elementOrder.indexOf(elementId);
+    if (currentIndex < 0) return null;
+
+    const canMoveUp = currentIndex > 0;
+    const canMoveDown = currentIndex < elementOrder.length - 1;
+
+    return (
+      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute left-0 top-0 -ml-8 print:hidden">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={() => onElementMove(elementId, "up")}
+          disabled={!canMoveUp}
+          aria-label="Siirrä ylös"
+        >
+          <ChevronUp className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={() => onElementMove(elementId, "down")}
+          disabled={!canMoveDown}
+          aria-label="Siirrä alas"
+        >
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  };
+
+  // Helper: Renderöi elementti sivunvaihdon hallinnalla
+  const renderElementWithPageBreak = (
+    elementId: string,
+    content: React.ReactNode,
+    className: string = ""
+  ) => {
+    const pageBreak = getPageBreakForElement(elementId);
+    const pageBreakClass = pageBreak ? "print:page-break-after-always" : "";
+    // Käytä memoized arvoja sen sijaan että lasketaan uudelleen joka renderöinnillä
+    const capacityCheck = pageCapacityChecks[elementId] || { isOverCapacity: false, usedHeight: 0, availableHeight: 0 };
+
+    return (
+      <div
+        className={`relative group ${pageBreakClass} ${className}`}
+        onMouseEnter={() => setHoveredElement(elementId)}
+        onMouseLeave={() => setHoveredElement(null)}
+      >
+        {/* Elementin siirtonapit */}
+        {renderElementMoveButtons(elementId)}
+        
+        {/* Piilotettu mittauskomponentti */}
+        <HiddenPreviewMeasurement
+          elementId={elementId}
+          recoveryData={recoveryData}
+          formSections={formSections}
+          definition={definition}
+          onHeightMeasured={(height) => handleHeightMeasured(elementId, height)}
+        />
+        
+        {content}
+        {renderPageBreakOptions(elementId, capacityCheck.isOverCapacity)}
+        {renderPageBreakIndicator(elementId)}
+        
+        {/* Näytä varoitus jo ennen kuin sivu täyttyy (90% täyttynyt), jotta henkilö tietää että nyt täytyy kohta tehdä page break */}
+        {capacityCheck.isOverCapacity && (
+          <div className="mt-2 p-3 bg-amber-50 border-l-4 border-amber-500 rounded text-sm text-amber-800 print:hidden">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium mb-1">
+                  Ensimmäinen A4-sivu lähestyy täyttymistä
+                </p>
+                <p className="text-xs text-amber-700">
+                  Sisältöä on nyt {capacityCheck.usedHeight.toFixed(0)} mm / {capacityCheck.availableHeight.toFixed(0)} mm. 
+                  Harkitse sivunvaihdon lisäämistä edellisen elementin jälkeen.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+      </div>
+    );
+  };
 
-        {/* 3.5. General recovery modules - default position after total amounts */}
-        {getSectionModules("recovery").length > 0 && (
+  // Helper: Renderöi elementin sen elementId:n perusteella
+  const renderElementContent = (elementId: string): React.ReactNode | null => {
+    const sectionId = elementId.replace("section-", "");
+    
+    switch (elementId) {
+      case "section-system_generated":
+        return (
+          <div className="space-y-2">
+            {onRecoveryDataChange ? (
+              <AutoResizeTextarea
+                value={recoveryData.systemGeneratedText}
+                onChange={(e) =>
+                  onRecoveryDataChange({ systemGeneratedText: e.target.value })
+                }
+                className="text-sm min-h-[80px]"
+                placeholder="Järjestelmän automaattisesti tuoma perusteksti..."
+                maxHeight={400}
+              />
+            ) : (
+              <p className="text-sm">{recoveryData.systemGeneratedText}</p>
+            )}
+            {renderModules(getSectionModules("system_generated"), "system_generated")}
+          </div>
+        );
+      
+      case "section-overpayment_reason":
+        return (
+          <div className="space-y-2">
+            <h2 className="font-semibold text-base">LIIKAMAKSUN SYY</h2>
+            {onRecoveryDataChange ? (
+              <AutoResizeTextarea
+                value={recoveryData.overpaymentReason.reason}
+                onChange={(e) =>
+                  onRecoveryDataChange({
+                    overpaymentReason: { reason: e.target.value },
+                  })
+                }
+                className="text-sm min-h-[80px]"
+                placeholder="Liikamaksun syy..."
+                maxHeight={400}
+              />
+            ) : (
+              <p className="text-sm">{recoveryData.overpaymentReason.reason}</p>
+            )}
+            {renderModules(getSectionModules("overpayment_reason"), "overpayment_reason")}
+          </div>
+        );
+      
+      case "section-total_amounts":
+        return (
+          <div className="space-y-2">
+            <h2 className="font-semibold text-base">Liikamaksun määrä yhteensä</h2>
+            <div className="text-sm space-y-1 bg-gray-50 p-3 rounded">
+              <p>Brutto: {recoveryData.totalAmounts.gross.toFixed(2)} euroa</p>
+              <p>Vero: {recoveryData.totalAmounts.tax.toFixed(2)} euroa</p>
+              <p>Netto: {recoveryData.totalAmounts.net.toFixed(2)} euroa</p>
+              <p>
+                Kulukorvaus:{" "}
+                {recoveryData.totalAmounts.expenseCompensation.toFixed(2)} euroa
+              </p>
+              <p>
+                Jäsenmaksu:{" "}
+                {recoveryData.totalAmounts.membershipFee.toFixed(2)} euroa
+              </p>
+            </div>
+          </div>
+        );
+      
+      case "section-recovery":
+        if (getSectionModules("recovery").length === 0) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               Takaisinperinnän perusteluteksti
             </h2>
             {renderModules(getSectionModules("recovery"), "recovery")}
           </div>
-        )}
-
-        {/* 4. Recovery justification */}
-        {getSectionModules("recovery_justification").length > 0 && (
+        );
+      
+      case "section-recovery_justification":
+        if (getSectionModules("recovery_justification").length === 0) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               Kassakohtainen tape perusteluteksti
@@ -189,10 +1054,11 @@ export default function FormDocument({
               {recoveryData.totalAmounts.gross.toFixed(2)} euroa.
             </p>
           </div>
-        )}
-
-        {/* 5. Period breakdown - Only show if "Määräerittely jaksoittain" is checked */}
-        {definition.checkboxes.periodSpecification && (
+        );
+      
+      case "section-period_breakdown":
+        if (!definition.checkboxes.periodSpecification) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               Jaksokohtainen erittely liikamaksun määrästä
@@ -212,105 +1078,110 @@ export default function FormDocument({
               ))}
             </div>
           </div>
-        )}
-
-        {/* 6. Additional payment */}
-        {recoveryData.additionalPayment &&
-          (getSectionModules("additional_payment").length > 0 ||
-            recoveryData.additionalPayment.periods.length > 0) && (
-            <div className="space-y-2">
-              <h2 className="font-semibold text-base">
-                LISÄÄ MAKSETTAVA ETUUS
-              </h2>
-              <h3 className="font-medium text-sm">
-                Kassakohtainen lisämaksun perusteluteksti
-              </h3>
-              {renderModules(getSectionModules("additional_payment"), "additional_payment")}
-              {recoveryData.additionalPayment.periods.length > 0 && (
-                <div className="text-sm space-y-2 mt-2">
-                  {recoveryData.additionalPayment.periods.map((period, idx) => (
-                    <div key={idx}>
-                      <span className="font-medium">{period.period}:</span>{" "}
-                      Maksettu {period.paid.toFixed(2)}, Korjattu{" "}
-                      {period.corrected.toFixed(2)}, Erotus{" "}
-                      {period.difference.toFixed(2)}
-                    </div>
-                  ))}
-                  <p className="font-medium mt-2">
-                    Brutto yhteensä:{" "}
-                    {recoveryData.additionalPayment.grossTotal.toFixed(2)} euroa
-                  </p>
+        );
+      
+      case "section-additional_payment":
+        if (!recoveryData.additionalPayment ||
+            (getSectionModules("additional_payment").length === 0 &&
+             recoveryData.additionalPayment.periods.length === 0)) return null;
+        return (
+          <div className="space-y-2">
+            <h2 className="font-semibold text-base">
+              LISÄÄ MAKSETTAVA ETUUS
+            </h2>
+            <h3 className="font-medium text-sm">
+              Kassakohtainen lisämaksun perusteluteksti
+            </h3>
+            {renderModules(getSectionModules("additional_payment"), "additional_payment")}
+            {recoveryData.additionalPayment.periods.length > 0 && (
+              <div className="text-sm space-y-2 mt-2">
+                {recoveryData.additionalPayment.periods.map((period, idx) => (
+                  <div key={idx}>
+                    <span className="font-medium">{period.period}:</span>{" "}
+                    Maksettu {period.paid.toFixed(2)}, Korjattu{" "}
+                    {period.corrected.toFixed(2)}, Erotus{" "}
+                    {period.difference.toFixed(2)}
+                  </div>
+                ))}
+                <p className="font-medium mt-2">
+                  Brutto yhteensä:{" "}
+                  {recoveryData.additionalPayment.grossTotal.toFixed(2)} euroa
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      
+      case "section-decision_correction":
+        if (!recoveryData.decisionCorrection ||
+            !definition.checkboxes.decisionsToCorrect) return null;
+        return (
+          <div className="space-y-2">
+            <h2 className="font-semibold text-base">
+              VIRHEELLISEN PÄÄTÖKSEN KORJAAMINEN
+            </h2>
+            {renderModules(getSectionModules("decision_correction"), "decision_correction")}
+            
+            {/* List of decisions to correct */}
+            {recoveryData.decisionCorrection.decisionsToCorrect &&
+              recoveryData.decisionCorrection.decisionsToCorrect.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium mb-2">Korjattavat päätökset:</p>
+                  <div className="text-sm bg-gray-50 p-3 rounded">
+                    {recoveryData.decisionCorrection.decisionsToCorrect
+                      .map((decision) => decision.type)
+                      .join(" + ")}{" "}
+                    (
+                    {recoveryData.decisionCorrection.decisionsToCorrect
+                      .map((decision) => decision.code)
+                      .join(" + ")}
+                    )
+                  </div>
                 </div>
               )}
-            </div>
-          )}
-
-        {/* 7. Decision correction */}
-        {recoveryData.decisionCorrection &&
-          definition.checkboxes.decisionsToCorrect && (
-            <div className="space-y-2">
-              <h2 className="font-semibold text-base">
-                VIRHEELLISEN PÄÄTÖKSEN KORJAAMINEN
-              </h2>
-              {renderModules(getSectionModules("decision_correction"), "decision_correction")}
-              
-              {/* List of decisions to correct */}
-              {recoveryData.decisionCorrection.decisionsToCorrect &&
-                recoveryData.decisionCorrection.decisionsToCorrect.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm font-medium mb-2">Korjattavat päätökset:</p>
-                    <div className="text-sm bg-gray-50 p-3 rounded">
-                      {recoveryData.decisionCorrection.decisionsToCorrect
-                        .map((decision) => decision.type)
-                        .join(" + ")}{" "}
-                      (
-                      {recoveryData.decisionCorrection.decisionsToCorrect
-                        .map((decision) => decision.code)
-                        .join(" + ")}
-                      )
-                    </div>
-                  </div>
-                )}
-              
-              <p className="text-sm mt-2">
-                Edeltävä päätös {recoveryData.decisionCorrection.decisionDate}{" "}
-                {recoveryData.decisionCorrection.decisionNumber} on virheellinen
-                ja se korjataan antamalla uudet päätökset.
-              </p>
-              {onRecoveryDataChange ? (
-                <Textarea
-                  value={recoveryData.customTexts?.decisionCorrectionText || "Voit antaa suostumuksen..."}
-                  onChange={(e) =>
-                    onRecoveryDataChange({
-                      customTexts: {
-                        ...recoveryData.customTexts,
-                        decisionCorrectionText: e.target.value,
-                      },
-                    })
-                  }
-                  className="text-sm font-medium mt-2 min-h-[60px] resize-y"
-                  placeholder="Voit antaa suostumuksen..."
-                />
-              ) : (
-                <h3 className="font-medium text-sm mt-2">
-                  {recoveryData.customTexts?.decisionCorrectionText || "Voit antaa suostumuksen..."}
-                </h3>
-              )}
-            </div>
-          )}
-
-        {/* 8. Waiver */}
-        {getSectionModules("waiver").length > 0 && (
+            
+            <p className="text-sm mt-2">
+              Edeltävä päätös {recoveryData.decisionCorrection.decisionDate}{" "}
+              {recoveryData.decisionCorrection.decisionNumber} on virheellinen
+              ja se korjataan antamalla uudet päätökset.
+            </p>
+            {onRecoveryDataChange ? (
+              <AutoResizeTextarea
+                value={recoveryData.customTexts?.decisionCorrectionText || "Voit antaa suostumuksen..."}
+                onChange={(e) =>
+                  onRecoveryDataChange({
+                    customTexts: {
+                      ...recoveryData.customTexts,
+                      decisionCorrectionText: e.target.value,
+                    },
+                  })
+                }
+                className="text-sm font-medium mt-2 min-h-[60px]"
+                placeholder="Voit antaa suostumuksen..."
+                maxHeight={300}
+              />
+            ) : (
+              <h3 className="font-medium text-sm mt-2">
+                {recoveryData.customTexts?.decisionCorrectionText || "Voit antaa suostumuksen..."}
+              </h3>
+            )}
+          </div>
+        );
+      
+      case "section-waiver":
+        if (getSectionModules("waiver").length === 0) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               TAKAISINPERINNÄSTÄ LUOPUMINEN
             </h2>
             {renderModules(getSectionModules("waiver"), "waiver")}
           </div>
-        )}
-
-        {/* 9. Recovery hearing */}
-        {getSectionModules("recovery_hearing").length > 0 && (
+        );
+      
+      case "section-recovery_hearing":
+        if (getSectionModules("recovery_hearing").length === 0) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               KULEMINEN TAKAISINPERINTÄASIASSA
@@ -319,7 +1190,7 @@ export default function FormDocument({
             <div className="space-y-2 mt-2">
               {onRecoveryDataChange ? (
                 <>
-                  <Textarea
+                  <AutoResizeTextarea
                     value={recoveryData.customTexts?.hearingRequestText || "Pyydämme sinua antamaan näkemyksesi takaisinperinnästä ja sen määrästä määräajalla mennessä"}
                     onChange={(e) =>
                       onRecoveryDataChange({
@@ -329,8 +1200,9 @@ export default function FormDocument({
                         },
                       })
                     }
-                    className="text-sm min-h-[60px] resize-y"
+                    className="text-sm min-h-[60px]"
                     placeholder="Pyydämme sinua antamaan näkemyksesi..."
+                    maxHeight={300}
                   />
                   <div className="flex items-center gap-2">
                     <span className="text-sm">Määräaika:</span>
@@ -369,10 +1241,11 @@ export default function FormDocument({
               )}
             </div>
           </div>
-        )}
-
-        {/* 10. Payment proposal */}
-        {definition.checkboxes.paymentProposal && (
+        );
+      
+      case "section-payment_proposal":
+        if (!definition.checkboxes.paymentProposal) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               MAKSUEHDOTUS
@@ -381,7 +1254,7 @@ export default function FormDocument({
               <p className="font-medium">Voit maksaa takaisinperinnän erissä seuraavasti:</p>
               {onRecoveryDataChange ? (
                 <div className="mt-3 space-y-2">
-                  <Textarea
+                  <AutoResizeTextarea
                     value={recoveryData.customTexts?.paymentProposalText || "Voit maksaa takaisinperinnän maksuerittäin. Vastaamme sinulle maksuehdottuksesta erikseen."}
                     onChange={(e) =>
                       onRecoveryDataChange({
@@ -391,8 +1264,9 @@ export default function FormDocument({
                         },
                       })
                     }
-                    className="text-sm min-h-[100px] resize-y whitespace-pre-wrap"
+                    className="text-sm min-h-[100px] whitespace-pre-wrap"
                     placeholder="Syötä maksuehdotuksen teksti..."
+                    maxHeight={400}
                   />
                   <div className="flex items-center gap-2 pt-2">
                     <span className="text-sm">Jos haluat keskustella maksuehdotuksesta, ota yhteyttä puhelimitse:</span>
@@ -418,27 +1292,115 @@ export default function FormDocument({
               )}
             </div>
           </div>
-        )}
-
-        {/* 11. Misuse suspicion */}
-        {getSectionModules("misuse_suspicion").length > 0 && (
+        );
+      
+      case "section-misuse_suspicion":
+        if (getSectionModules("misuse_suspicion").length === 0) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               Väärinkäytösepäilyn perusteluteksti
             </h2>
             {renderModules(getSectionModules("misuse_suspicion"), "misuse_suspicion")}
           </div>
-        )}
-
-        {/* 12. Misuse hearing */}
-        {getSectionModules("misuse_hearing").length > 0 && (
+        );
+      
+      case "section-misuse_hearing":
+        if (getSectionModules("misuse_hearing").length === 0) return null;
+        return (
           <div className="space-y-2">
             <h2 className="font-semibold text-base">
               KULEMINEN VÄÄRINKÄYTÖSEPÄILYSSÄ
             </h2>
             {renderModules(getSectionModules("misuse_hearing"), "misuse_hearing")}
           </div>
-        )}
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  // Helper to render module content with up/down buttons for reordering and editable textarea
+  const renderModules = (modules: TextModule[], sectionId: string) => {
+    if (modules.length === 0) return null;
+    return (
+      <div className="space-y-2 mt-2">
+        {modules.map((module, index) => (
+          <div
+            key={module.id}
+            className="flex items-start gap-2 p-2 hover:bg-gray-50 rounded group"
+          >
+            {onModuleMove && (
+              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => onModuleMove(sectionId, module.id, "up")}
+                  disabled={index === 0}
+                  aria-label="Siirrä ylös"
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => onModuleMove(sectionId, module.id, "down")}
+                  disabled={index === modules.length - 1}
+                  aria-label="Siirrä alas"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+            {onModuleContentChange ? (
+              <AutoResizeTextarea
+                value={module.content}
+                onChange={(e) => onModuleContentChange(sectionId, module.id, e.target.value)}
+                className="text-sm flex-1 min-h-[60px]"
+                placeholder="Syötä perusteluteksti..."
+                maxHeight={300}
+              />
+            ) : (
+              <p className="text-sm flex-1">{module.content}</p>
+            )}
+            {onModuleRemove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => onModuleRemove(sectionId, module.id)}
+                aria-label="Poista kenttä"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6 space-y-6">
+        {/* Title */}
+        <h1 className="text-xl font-bold mb-4">
+          PÄÄTÖKSEN POISTAMINEN JA KUULEMINEN TAKAISINPERINTÄÄ KOSKEVASSA ASIASSA
+        </h1>
+
+        {/* Render elements in the order specified by elementOrder */}
+        {elementOrder.map((elementId) => {
+          const content = renderElementContent(elementId);
+          if (!content) return null;
+          return (
+            <React.Fragment key={elementId}>
+              {renderElementWithPageBreak(elementId, content)}
+            </React.Fragment>
+          );
+        })}
       </CardContent>
     </Card>
   );

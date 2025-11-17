@@ -9,6 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
+import type { IncomeRow, SubsidyCorrection } from "../allocateincome/types";
+import { INCOME_TYPES, NON_BENEFIT_AFFECTING_INCOME_TYPES } from "../allocateincome/types";
+import SubsidizedWorkDrawer from "../allocateincome/components/SubsidizedWorkDrawer";
 
 // ============================================================================
 // Mass Income Split – Next.js + Tailwind (suomi.fi style) Prototype
@@ -25,32 +28,24 @@ import { Card } from "@/components/ui/card";
 
 // --- Types & mock data ------------------------------------------------------
 
-type Row = {
-  id: string;
-  maksupaiva: string; // esim. "8.10.2026"
-  tulolaji: string;   // esim. "Aikapalkka"
-  palkka: number;     // käytetään jaon perustana
-  alkuperainenTulo: number; // näytetään mitä lähteellä oli ennen jakoa
-  ansaintaAika?: string;
-  kohdistusTOE?: string;
-  tyonantaja: string;
-};
+// Use shared IncomeRow type from allocateincome/types.ts instead of local Row type
+// This allows us to use the same type across components and add subsidized work fields
 
 // Subsidized employers
 const SUBSIDIZED_EMPLOYERS = new Set<string>(["Nokia Oyj"]);
 
-const MOCK_ROWS: Row[] = [
+const MOCK_ROWS: IncomeRow[] = [
   { id: "0", maksupaiva: "1.11.2026", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.10.2026 – 31.10.2026", tyonantaja: "Supercell Oy" },
-  { id: "1", maksupaiva: "8.10.2026", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 – 31.12.2025", tyonantaja: "Nokia Oyj", kohdistusTOE: "" },
-  { id: "2", maksupaiva: "8.9.2026", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 – 31.12.2025", tyonantaja: "Nokia Oyj" },
+  { id: "1", maksupaiva: "8.10.2026", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 – 31.12.2025", tyonantaja: "Nokia Oyj", kohdistusTOE: "", isSubsidized: true },
+  { id: "2", maksupaiva: "8.9.2026", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 – 31.12.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
   { id: "3", maksupaiva: "8.8.2026", tulolaji: "Aikapalkka", palkka: 1200, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 – 31.12.2025", tyonantaja: "Kone Oyj" },
   { id: "4", maksupaiva: "18.8.2026", tulolaji: "Vuosilomakorvaus", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.6.2026 – 31.8.2026", tyonantaja: "Posti Oy" },
-  { id: "5", maksupaiva: "28.8.2026", tulolaji: "Vuosilomakorvaus", palkka: 900, alkuperainenTulo: 0, ansaintaAika: "1.6.2026 – 31.8.2026", tyonantaja: "Nokia Oyj" },
+  { id: "5", maksupaiva: "28.8.2026", tulolaji: "Vuosilomakorvaus", palkka: 900, alkuperainenTulo: 0, ansaintaAika: "1.6.2026 – 31.8.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
   { id: "6", maksupaiva: "5.7.2026", tulolaji: "Lomaraha", palkka: 700, alkuperainenTulo: 0, ansaintaAika: "1.7.2026 – 31.7.2026", tyonantaja: "Kone Oyj" },
   { id: "7", maksupaiva: "15.6.2026", tulolaji: "Aikapalkka", palkka: 1600, alkuperainenTulo: 0, ansaintaAika: "1.6.2026 – 30.6.2026", tyonantaja: "Supercell Oy" },
   { id: "8", maksupaiva: "28.5.2026", tulolaji: "Vuosilomakorvaus", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "1.5.2026 – 31.5.2026", tyonantaja: "Posti Oy" },
   { id: "9", maksupaiva: "10.4.2026", tulolaji: "Lomaraha", palkka: 450, alkuperainenTulo: 0, ansaintaAika: "1.4.2026 – 30.4.2026", tyonantaja: "Kone Oyj" },
-  { id: "10", maksupaiva: "5.3.2026", tulolaji: "Aikapalkka", palkka: 2800, alkuperainenTulo: 0, ansaintaAika: "1.3.2026 – 31.3.2026", tyonantaja: "Nokia Oyj" }
+  { id: "10", maksupaiva: "5.3.2026", tulolaji: "Aikapalkka", palkka: 2800, alkuperainenTulo: 0, ansaintaAika: "1.3.2026 – 31.3.2026", tyonantaja: "Nokia Oyj", isSubsidized: true }
 ];
 
 // --- Utils -----------------------------------------------------------------
@@ -79,7 +74,7 @@ function parseFinnishDate(s?: string | null): Date | null {
 
 type SplitType = "ONE_THIRD_TWO_THIRDS" | "PERCENT" | "PERCENT_PLUS_SPLIT";
 
-export function calcSplit(rows: Row[], opts: { splitType: SplitType; percent?: number }) {
+export function calcSplit(rows: IncomeRow[], opts: { splitType: SplitType; percent?: number }) {
   const percent = (opts.percent ?? 0) / 100;
   return rows.map((r) => {
     const base = r.palkka; // base from current palkka
@@ -113,26 +108,26 @@ function assertAlmostEqual(actual: number, expected: number, msg: string) {
 }
 function runCalcSplitTests() {
   // 1: 1/3–2/3 from 2400
-  const t1 = calcSplit([{ id: "t1", maksupaiva: "", tulolaji: "", palkka: 2400, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "ONE_THIRD_TWO_THIRDS" });
+  const t1 = calcSplit([{ id: "t1", maksupaiva: "", tulolaji: "", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "ONE_THIRD_TWO_THIRDS" });
   assertAlmostEqual((t1[0] as any).oneThird, 800, "ONE_THIRD_TWO_THIRDS oneThird");
   assertAlmostEqual((t1[0] as any).twoThirds, 1600, "ONE_THIRD_TWO_THIRDS twoThirds");
 
   // 2: 9% of 2000 → 180
-  const t2 = calcSplit([{ id: "t2", maksupaiva: "", tulolaji: "", palkka: 2000, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT", percent: 9 });
+  const t2 = calcSplit([{ id: "t2", maksupaiva: "", tulolaji: "", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT", percent: 9 });
   assertAlmostEqual((t2[0] as any).erotettava, 180, "PERCENT erotettava");
 
   // 3: 18.5% of 2100 = 388.5 → thirds from deducted
-  const t3 = calcSplit([{ id: "t3", maksupaiva: "", tulolaji: "", palkka: 2100, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT_PLUS_SPLIT", percent: 18.5 });
+  const t3 = calcSplit([{ id: "t3", maksupaiva: "", tulolaji: "", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT_PLUS_SPLIT", percent: 18.5 });
   assertAlmostEqual((t3[0] as any).erotettava, 388.5, "PERCENT_PLUS_SPLIT erotettava");
   assertAlmostEqual((t3[0] as any).oneThird, 129.5, "PERCENT_PLUS_SPLIT oneThird");
   assertAlmostEqual((t3[0] as any).twoThirds, 259.0, "PERCENT_PLUS_SPLIT twoThirds");
 
   // 4: zero percent
-  const t4 = calcSplit([{ id: "t4", maksupaiva: "", tulolaji: "", palkka: 1999, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT", percent: 0 });
+  const t4 = calcSplit([{ id: "t4", maksupaiva: "", tulolaji: "", palkka: 1999, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT", percent: 0 });
   assertAlmostEqual((t4[0] as any).erotettava, 0, "PERCENT zero percent");
 
   // 5: 9% of 2400 in percent+split → 216, 72, 144
-  const t5 = calcSplit([{ id: "t5", maksupaiva: "", tulolaji: "", palkka: 2400, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT_PLUS_SPLIT", percent: 9 });
+  const t5 = calcSplit([{ id: "t5", maksupaiva: "", tulolaji: "", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT_PLUS_SPLIT", percent: 9 });
   assertAlmostEqual((t5[0] as any).erotettava, 216, "PERCENT_PLUS_SPLIT 9% deducted");
   assertAlmostEqual((t5[0] as any).oneThird, 72, "PERCENT_PLUS_SPLIT 1/3 of deducted");
   assertAlmostEqual((t5[0] as any).twoThirds, 144, "PERCENT_PLUS_SPLIT 2/3 of deducted");
@@ -142,11 +137,11 @@ function runCalcSplitTests() {
   if (t6.length !== 0) throw new Error("Empty input should yield empty result");
 
   // 7: rounding
-  const t7 = calcSplit([{ id: "t7", maksupaiva: "", tulolaji: "", palkka: 1234.56, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT", percent: 12.345 });
+  const t7 = calcSplit([{ id: "t7", maksupaiva: "", tulolaji: "", palkka: 1234.56, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT", percent: 12.345 });
   assertAlmostEqual((t7[0] as any).erotettava, 152.41, "Rounding to cents");
 
   // 8: 100% case
-  const t8 = calcSplit([{ id: "t8", maksupaiva: "", tulolaji: "", palkka: 90, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT_PLUS_SPLIT", percent: 100 });
+  const t8 = calcSplit([{ id: "t8", maksupaiva: "", tulolaji: "", palkka: 90, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT_PLUS_SPLIT", percent: 100 });
   assertAlmostEqual((t8[0] as any).erotettava, 90, "PERCENT_PLUS_SPLIT 100% deducted");
   assertAlmostEqual((t8[0] as any).oneThird, 30, "PERCENT_PLUS_SPLIT 1/3 at 100%");
   assertAlmostEqual((t8[0] as any).twoThirds, 60, "PERCENT_PLUS_SPLIT 2/3 at 100%");
@@ -154,7 +149,7 @@ function runCalcSplitTests() {
   // 9: remainder idea check (base - erotettava)
   const base = 1000;
   const p = 15;
-  const t9 = calcSplit([{ id: "t9", maksupaiva: "", tulolaji: "", palkka: base, alkuperainenTulo: 0, tyonantaja: "" } as Row], { splitType: "PERCENT_PLUS_SPLIT", percent: p });
+  const t9 = calcSplit([{ id: "t9", maksupaiva: "", tulolaji: "", palkka: base, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "" } as IncomeRow], { splitType: "PERCENT_PLUS_SPLIT", percent: p });
   const deducted = (t9[0] as any).erotettava as number;
   assertAlmostEqual(base - deducted, 850, "Remainder = base - deducted");
 
@@ -181,7 +176,25 @@ function newId() {
 
 // --- Main component --------------------------------------------------------
 export default function MassIncomeSplitPrototype() {
-  const [rows, setRows] = useState<Row[]>(MOCK_ROWS);
+  // Read income rows from sessionStorage (from Allocateincome), fallback to MOCK_ROWS
+  const [rows, setRows] = useState<IncomeRow[]>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("incomeRows");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as IncomeRow[];
+          // Only use stored data if it's not empty
+          if (parsed && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (e) {
+          console.error("Failed to parse income rows from sessionStorage:", e);
+        }
+      }
+    }
+    // Fallback to mock data if sessionStorage doesn't have data
+    return MOCK_ROWS;
+  });
 
   // Dynaamiset työnantajavaihtoehdot + "Kaikki työnantajat"
   const employerOptions = useMemo(
@@ -192,7 +205,8 @@ export default function MassIncomeSplitPrototype() {
   // Filters
   const [employer, setEmployer] = useState("Kaikki työnantajat");
   const [incomeType, setIncomeType] = useState("Aikapalkka"); // voi olla "Kaikki"
-  const [onlySubsidized, setOnlySubsidized] = useState(true); // Vain palkkatuettu
+  const [onlySubsidized, setOnlySubsidized] = useState(false); // Changed default to false to show all rows
+  const [hideNonBenefitAffecting, setHideNonBenefitAffecting] = useState(true); // Default: hide non-benefit affecting income types
   const [dateFromStr, setDateFromStr] = useState("");
   const [dateToStr, setDateToStr] = useState("");
 
@@ -203,27 +217,123 @@ export default function MassIncomeSplitPrototype() {
     return rows.filter((r) => {
       if (employer !== "Kaikki työnantajat" && r.tyonantaja !== employer) return false;
       if (incomeType && incomeType !== "Kaikki" && r.tulolaji !== incomeType) return false;
-      if (onlySubsidized && !SUBSIDIZED_EMPLOYERS.has(r.tyonantaja)) return false;
+      // Use isSubsidized field if available, otherwise fall back to SUBSIDIZED_EMPLOYERS set
+      if (onlySubsidized) {
+        if (r.isSubsidized !== undefined) {
+          if (!r.isSubsidized) return false;
+        } else {
+          // Fallback to old logic if isSubsidized is not set
+          if (!SUBSIDIZED_EMPLOYERS.has(r.tyonantaja)) return false;
+        }
+      }
+      // Filter out non-benefit affecting income types if hideNonBenefitAffecting is true
+      // UNLESS they are explicitly marked as "Huomioitu laskennassa"
+      if (hideNonBenefitAffecting) {
+        if (NON_BENEFIT_AFFECTING_INCOME_TYPES.includes(r.tulolaji)) {
+          // Only show if explicitly marked as included in calculation
+          if (!r.huom?.includes("Huomioitu laskennassa")) {
+            return false;
+          }
+        }
+      }
       const d = parseFinnishDate(r.maksupaiva);
       if (dateFrom && d && d < dateFrom) return false;
       if (dateTo && d && d > dateTo) return false;
       return true;
     });
-  }, [rows, employer, incomeType, onlySubsidized, dateFrom, dateTo]);
+  }, [rows, employer, incomeType, onlySubsidized, hideNonBenefitAffecting, dateFrom, dateTo]);
 
-  // Selection (for filtered set)
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => rows.map((r) => r.id));
+  // Selection (for filtered set) - initialize with all row IDs
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    // Initialize with all row IDs when component mounts
+    return rows.map((r) => r.id);
+  });
+  
+  // Update selectedIds when rows change (e.g., when data is loaded from sessionStorage)
+  // This ensures that when new data is loaded, all rows are selected by default
+  const rowIdsString = useMemo(() => rows.map(r => r.id).join(','), [rows]);
+  React.useEffect(() => {
+    if (rows.length > 0) {
+      const currentRowIds = rows.map(r => r.id);
+      // Reset selection to all rows when data changes
+      setSelectedIds(currentRowIds);
+    }
+  }, [rowIdsString]); // Depend on row IDs string to detect changes
   const selectedRowsFiltered = useMemo(() => filteredRows.filter((r) => selectedIds.includes(r.id)), [filteredRows, selectedIds]);
+  
+  // Selected subsidized rows for drawer
+  const selectedSubsidizedRows = useMemo(() => {
+    return selectedRowsFiltered.filter((r) => {
+      const isSubsidized = r.isSubsidized !== undefined 
+        ? r.isSubsidized 
+        : SUBSIDIZED_EMPLOYERS.has(r.tyonantaja);
+      return isSubsidized;
+    });
+  }, [selectedRowsFiltered]);
 
   // Summary over filtered
   const totalFiltered = useMemo(() => filteredRows.reduce((s, r) => s + r.palkka, 0), [filteredRows]);
-  const subsidizedFiltered = useMemo(() => filteredRows.reduce((s, r) => s + (SUBSIDIZED_EMPLOYERS.has(r.tyonantaja) ? r.palkka : 0), 0), [filteredRows]);
+  const subsidizedFiltered = useMemo(() => {
+    return filteredRows.reduce((s, r) => {
+      // Use isSubsidized field if available, otherwise fall back to SUBSIDIZED_EMPLOYERS set
+      const isSubsidized = r.isSubsidized !== undefined 
+        ? r.isSubsidized 
+        : SUBSIDIZED_EMPLOYERS.has(r.tyonantaja);
+      return s + (isSubsidized ? r.palkka : 0);
+    }, 0);
+  }, [filteredRows]);
 
   // Show "Original income" column only if any filtered row has it
   const showOriginal = useMemo(() => filteredRows.some(r => (r.alkuperainenTulo ?? 0) > 0), [filteredRows]);
 
   // Modal state & split config
   const [open, setOpen] = useState(false);
+  
+  // Subsidized work drawer state
+  const [subsidyDrawerOpen, setSubsidyDrawerOpen] = useState(false);
+  
+  // Read TOE and total salary from sessionStorage (from Allocateincome), fallback to defaults
+  const [toeSystemTotal] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("toeSystemTotal");
+      if (stored) {
+        try {
+          return JSON.parse(stored) as number;
+        } catch (e) {
+          console.error("Failed to parse toeSystemTotal from sessionStorage:", e);
+        }
+      }
+    }
+    return 12; // Default fallback
+  });
+
+  const [systemTotalSalary] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("systemTotalSalary");
+      if (stored) {
+        try {
+          return JSON.parse(stored) as number;
+        } catch (e) {
+          console.error("Failed to parse systemTotalSalary from sessionStorage:", e);
+        }
+      }
+    }
+    return 0; // Default fallback
+  });
+
+  const [periodCount] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("periodCount");
+      if (stored) {
+        try {
+          return JSON.parse(stored) as number;
+        } catch (e) {
+          console.error("Failed to parse periodCount from sessionStorage:", e);
+        }
+      }
+    }
+    return 12; // Default fallback
+  });
   const [splitType, setSplitType] = useState<SplitType>("ONE_THIRD_TWO_THIRDS");
   const [modalSourceType, setModalSourceType] = useState<string>("");
   const uniqueSelectedTypes = useMemo(() => Array.from(new Set(selectedRowsFiltered.map(r => r.tulolaji))), [selectedRowsFiltered]);
@@ -260,7 +370,7 @@ export default function MassIncomeSplitPrototype() {
   // --- performSplit lives INSIDE the component and uses setOpen from state ---
   function performSplit() {
     if (!kohdistettuTulolaji) return; // when income type = "All", source must be selected first
-    const next: Row[] = [];
+    const next: IncomeRow[] = [];
     for (const r of rows) {
       const rowIsSelected = selectedIds.includes(r.id);
       const typeMatches = r.tulolaji === kohdistettuTulolaji;
@@ -274,7 +384,7 @@ export default function MassIncomeSplitPrototype() {
         const oneThird = roundToCents(base / 3);
         const twoThirds = roundToCents((base / 3) * 2);
         // source is zeroed
-        const zeroed: Row = { ...r, palkka: 0, alkuperainenTulo: base };
+        const zeroed: IncomeRow = { ...r, palkka: 0, alkuperainenTulo: base };
         next.push(zeroed);
         // for target rows "Original income" = base
         next.push({ ...r, id: newId(), tulolaji: selectOneThird, palkka: oneThird, alkuperainenTulo: base });
@@ -284,7 +394,7 @@ export default function MassIncomeSplitPrototype() {
   const remaining = roundToCents(base - erotettava);
 
   // Source gets reduced amount (NOT zeroed)
-  const updatedSource: Row = { ...r, palkka: remaining, alkuperainenTulo: base };
+  const updatedSource: IncomeRow = { ...r, palkka: remaining, alkuperainenTulo: base };
   next.push(updatedSource);
 
   // New row for deducted amount to selected income type
@@ -302,7 +412,7 @@ export default function MassIncomeSplitPrototype() {
         const twoThirds = roundToCents((erotettava / 3) * 2);
         const remaining = roundToCents(base - erotettava);
         // source gets remaining portion after deduction
-        const updatedSource: Row = { ...r, palkka: remaining, alkuperainenTulo: base };
+        const updatedSource: IncomeRow = { ...r, palkka: remaining, alkuperainenTulo: base };
         next.push(updatedSource);
         next.push({ ...r, id: newId(), tulolaji: selectOneThird, palkka: oneThird, alkuperainenTulo: base });
         next.push({ ...r, id: newId(), tulolaji: selectTwoThirds, palkka: twoThirds, alkuperainenTulo: base });
@@ -342,9 +452,9 @@ export default function MassIncomeSplitPrototype() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Kaikki">Kaikki</SelectItem>
-                  <SelectItem value="Aikapalkka">Aikapalkka</SelectItem>
-                  <SelectItem value="Vuosilomakorvaus">Vuosilomakorvaus</SelectItem>
-                  <SelectItem value="Lomaraha">Lomaraha</SelectItem>
+                  {INCOME_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -356,24 +466,46 @@ export default function MassIncomeSplitPrototype() {
               <Label className="mb-1">Päättyen</Label>
               <Input placeholder="PP.KK.VVVV" value={dateToStr} onChange={(e) => setDateToStr(e.target.value)} />
             </div>
-            <div className="md:col-span-2 flex items-end">
+            <div className="md:col-span-2 flex items-end gap-4">
               <div className="flex items-center gap-2">
-              <Checkbox checked={onlySubsidized} onCheckedChange={(v) => setOnlySubsidized(Boolean(v))} id="only-subsidized" />
-              <Label htmlFor="only-subsidized">Vain palkkatuettu</Label>
-            </div>
+                <Checkbox checked={onlySubsidized} onCheckedChange={(v) => setOnlySubsidized(Boolean(v))} id="only-subsidized" />
+                <Label htmlFor="only-subsidized">Vain palkkatuettu</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={hideNonBenefitAffecting} onCheckedChange={(v) => setHideNonBenefitAffecting(Boolean(v))} id="hide-non-benefit" />
+                <Label htmlFor="hide-non-benefit" className="text-sm">Piilota laskentaan vaikuttamattomat</Label>
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 rounded-xl bg-teal-50 px-4 py-3 text-sm flex items-center justify-between">
-            <div className="font-medium">
-              Valitut rivit <span className="font-semibold">{selectedRowsFiltered.length}</span> / {filteredRows.length}
+          <div className="mt-6 rounded-xl bg-teal-50 px-4 py-3 text-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-medium">
+                Valitut rivit <span className="font-semibold">{selectedRowsFiltered.length}</span> / {filteredRows.length}
+              </div>
+              <div className="flex items-center gap-6">
+                <div>Yhteensä <span className="font-semibold">{formatCurrency(totalFiltered)}</span></div>
+                {onlySubsidized && subsidizedFiltered > 0 && (
+                  <div>75% palkkatuetuista <span className="font-semibold">{formatCurrency(roundToCents(subsidizedFiltered * 0.75))}</span></div>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-6">
-              <div>Yhteensä <span className="font-semibold">{formatCurrency(totalFiltered)}</span></div>
-              {onlySubsidized && subsidizedFiltered > 0 && (
-                <div>75% palkkatuetuista <span className="font-semibold">{formatCurrency(roundToCents(subsidizedFiltered * 0.75))}</span></div>
-              )}
-            </div>
+            {selectedSubsidizedRows.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-teal-200 flex items-center justify-between">
+                <div>
+                  <span className="font-medium">Palkkatuetut rivit: </span>
+                  <span className="font-semibold">{selectedSubsidizedRows.length}</span>
+                  <span className="ml-2">Brutto: </span>
+                  <span className="font-semibold">{formatCurrency(selectedSubsidizedRows.reduce((sum, r) => sum + r.palkka, 0))}</span>
+                </div>
+                <Button
+                  onClick={() => setSubsidyDrawerOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Korjaa palkkatukityön vaikutukset laskentaan
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 overflow-auto rounded-xl border">
@@ -418,7 +550,12 @@ export default function MassIncomeSplitPrototype() {
                     {showOriginal && (<td className="px-3 py-2 text-right">{formatCurrency(r.alkuperainenTulo)}</td>)}
                     <td className="px-3 py-2 whitespace-nowrap">{r.ansaintaAika ?? ""}</td>
                     <td className="px-3 py-2">{r.kohdistusTOE ?? ""}</td>
-                    <td className="px-3 py-2">{r.tyonantaja}{SUBSIDIZED_EMPLOYERS.has(r.tyonantaja) ? " (palkkatuettu)" : ""}</td>
+                    <td className="px-3 py-2">
+                      {r.tyonantaja}
+                      {(r.isSubsidized !== undefined ? r.isSubsidized : SUBSIDIZED_EMPLOYERS.has(r.tyonantaja)) 
+                        ? " (palkkatuettu)" 
+                        : ""}
+                    </td>
                     <td className="px-3 py-2 text-right">⋯⋯⋯</td>
                   </tr>
                 ))}
@@ -433,9 +570,52 @@ export default function MassIncomeSplitPrototype() {
         </Card>
 
         <div className="flex justify-between">
-          <Button className="bg-green-600 hover:bg-green-700">Tallenna ja sulje</Button>
+          <Button 
+            className="bg-green-600 hover:bg-green-700"
+            onClick={() => {
+              // Save updated rows back to sessionStorage so Allocateincome can read them
+              if (typeof window !== "undefined") {
+                sessionStorage.setItem("incomeRows", JSON.stringify(rows));
+              }
+              // Navigate back to Allocateincome
+              if (typeof window !== "undefined") {
+                window.history.back();
+              }
+            }}
+          >
+            Tallenna ja sulje
+          </Button>
         </div>
       </div>
+
+      {/* Subsidized Work Drawer */}
+      <SubsidizedWorkDrawer
+        open={subsidyDrawerOpen}
+        onOpenChange={setSubsidyDrawerOpen}
+        rows={selectedSubsidizedRows}
+        toeSystemTotal={toeSystemTotal}
+        systemTotalSalary={systemTotalSalary}
+        periodCount={periodCount}
+        onApplyCorrection={(correction) => {
+          // Save correction to sessionStorage for Allocateincome to read
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("subsidyCorrection", JSON.stringify(correction));
+          }
+          // Update rows with subsidy rule if needed
+          setRows((prevRows) =>
+            prevRows.map((row) => {
+              if (selectedSubsidizedRows.some((sr) => sr.id === row.id)) {
+                return {
+                  ...row,
+                  isSubsidized: true,
+                  subsidyRule: correction.rule,
+                };
+              }
+              return row;
+            })
+          );
+        }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl">
@@ -505,9 +685,9 @@ export default function MassIncomeSplitPrototype() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Vuosilomakorvaus">Vuosilomakorvaus</SelectItem>
-                      <SelectItem value="Lomaraha">Lomaraha</SelectItem>
-                      <SelectItem value="Aikapalkka">Aikapalkka</SelectItem>
+                      {INCOME_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -518,9 +698,9 @@ export default function MassIncomeSplitPrototype() {
                     <Select value={selectOneThird} onValueChange={setSelectOneThird}>
                       <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Lomaraha">Lomaraha</SelectItem>
-                        <SelectItem value="Vuosilomakorvaus">Vuosilomakorvaus</SelectItem>
-                        <SelectItem value="Aikapalkka">Aikapalkka</SelectItem>
+                        {INCOME_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

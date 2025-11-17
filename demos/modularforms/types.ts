@@ -26,6 +26,13 @@ export type FormSection = {
   selectedModules: TextModule[];
 };
 
+export type PageBreak = {
+  id: string; // Uniikki ID sivunvaihdolle
+  elementId: string; // Elementin ID, johon sivunvaihto liittyy
+  pageNumber: number; // Sivunumero (1, 2, 3, ...)
+  position: "after"; // Sivunvaihto tapahtuu elementin jälkeen
+};
+
 export type FormDefinition = {
   letterTemplate: string;
   hearingDeadline: string;
@@ -38,6 +45,10 @@ export type FormDefinition = {
     misuseSuspicion: boolean;
     waiver: boolean;
   };
+  // Sivunvaihdot - lista sivunvaihdoista järjestettynä sivunumeron mukaan
+  pageBreaks?: PageBreak[];
+  // Elementtien järjestys - lista element ID:istä järjestyksessä
+  elementOrder?: string[];
 };
 
 export type RecoveryData = {

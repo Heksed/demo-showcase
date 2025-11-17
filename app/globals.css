@@ -73,3 +73,28 @@
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Print styles for page breaks */
+@media print {
+  .print\:page-break-after-always {
+    page-break-after: always;
+  }
+  
+  .print\:page-break-before-always {
+    page-break-before: always;
+  }
+  
+  .print\:page-break-inside-avoid {
+    page-break-inside: avoid;
+  }
+  
+  /* Varmista että sivunvaihto-indikaattorit eivät tulostu */
+  .print\:hidden {
+    display: none !important;
+  }
+  
+  /* Varmista että osiot eivät katkea */
+  .space-y-2 {
+    page-break-inside: avoid;
+  }
+}
+
