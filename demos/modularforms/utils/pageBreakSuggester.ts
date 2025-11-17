@@ -180,17 +180,17 @@ export const suggestPageBreaks = (
     let isVisible = true;
     switch (elementId) {
       case "section-recovery":
-        isVisible = formSections.find((s) => s.id === "recovery")?.selectedModules.length > 0;
+        isVisible = (formSections.find((s) => s.id === "recovery")?.selectedModules.length ?? 0) > 0;
         break;
       case "section-recovery_justification":
-        isVisible = formSections.find((s) => s.id === "recovery_justification")?.selectedModules.length > 0;
+        isVisible = (formSections.find((s) => s.id === "recovery_justification")?.selectedModules.length ?? 0) > 0;
         break;
       case "section-period_breakdown":
         isVisible = definition.checkboxes.periodSpecification;
         break;
       case "section-additional_payment":
         isVisible = !!recoveryData.additionalPayment && (
-          formSections.find((s) => s.id === "additional_payment")?.selectedModules.length > 0 ||
+          (formSections.find((s) => s.id === "additional_payment")?.selectedModules.length ?? 0) > 0 ||
           recoveryData.additionalPayment.periods.length > 0
         );
         break;
@@ -198,19 +198,19 @@ export const suggestPageBreaks = (
         isVisible = !!recoveryData.decisionCorrection && definition.checkboxes.decisionsToCorrect;
         break;
       case "section-waiver":
-        isVisible = formSections.find((s) => s.id === "waiver")?.selectedModules.length > 0;
+        isVisible = (formSections.find((s) => s.id === "waiver")?.selectedModules.length ?? 0) > 0;
         break;
       case "section-recovery_hearing":
-        isVisible = formSections.find((s) => s.id === "recovery_hearing")?.selectedModules.length > 0;
+        isVisible = (formSections.find((s) => s.id === "recovery_hearing")?.selectedModules.length ?? 0) > 0;
         break;
       case "section-payment_proposal":
         isVisible = definition.checkboxes.paymentProposal;
         break;
       case "section-misuse_suspicion":
-        isVisible = formSections.find((s) => s.id === "misuse_suspicion")?.selectedModules.length > 0;
+        isVisible = (formSections.find((s) => s.id === "misuse_suspicion")?.selectedModules.length ?? 0) > 0;
         break;
       case "section-misuse_hearing":
-        isVisible = formSections.find((s) => s.id === "misuse_hearing")?.selectedModules.length > 0;
+        isVisible = (formSections.find((s) => s.id === "misuse_hearing")?.selectedModules.length ?? 0) > 0;
         break;
     }
 
