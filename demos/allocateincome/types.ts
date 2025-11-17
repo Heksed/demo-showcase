@@ -1,5 +1,11 @@
 // Shared types for Allocate Income demo
 
+export type SubsidyRule =
+  | "NONE"                // Normal work, no subsidy rules
+  | "NO_TOE_EXTENDS"      // Subsidized work that does NOT accrue TOE, only extends the reference period
+  | "PERCENT_75"          // Subsidized work before 2.9.2024 → every month is counted at 75%
+  | "LOCK_10_MONTHS_THEN_75"; // Subsidized work with 10-month lock: first 10 months 0%, then 75%
+
 export type IncomeRow = {
   id: string;
   huom?: string;
@@ -12,6 +18,24 @@ export type IncomeRow = {
   kohdistusTOE?: string; // allocationTOE
   tyonantaja: string; // employer
   allocationData?: any; // Tallenna kohdistuksen tiedot
+  
+  // Subsidized work fields (optional, for palkkatuettu työ correction)
+  isSubsidized?: boolean;
+  subsidyRule?: SubsidyRule;
+};
+
+export type SubsidyCorrection = {
+  subsidizedMonthsCounted: number;
+  subsidizedGrossTotal: number;
+  correctToeFromSubsidy: number;
+  toeCorrection: number;
+  toeCorrectedTotal: number;
+  acceptedForWage: number;
+  totalSalaryCorrected: number; // Korjattu TOE-palkka (totalSalary)
+  totalSalaryCorrection: number; // Korjaus TOE-palkkaan
+  averageSalaryCorrected: number; // Korjattu perustepalkka/kk (laskettu korjatusta totalSalarysta)
+  averageSalaryCorrection: number; // Korjaus perustepalkkaan
+  rule: SubsidyRule;
 };
 
 export type ViikkoTOERow = {

@@ -3,6 +3,8 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { SubsidyCorrection } from "../types";
+import { roundToeMonthsDown } from "../utils/subsidyCalculations";
 
 type Summary = {
   completionDate: string;
@@ -23,12 +25,47 @@ export default function SummaryHeader({
   definitionType,
   setDefinitionType,
   formatCurrency,
+  subsidyCorrection,
 }: {
   summary: Summary;
   definitionType: "eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan";
   setDefinitionType: (v: SummaryHeaderProps["definitionType"]) => void;
   formatCurrency: (n: number) => string;
+  subsidyCorrection?: SubsidyCorrection | null;
 }) {
+  // Use corrected values if available, otherwise use system values
+  // Always round TOE months down to nearest 0.5
+  const toeMonthsRaw = subsidyCorrection && subsidyCorrection.toeCorrection !== 0 
+    ? subsidyCorrection.toeCorrectedTotal 
+    : summary.totalTOEMonths;
+  const toeMonths = roundToeMonthsDown(toeMonthsRaw);
+  
+  // Korjattu TOE-palkka (totalSalary)
+  const toeSalary = subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0
+    ? subsidyCorrection.totalSalaryCorrected
+    : summary.totalSalary;
+  
+  // Korjattu perustepalkka/kk (averageSalary) - lasketaan korjatusta TOE-palkasta
+  const wageBase = subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0
+    ? subsidyCorrection.averageSalaryCorrected
+    : summary.averageSalary;
+  
+  // Recalculate daily salary and full daily allowance if wage base changed
+  const dailySalary = wageBase / 21.5;
+  const telDeductionRate = 0.0354;
+  const salaryAfterTelDeduction = wageBase * (1 - telDeductionRate);
+  const incomeThreshold = 3291;
+  let unemploymentBenefit = 0;
+  if (salaryAfterTelDeduction <= incomeThreshold) {
+    unemploymentBenefit = salaryAfterTelDeduction * 0.45;
+  } else {
+    const firstPart = incomeThreshold * 0.45;
+    const excessPart = (salaryAfterTelDeduction - incomeThreshold) * 0.20;
+    unemploymentBenefit = firstPart + excessPart;
+  }
+  const unemploymentBenefitPerDay = unemploymentBenefit / 21.5;
+  const basicDailyAllowance = 37.21;
+  const fullDailyAllowance = basicDailyAllowance + unemploymentBenefitPerDay;
   return (
     <Card className="mb-4">
       <CardContent className="p-6">
@@ -53,9 +90,33 @@ export default function SummaryHeader({
                 <div className="text-gray-900">{summary.reviewPeriod}</div>
                 <div className="text-gray-900">{summary.extendingPeriods}</div>
                 <div className="text-blue-600">{summary.definitionPeriod}</div>
-                <div className="text-gray-900">{`${Math.round(summary.totalTOEMonths * 2) / 2}/12`}</div>
-                <div className="text-gray-900">{definitionType === 'vuositulo' ? formatCurrency(summary.totalSalary) : summary.totalJakaja}</div>
-                <div className="text-gray-900">{formatCurrency(summary.totalSalary)}</div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-gray-900",
+                    subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && "text-blue-600 font-semibold"
+                  )}>
+                    {`${toeMonths.toFixed(1).replace(/\.0$/, '')}/12`}
+                  </span>
+                  {subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && (
+                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                      Korjattu
+                    </span>
+                  )}
+                </div>
+                <div className="text-gray-900">{definitionType === 'vuositulo' ? formatCurrency(toeSalary) : summary.totalJakaja}</div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-gray-900",
+                    subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0 && "text-blue-600 font-semibold"
+                  )}>
+                    {formatCurrency(toeSalary)}
+                  </span>
+                  {subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0 && (
+                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                      Korjattu
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -75,9 +136,21 @@ export default function SummaryHeader({
 
               {/* Arvot */}
               <div className="grid grid-cols-7 gap-4 text-sm">
-                <div className="text-gray-900">{formatCurrency(summary.averageSalary)}</div>
-                <div className="text-gray-900">{formatCurrency(summary.dailySalary)}</div>
-                <div className="text-gray-900">{formatCurrency(summary.fullDailyAllowance)}</div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-gray-900",
+                    subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
+                  )}>
+                    {formatCurrency(wageBase)}
+                  </span>
+                  {subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
+                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                      Korjattu
+                    </span>
+                  )}
+                </div>
+                <div className="text-gray-900">{formatCurrency(dailySalary)}</div>
+                <div className="text-gray-900">{formatCurrency(fullDailyAllowance)}</div>
                 <div className="text-gray-900">Kyllä (vaikuttaa laskentaan)</div>
                 <div className="text-gray-900">2025/3,54</div>
                 <div className="flex items-center">
@@ -123,6 +196,33 @@ export default function SummaryHeader({
               </div>
             </div>
           </div>
+
+          {/* Subsidy correction info banner */}
+          {subsidyCorrection && (subsidyCorrection.toeCorrection !== 0 || subsidyCorrection.totalSalaryCorrection !== 0) && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+              <div className="font-medium text-blue-900 mb-1">Palkkatuettu työ korjattu manuaalisesti</div>
+              <div className="text-blue-700 space-y-1">
+                {subsidyCorrection.toeCorrection !== 0 && (
+                  <div>
+                    TOE-kertymä: {summary.totalTOEMonths.toFixed(1)} kk → {subsidyCorrection.toeCorrectedTotal.toFixed(1)} kk 
+                    ({subsidyCorrection.toeCorrection > 0 ? "+" : ""}{subsidyCorrection.toeCorrection.toFixed(1)} kk)
+                  </div>
+                )}
+                {subsidyCorrection.totalSalaryCorrection !== 0 && (
+                  <div>
+                    TOE-palkka: {formatCurrency(summary.totalSalary)} → {formatCurrency(subsidyCorrection.totalSalaryCorrected)}
+                    ({subsidyCorrection.totalSalaryCorrection > 0 ? "+" : ""}{formatCurrency(subsidyCorrection.totalSalaryCorrection)})
+                  </div>
+                )}
+                {subsidyCorrection.averageSalaryCorrection !== 0 && (
+                  <div>
+                    Perustepalkka/kk: {formatCurrency(summary.averageSalary)} → {formatCurrency(subsidyCorrection.averageSalaryCorrected)}
+                    ({subsidyCorrection.averageSalaryCorrection > 0 ? "+" : ""}{formatCurrency(subsidyCorrection.averageSalaryCorrection)})
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

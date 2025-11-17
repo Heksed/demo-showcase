@@ -10,6 +10,9 @@ import EuroTOETable from "./EuroTOETable";
 import ViikkoTOETable from "./ViikkoTOETable";
 import type { IncomeRow, MonthPeriod } from "../types";
 
+// Subsidized employers - same list as in Allocateincome
+const SUBSIDIZED_EMPLOYERS = new Set<string>(["Nokia Oyj"]);
+
 type DefinitionType = 'eurotoe' | 'eurotoe6' | 'viikkotoe' | 'vuositulo' | 'ulkomaan';
 
 type Props = {
@@ -73,6 +76,18 @@ export default function PeriodsTable({
     onVähennysSummaChange(periodId, summa);
   };
 
+  // Check if period contains subsidized work
+  const hasSubsidizedWork = (period: MonthPeriod): boolean => {
+    return period.rows.some(row => {
+      // Check isSubsidized field if it's set
+      if (row.isSubsidized !== undefined) {
+        return row.isSubsidized;
+      }
+      // Fallback: check employer name against SUBSIDIZED_EMPLOYERS set
+      return SUBSIDIZED_EMPLOYERS.has(row.tyonantaja);
+    });
+  };
+
   return (
     <Card>
       <CardContent className="p-0">
@@ -87,6 +102,7 @@ export default function PeriodsTable({
                 <th className="px-4 py-3 text-left text-sm font-medium">Palkka</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Työnantajat</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Pidennettävät jaksot</th>
+                <th className="px-4 py-3 text-left text-sm font-medium w-24"></th>
               </tr>
             </thead>
             <tbody>
@@ -133,11 +149,18 @@ export default function PeriodsTable({
                         <button className="text-blue-600 hover:underline">{period.pidennettavatJaksot}</button>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-sm">
+                      {hasSubsidizedWork(period) && (
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded-full">
+                          Palkkatuettu
+                        </span>
+                      )}
+                    </td>
                   </tr>
 
                   {expandedPeriods.has(period.id) && (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <div className="bg-gray-100 p-4">
                           {definitionType === "viikkotoe" && period.viikkoTOERows && period.viikkoTOERows.length > 0 ? (
                             <ViikkoTOETable
