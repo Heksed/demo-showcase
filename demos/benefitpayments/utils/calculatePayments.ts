@@ -172,6 +172,7 @@ function calculateDailyPaymentsFromPeriodsRaw(
           date: dateStr,
           note: "",
           dailyAllowance: 0,
+          fullDaily: 0,
           paidDays: 0,
           decisionValidFrom: dateStr,
           decisionType: "Ei maksua",
