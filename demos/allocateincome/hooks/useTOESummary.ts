@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { MonthPeriod } from "../types";
+import type { MonthPeriod, SubsidyCorrection } from "../types";
 import { parseFinnishDate } from "../utils";
 type DefinitionType = 'eurotoe' | 'eurotoe6' | 'viikkotoe' | 'vuositulo' | 'ulkomaan';
 
@@ -38,6 +38,8 @@ type Params = {
   isViikkoTOEPeriod: (period: MonthPeriod) => boolean;
   viikkoTOEVähennysSummat?: {[periodId: string]: number};
   reviewPeriod?: string; // Käyttäjän määrittelemä tarkastelujakso
+  additionalExtendingDays?: number; // Lisäpidentävät jaksot (päivinä) syötetty laajennuksen yhteydessä
+  subsidyCorrection?: SubsidyCorrection | null; // Palkkatuen korjaus
 };
 
 export default function useTOESummary({
@@ -49,6 +51,8 @@ export default function useTOESummary({
   isViikkoTOEPeriod,
   viikkoTOEVähennysSummat = {},
   reviewPeriod,
+  additionalExtendingDays = 0,
+  subsidyCorrection = null,
 }: Params) {
   const summary = useMemo(() => {
     const totalTOEMonthsCalc = periods.reduce((sum, period) => sum + calculateTOEValue(period), 0);
@@ -59,73 +63,213 @@ export default function useTOESummary({
       periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.palkka - (viikkoTOEVähennysSummat[p.id] || 0), 0) :
       periods.reduce((sum, period) => sum + calculateEffectiveIncomeTotal(period), 0);
 
-    // Laske täyttymispäivä: milloin TOE-kertymä saavuttaa 12kk
-    // Käydään periodsit läpi aikajärjestyksessä (vanhimmasta uusimpaan)
+    // Laske täyttymispäivä: tarkastelujakson päättymispäivä, jos TOE täyttyy
+    // Laskenta tehdään taaksepäin tarkastelujakson päättymispäivästä
     let completionDate: Date | null = null;
     let collectedTOEMonths = 0;
     let requiredTOEMonths = 0; // Tarvittu TOE-määrä täyttymiseen (kun TOE >= 12)
     const requiredPeriods: MonthPeriod[] = []; // Periodsit jotka olivat tarvittu täyttämään TOE
     
-    // Järjestä periodsit aikajärjestykseen (vanhimmasta uusimpaan)
-    // Poista viikkotoe-combined periodi, koska se ei ole yksittäinen kuukausi
+    // Hae tarkastelujakson alkupäivä ja päättymispäivä
+    // Laskenta lähtee aina kuluvasta päivästä taaksepäin
+    let reviewPeriodEndDate: Date | null = null;
+    let reviewPeriodStartDate: Date | null = null;
+    if (reviewPeriod && reviewPeriod.trim() !== "") {
+      const parts = reviewPeriod.split(' - ');
+      if (parts.length === 2) {
+        const startDateStr = parts[0];
+        const endDateStr = parts[1];
+        reviewPeriodStartDate = parseFinnishDate(startDateStr);
+        reviewPeriodEndDate = parseFinnishDate(endDateStr);
+      }
+    }
+    
+    // Jos ei tarkastelujaksoa tai se on tyhjä, käytä nykyistä päivää
+    // Laskenta lähtee aina kuluvasta päivästä taaksepäin
+    if (!reviewPeriodEndDate) {
+      reviewPeriodEndDate = new Date(); // Kuluvan päivän viimeinen päivä
+    }
+    
+    // Järjestä periodsit taaksepäin (uusimmasta vanhimpaan) tarkastelujakson päättymispäivästä
     const sortedPeriods = periods
       .filter(p => p.id !== "viikkotoe-combined")
       .sort((a, b) => {
         const dateA = parsePeriodDate(a.ajanjakso);
         const dateB = parsePeriodDate(b.ajanjakso);
         if (!dateA || !dateB) return 0;
-        return dateA.getTime() - dateB.getTime();
+        return dateB.getTime() - dateA.getTime(); // Käänteinen järjestys: uusin ensin
       });
     
-    // Käy periodsit läpi ja laske TOE-kertymä kunnes saavutetaan 12kk
+    // Käy periodsit läpi taaksepäin tarkastelujakson päättymispäivästä
     for (const period of sortedPeriods) {
-      const periodTOE = definitionType === 'viikkotoe' && period.viikkoTOERows && period.viikkoTOERows.length > 0
+      const periodDate = parsePeriodDate(period.ajanjakso);
+      if (!periodDate || !reviewPeriodEndDate) continue;
+      
+      // Tarkista, että periodi on tarkastelujakson sisällä (ennen päättymispäivää)
+      if (periodDate > reviewPeriodEndDate) continue;
+      
+      // Tarkista myös, että periodi on tarkastelujakson alkupäivän jälkeen
+      if (reviewPeriodStartDate && periodDate < reviewPeriodStartDate) continue;
+      
+      let periodTOE = definitionType === 'viikkotoe' && period.viikkoTOERows && period.viikkoTOERows.length > 0
         ? period.toe
         : calculateTOEValue(period);
       
-      collectedTOEMonths += periodTOE;
-      requiredPeriods.push(period); // Lisää periodi tarvittujen periodsien listaan
-      
-      // Jos 12kk saavutettu, aseta täyttymispäivä tämän kuukauden viimeiseksi päiväksi
-      if (collectedTOEMonths >= 12 && !completionDate) {
-        // Tallenna tarvittu määrä (tämä on se määrä joka oli tarvittu täyttämään TOE)
-        requiredTOEMonths = collectedTOEMonths;
-        const periodDate = parsePeriodDate(period.ajanjakso);
-        if (periodDate) {
-          // Viimeinen päivä kuukaudesta
-          completionDate = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0);
+      // Jos palkkatuetun työn korjaus on tehty, korjaa periodin TOE
+      if (subsidyCorrection && subsidyCorrection.toeCorrection !== 0) {
+        // Tarkista, onko periodissa palkkatuettua työtä
+        const periodHasSubsidized = period.rows.some(row => {
+          const isSubsidized = row.isSubsidized !== undefined
+            ? row.isSubsidized
+            : (row.tyonantaja === "Nokia Oyj"); // Käytetään samaa logiikkaa kuin Allocateincome.tsx
+          return isSubsidized;
+        });
+        
+        if (periodHasSubsidized) {
+          // Laske korjaus tälle periodille
+          // Käytetään yksinkertaistettua logiikkaa: korjaus jakautuu tasaisesti
+          // palkkatuetuille periodsille
+          const subsidizedPeriodsCount = sortedPeriods.filter(p => {
+            const pDate = parsePeriodDate(p.ajanjakso);
+            if (!pDate) return false;
+            return pDate >= (reviewPeriodStartDate || new Date(0)) && pDate <= reviewPeriodEndDate &&
+                   p.rows.some(row => {
+                     const isSubsidized = row.isSubsidized !== undefined
+                       ? row.isSubsidized
+                       : (row.tyonantaja === "Nokia Oyj");
+                     return isSubsidized;
+                   });
+          }).length;
+          
+          if (subsidizedPeriodsCount > 0) {
+            const correctionPerPeriod = subsidyCorrection.toeCorrection / subsidizedPeriodsCount;
+            periodTOE = Math.max(0, periodTOE + correctionPerPeriod); // Varmista ettei mene negatiiviseksi
+          }
         }
-        break;
       }
+      
+      // TÄRKEÄ: Lisää periodi requiredPeriods-taulukkoon VASTA jos periodin TOE > 0
+      // Tämä varmistaa että vain TOE-kerryttävät periodsit osallistuvat laskentaan
+      if (periodTOE > 0) {
+        // Lisää periodi requiredPeriods-taulukkoon ennen kuin lisätään TOE-kuukaudet
+        // Tämä varmistaa että periodi on mukana jos se osallistuu täyttymiseen
+        requiredPeriods.unshift(period); // Lisää alkuun (vanhin ensin, jotta järjestys on oikea)
+        
+        collectedTOEMonths += periodTOE;
+        
+        // Jos 12kk saavutettu, rajoita requiredPeriods vain niihin periodsit jotka osallistuivat täyttymiseen
+        if (collectedTOEMonths >= 12 && requiredTOEMonths === 0) {
+          requiredTOEMonths = collectedTOEMonths;
+          completionDate = reviewPeriodEndDate; // Täyttymispäivä on tarkastelujakson päättymispäivä
+          
+          // Rajoita requiredPeriods vain niihin periodsit jotka osallistuivat täyttymiseen
+          // Lasketaan taaksepäin: montako periodia tarvitaan täyttämään 12kk
+          // TÄRKEÄ: Tallenna vain ne periodsit, joilla on TOE > 0
+          let tempCollected = 0;
+          const periodsNeeded: MonthPeriod[] = []; // Tallenna periodsit, joilla on TOE > 0
+          for (let i = requiredPeriods.length - 1; i >= 0; i--) {
+            const p = requiredPeriods[i];
+            let pTOE = definitionType === 'viikkotoe' && p.viikkoTOERows && p.viikkoTOERows.length > 0
+              ? p.toe
+              : calculateTOEValue(p);
+            
+            // Käytä korjattua TOE-arvoa jos korjaus on annettu
+            if (subsidyCorrection && subsidyCorrection.toeCorrection !== 0) {
+              const pHasSubsidized = p.rows.some(row => {
+                const isSubsidized = row.isSubsidized !== undefined
+                  ? row.isSubsidized
+                  : (row.tyonantaja === "Nokia Oyj");
+                return isSubsidized;
+              });
+              
+              if (pHasSubsidized) {
+                const subsidizedPeriodsCount = sortedPeriods.filter(pp => {
+                  const ppDate = parsePeriodDate(pp.ajanjakso);
+                  if (!ppDate) return false;
+                  return ppDate >= (reviewPeriodStartDate || new Date(0)) && ppDate <= reviewPeriodEndDate &&
+                         pp.rows.some(row => {
+                           const isSubsidized = row.isSubsidized !== undefined
+                             ? row.isSubsidized
+                             : (row.tyonantaja === "Nokia Oyj");
+                           return isSubsidized;
+                         });
+                }).length;
+                
+                if (subsidizedPeriodsCount > 0) {
+                  const correctionPerPeriod = subsidyCorrection.toeCorrection / subsidizedPeriodsCount;
+                  pTOE = Math.max(0, pTOE + correctionPerPeriod);
+                }
+              }
+            }
+            
+            // Varmista että periodin TOE > 0 ennen kuin lisätään
+            if (pTOE > 0) {
+              tempCollected += pTOE;
+              periodsNeeded.unshift(p); // Lisää alkuun (uusin ensin, koska käydään taaksepäin)
+              if (tempCollected >= 12) {
+                break;
+              }
+            }
+          }
+          // Pidä vain ne periodit jotka osallistuivat täyttymiseen ja joilla on TOE > 0
+          // Korvaa requiredPeriods täysin periodsNeeded-taulukolla
+          requiredPeriods.splice(0, requiredPeriods.length);
+          requiredPeriods.push(...periodsNeeded);
+          break;
+        }
+      }
+      // Jos periodin TOE on 0, ei lisätä sitä requiredPeriods-taulukkoon
+      // eikä lisätä sitä collectedTOEMonths-muuttujaan
     }
     
-    // Jos TOE < 12kk, käytä tarkastelujakson loppupäivää tai oletuspäivää
-    if (!completionDate) {
-      if (reviewPeriod) {
-        const endDateStr = reviewPeriod.split(' - ')[1];
-        const endDate = parseFinnishDate(endDateStr);
-        completionDate = endDate || new Date();
-      } else {
-        // Jos ei tarkastelujaksoa, käytä viimeisimmän periodin päivää
-        if (sortedPeriods.length > 0) {
-          const lastPeriod = sortedPeriods[sortedPeriods.length - 1];
-          const lastPeriodDate = parsePeriodDate(lastPeriod.ajanjakso);
-          if (lastPeriodDate) {
-            completionDate = new Date(lastPeriodDate.getFullYear(), lastPeriodDate.getMonth() + 1, 0);
-          } else {
-            completionDate = new Date();
-          }
-        } else {
-          completionDate = new Date();
-        }
-      }
-    }
+    // Jos TOE ei täyty (< 12kk), completionDate pysyy null (näytetään viiva)
 
     // Laske Jakaja ja TOE-palkka vain tarvittujen periodsien perusteella
+    // requiredPeriods sisältää jo vain periodsit, joilla on TOE > 0 (koska ne lisätään vain jos periodTOE > 0)
+    // Mutta tarkistetaan vielä kerran varmuuden vuoksi, koska subsidyCorrection voi muuttaa TOE-arvoja
     const requiredJakaja = requiredTOEMonths > 0
-      ? requiredPeriods.reduce((sum, period) => sum + period.jakaja, 0)
+      ? requiredPeriods.reduce((sum, period) => {
+          // Laske jakaja vain niiltä periodsilta, joilla on TOE > 0
+          let periodTOE = definitionType === 'viikkotoe' && period.viikkoTOERows && period.viikkoTOERows.length > 0
+            ? period.toe
+            : calculateTOEValue(period);
+          
+          // Käytä korjattua TOE-arvoa jos korjaus on annettu
+          if (subsidyCorrection && subsidyCorrection.toeCorrection !== 0) {
+            const periodHasSubsidized = period.rows.some(row => {
+              const isSubsidized = row.isSubsidized !== undefined
+                ? row.isSubsidized
+                : (row.tyonantaja === "Nokia Oyj");
+              return isSubsidized;
+            });
+            
+            if (periodHasSubsidized) {
+              const subsidizedPeriodsCount = sortedPeriods.filter(p => {
+                const pDate = parsePeriodDate(p.ajanjakso);
+                if (!pDate) return false;
+                return pDate >= (reviewPeriodStartDate || new Date(0)) && pDate <= reviewPeriodEndDate &&
+                       p.rows.some(row => {
+                         const isSubsidized = row.isSubsidized !== undefined
+                           ? row.isSubsidized
+                           : (row.tyonantaja === "Nokia Oyj");
+                         return isSubsidized;
+                       });
+              }).length;
+              
+              if (subsidizedPeriodsCount > 0) {
+                const correctionPerPeriod = subsidyCorrection.toeCorrection / subsidizedPeriodsCount;
+                periodTOE = Math.max(0, periodTOE + correctionPerPeriod);
+              }
+            }
+          }
+          
+          // Jos periodin TOE on 0, ei lisätä jakajaa
+          return periodTOE > 0 ? sum + period.jakaja : sum;
+        }, 0)
       : totalJakaja; // Jos TOE ei täyty, käytä kaikkia periodsien jakaja-arvoja
     
+    // Laske requiredSalary vain niistä periodsit, joilla on TOE > 0
+    // requiredPeriods sisältää jo vain periodsit, joilla on TOE > 0 (koska ne lisätään vain jos periodTOE > 0)
     const requiredSalary = requiredTOEMonths > 0
       ? (definitionType === 'viikkotoe'
           ? requiredPeriods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateEffectiveIncomeTotal(p), 0) +
@@ -141,6 +285,7 @@ export default function useTOESummary({
     switch (definitionType) {
       case 'eurotoe': {
         // Määrittelyjakso: 12kk taaksepäin täyttymispäivästä
+        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
         if (completionDate) {
           const definitionStart = new Date(completionDate);
           definitionStart.setMonth(definitionStart.getMonth() - 12);
@@ -150,7 +295,7 @@ export default function useTOESummary({
           const definitionEndStr = formatDateFI(completionDate);
           definitionPeriod = `${definitionStartStr} - ${definitionEndStr}`;
         } else {
-          definitionPeriod = periods.length > 0 ? "01.01.2025 - 31.12.2025" : '';
+          definitionPeriod = ''; // Näytetään viiva, jos TOE ei täyty
         }
         
         // Käytä requiredSalary ja requiredPeriods jos TOE täyttyy
@@ -163,6 +308,7 @@ export default function useTOESummary({
       }
       case 'eurotoe6': {
         // Määrittelyjakso: 6kk taaksepäin täyttymispäivästä
+        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
         if (completionDate) {
           const definitionStart = new Date(completionDate);
           definitionStart.setMonth(definitionStart.getMonth() - 6);
@@ -172,7 +318,7 @@ export default function useTOESummary({
           const definitionEndStr = formatDateFI(completionDate);
           definitionPeriod = `${definitionStartStr} - ${definitionEndStr}`;
         } else {
-          definitionPeriod = periods.length > 0 ? "01.07.2025 - 31.12.2025" : '';
+          definitionPeriod = ''; // Näytetään viiva, jos TOE ei täyty
         }
         
         // EuroTOE6: käytä viimeisiä 6 periodia tarvittujen periodsien joukosta
@@ -233,17 +379,18 @@ export default function useTOESummary({
           const reviewEndStr = formatDateFI(completionDate);
           definitionPeriod = `${reviewStartStr} - ${reviewEndStr}`;
         } else {
-          definitionPeriod = periods.length > 0 ? "01.01.2025 - 31.12.2025" : '';
+          definitionPeriod = ''; // Näytetään viiva, jos TOE ei täyty
         }
         break;
       }
       case 'vuositulo': {
         // Vuositulo: määrittelyjakso on täyttymispäivän vuosi
+        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
         if (completionDate) {
           const year = completionDate.getFullYear();
           definitionPeriod = `01.01.${year} - 31.12.${year}`;
         } else {
-          definitionPeriod = periods.length > 0 ? "01.01.2025 - 31.12.2025" : '';
+          definitionPeriod = ''; // Näytetään viiva, jos TOE ei täyty
         }
         
         averageSalary = totalSalary;
@@ -253,6 +400,7 @@ export default function useTOESummary({
       }
       case 'ulkomaan': {
         // Ulkomaan: määrittelyjakso 12kk taaksepäin täyttymispäivästä
+        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
         if (completionDate) {
           const definitionStart = new Date(completionDate);
           definitionStart.setMonth(definitionStart.getMonth() - 12);
@@ -261,7 +409,7 @@ export default function useTOESummary({
           const definitionEndStr = formatDateFI(completionDate);
           definitionPeriod = `${definitionStartStr} - ${definitionEndStr}`;
         } else {
-          definitionPeriod = periods.length > 0 ? "01.01.2025 - 31.12.2025" : '';
+          definitionPeriod = ''; // Näytetään viiva, jos TOE ei täyty
         }
         
         averageSalary = periods.length > 0 ? totalSalary / periods.length : 0;
@@ -291,7 +439,8 @@ export default function useTOESummary({
     // Käytä käyttäjän määrittelemää tarkastelujaksoa jos se on annettu, muuten käytä oletusarvoa
     const reviewPeriodDisplay = reviewPeriod || (definitionType === 'viikkotoe' ? definitionPeriod : "01.01.2025 - 31.12.2025");
     const completionDateStr = completionDate ? formatDateFI(completionDate) : '';
-    const extendingPeriods = periods.reduce((sum, period) => sum + period.pidennettavatJaksot, 0);
+    const periodsExtendingDays = periods.reduce((sum, period) => sum + period.pidennettavatJaksot, 0);
+    const extendingPeriods = periodsExtendingDays + additionalExtendingDays;
 
     // Laske näytettävä TOE-määrä: jos TOE täyttyy, näytetään vain tarvittu määrä
     const displayTOEMonths = requiredTOEMonths > 0 ? requiredTOEMonths : totalTOEMonthsCalc;
@@ -306,6 +455,7 @@ export default function useTOESummary({
       displayTOEMax, // Näytettävä maksimi (tarvittu määrä jos täyttyy, muuten 12)
       totalJakaja: workingDaysTotal,
       totalSalary: requiredTOEMonths > 0 ? requiredSalary : totalSalary,
+      totalSalaryAllPeriods: totalSalary, // Kaikkien periodsien kokonaispalkka (käytetään calculateSubsidyCorrection-funktiossa)
       averageSalary,
       dailySalary,
       fullDailyAllowance,
@@ -320,8 +470,9 @@ export default function useTOESummary({
       viikkoTOEMonths: definitionType === 'viikkotoe'
         ? periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.toe, 0)
         : 0,
+      requiredPeriodsCount: requiredTOEMonths > 0 ? requiredPeriods.length : periods.length, // Periodsien määrä, joilla on TOE > 0 ja jotka osallistuivat täyttymiseen
     } as any;
-  }, [periods, definitionType, viikkoTOEVähennysSummat, reviewPeriod, calculateTOEValue, calculateEffectiveIncomeTotal, isViikkoTOEPeriod]);
+  }, [periods, definitionType, viikkoTOEVähennysSummat, reviewPeriod, calculateTOEValue, calculateEffectiveIncomeTotal, isViikkoTOEPeriod, additionalExtendingDays, subsidyCorrection]);
 
   return summary;
 }

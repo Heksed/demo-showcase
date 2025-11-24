@@ -11,7 +11,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { Card } from "@/components/ui/card";
 import type { IncomeRow, SubsidyCorrection } from "../allocateincome/types";
 import { INCOME_TYPES, NON_BENEFIT_AFFECTING_INCOME_TYPES } from "../allocateincome/types";
-import SubsidizedWorkDrawer from "../allocateincome/components/SubsidizedWorkDrawer";
 
 // ============================================================================
 // Mass Income Split – Next.js + Tailwind (suomi.fi style) Prototype
@@ -293,9 +292,6 @@ export default function MassIncomeSplitPrototype() {
   // Modal state & split config
   const [open, setOpen] = useState(false);
   
-  // Subsidized work drawer state
-  const [subsidyDrawerOpen, setSubsidyDrawerOpen] = useState(false);
-  
   // Read TOE and total salary from sessionStorage (from Allocateincome), fallback to defaults
   const [toeSystemTotal] = useState(() => {
     if (typeof window !== "undefined") {
@@ -478,7 +474,7 @@ export default function MassIncomeSplitPrototype() {
               <div className="flex items-center gap-2">
                 <Checkbox checked={hideNonBenefitAffecting} onCheckedChange={(v) => setHideNonBenefitAffecting(Boolean(v))} id="hide-non-benefit" />
                 <Label htmlFor="hide-non-benefit" className="text-sm">Piilota laskentaan vaikuttamattomat</Label>
-              </div>
+            </div>
             </div>
           </div>
 
@@ -502,12 +498,6 @@ export default function MassIncomeSplitPrototype() {
                   <span className="ml-2">Brutto: </span>
                   <span className="font-semibold">{formatCurrency(selectedSubsidizedRows.reduce((sum, r) => sum + r.palkka, 0))}</span>
                 </div>
-                <Button
-                  onClick={() => setSubsidyDrawerOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Korjaa palkkatukityön vaikutukset laskentaan
-                </Button>
               </div>
             )}
           </div>
@@ -592,34 +582,6 @@ export default function MassIncomeSplitPrototype() {
         </div>
       </div>
 
-      {/* Subsidized Work Drawer */}
-      <SubsidizedWorkDrawer
-        open={subsidyDrawerOpen}
-        onOpenChange={setSubsidyDrawerOpen}
-        rows={selectedSubsidizedRows}
-        toeSystemTotal={toeSystemTotal}
-        systemTotalSalary={systemTotalSalary}
-        periodCount={periodCount}
-        onApplyCorrection={(correction) => {
-          // Save correction to sessionStorage for Allocateincome to read
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem("subsidyCorrection", JSON.stringify(correction));
-          }
-          // Update rows with subsidy rule if needed
-          setRows((prevRows) =>
-            prevRows.map((row) => {
-              if (selectedSubsidizedRows.some((sr) => sr.id === row.id)) {
-                return {
-                  ...row,
-                  isSubsidized: true,
-                  subsidyRule: correction.rule,
-                };
-              }
-              return row;
-            })
-          );
-        }}
-      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl">

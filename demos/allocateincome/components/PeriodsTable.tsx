@@ -137,7 +137,13 @@ export default function PeriodsTable({
                         ? period.toe
                         : calculateTOEValue(period)}
                     </td>
-                    <td className="px-4 py-3 text-sm">{period.jakaja}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {(period.viikkoTOERows && period.viikkoTOERows.length > 0
+                        ? period.toe
+                        : calculateTOEValue(period)) > 0
+                        ? period.jakaja
+                        : 0}
+                    </td>
                     <td className="px-4 py-3 text-sm font-medium">
                       {period.viikkoTOERows && period.viikkoTOERows.length > 0
                         ? formatCurrency(period.palkka - (viikkoTOEVähennysSummat[period.id] || 0))

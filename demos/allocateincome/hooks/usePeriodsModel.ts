@@ -16,7 +16,7 @@ export default function usePeriodsModel(definitionType: DefinitionType) {
     return MOCK_PERIODS;
   });
 
-  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set(["2025-12", "viikkotoe-combined"]));
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
 
   const togglePeriod = useCallback((periodId: string) => {
     setExpandedPeriods(prev => {

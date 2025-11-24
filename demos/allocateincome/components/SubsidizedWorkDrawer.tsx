@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import type { IncomeRow, SubsidyRule, SubsidyCorrection } from "../types";
 import { calculateSubsidyCorrection } from "../utils/subsidyCalculations";
 import { formatCurrency } from "../utils";
@@ -18,7 +19,10 @@ interface SubsidizedWorkDrawerProps {
   toeSystemTotal: number;
   systemTotalSalary: number;
   periodCount: number;
+  totalExtendingDays: number;
   onApplyCorrection: (correction: SubsidyCorrection) => void;
+  onExtendPeriod: (additionalDays: number, correction: SubsidyCorrection) => void;
+  estimateTOEWithExtending: (additionalDays: number, correction: SubsidyCorrection) => number;
 }
 
 export default function SubsidizedWorkDrawer({
@@ -28,11 +32,15 @@ export default function SubsidizedWorkDrawer({
   toeSystemTotal,
   systemTotalSalary,
   periodCount,
+  totalExtendingDays,
   onApplyCorrection,
+  onExtendPeriod,
+  estimateTOEWithExtending,
 }: SubsidizedWorkDrawerProps) {
   const [subsidyRule, setSubsidyRule] = useState<SubsidyRule>("PERCENT_75");
   const [useToeCorrection, setUseToeCorrection] = useState(true);
   const [useWageCorrection, setUseWageCorrection] = useState(true);
+  const [additionalExtendingDays, setAdditionalExtendingDays] = useState<string>("0");
 
   // Calculate corrections based on selected rule
   const correction = useMemo(() => {
@@ -62,9 +70,62 @@ export default function SubsidizedWorkDrawer({
       averageSalaryCorrection: (canUseWageCorrection && useWageCorrection) ? correction.averageSalaryCorrection : 0,
     };
     
-    onApplyCorrection(fullCorrection);
+    // Jos on lisätty pidentäviä jaksoja, käytä laajennusta
+    const additionalDays = parseInt(additionalExtendingDays) || 0;
+    if (additionalDays > 0 && fullCorrection.toeCorrectedTotal < 12) {
+      // Sovelleta korjaus ja laajenna tarkastelujaksoa
+      onExtendPeriod(additionalDays, fullCorrection);
+    } else {
+      // Sovelleta vain korjaus
+      onApplyCorrection(fullCorrection);
+    }
     onOpenChange(false);
   };
+
+  // Laske arvioitu TOE lisäpäivillä
+  const estimatedTOE = useMemo(() => {
+    if (!correction || correction.toeCorrectedTotal >= 12) return null;
+    const additionalDays = parseInt(additionalExtendingDays) || 0;
+    if (additionalDays <= 0) return correction.toeCorrectedTotal;
+    // Varmista että correction sisältää rule-kentän
+    const correctionWithRule: SubsidyCorrection = {
+      ...correction,
+      rule: subsidyRule,
+    };
+    return estimateTOEWithExtending(additionalDays, correctionWithRule);
+  }, [correction, additionalExtendingDays, estimateTOEWithExtending, subsidyRule]);
+
+  // Laske näytettävä TOE-kertymä: jos on lisätty pidentäviä jaksoja, näytetään arvioitu TOE
+  const displayTOE = useMemo(() => {
+    if (!correction) return null;
+    const additionalDays = parseInt(additionalExtendingDays) || 0;
+    if (additionalDays > 0 && estimatedTOE !== null) {
+      return estimatedTOE;
+    }
+    return correction.toeCorrectedTotal;
+  }, [correction, additionalExtendingDays, estimatedTOE]);
+
+  // Laske palkanmäärittely arvioidulla TOE:lla jos TOE täyttyy laajennuksen jälkeen
+  const estimatedWageCorrection = useMemo(() => {
+    if (!correction || !estimatedTOE || estimatedTOE < 12) return null;
+    
+    // Laske palkanmäärittely uudelleen arvioidulla TOE:lla
+    // Käytetään samaa logiikkaa kuin calculateSubsidyCorrection, mutta arvioidulla TOE:lla
+    const acceptedForWage = correction.acceptedForWage; // Tämä on jo laskettu oikein säännön perusteella
+    const totalSalaryCorrected = systemTotalSalary - correction.subsidizedGrossTotal + acceptedForWage;
+    const totalSalaryCorrection = totalSalaryCorrected - systemTotalSalary;
+    const systemAverageSalary = periodCount > 0 ? systemTotalSalary / periodCount : 0;
+    const averageSalaryCorrected = periodCount > 0 ? totalSalaryCorrected / periodCount : 0;
+    const averageSalaryCorrection = averageSalaryCorrected - systemAverageSalary;
+
+    return {
+      totalSalaryCorrected,
+      totalSalaryCorrection,
+      averageSalaryCorrected,
+      averageSalaryCorrection,
+      acceptedForWage,
+    };
+  }, [correction, estimatedTOE, systemTotalSalary, periodCount]);
 
   if (rows.length === 0) {
     return null;
@@ -78,47 +139,6 @@ export default function SubsidizedWorkDrawer({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Selected rows summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Valitut palkkatuetut rivit</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="text-sm text-gray-600">
-                  Rivien määrä: <span className="font-semibold text-gray-900">{rows.length}</span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  Brutto yhteensä: <span className="font-semibold text-gray-900">{formatCurrency(rows.reduce((sum, r) => sum + r.palkka, 0))}</span>
-                </div>
-                <div className="mt-4 max-h-48 overflow-y-auto border rounded p-2">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-2 py-1 text-left">Maksupäivä</th>
-                        <th className="px-2 py-1 text-left">Tulolaji</th>
-                        <th className="px-2 py-1 text-right">Palkka</th>
-                        <th className="px-2 py-1 text-left">Työnantaja</th>
-                        <th className="px-2 py-1 text-left">Ansainta-aika</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => (
-                        <tr key={row.id} className="border-b">
-                          <td className="px-2 py-1">{row.maksupaiva}</td>
-                          <td className="px-2 py-1">{row.tulolaji}</td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(row.palkka)}</td>
-                          <td className="px-2 py-1">{row.tyonantaja}</td>
-                          <td className="px-2 py-1">{row.ansaintaAika || "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Subsidy rule selection */}
           <Card>
             <CardHeader>
@@ -130,7 +150,7 @@ export default function SubsidizedWorkDrawer({
                   <div className="flex items-start space-x-2">
                     <RadioGroupItem value="NO_TOE_EXTENDS" id="rule-no-toe" />
                     <Label htmlFor="rule-no-toe" className="flex-1 cursor-pointer">
-                      <div className="font-medium">Normaali palkkatuki</div>
+                      <div className="font-medium">Palkkatuki</div>
                       <div className="text-sm text-gray-600">Ei TOE-kertymää, vain pidentää viitejaksoa</div>
                     </Label>
                   </div>
@@ -186,66 +206,153 @@ export default function SubsidizedWorkDrawer({
                     <div className="text-gray-600 text-sm">Korjattu TOE yhteensä:</div>
                     <div className="font-semibold text-gray-900">{correction.toeCorrectedTotal.toFixed(1)} kk</div>
                   </div>
-                  
-                  {/* Warning if TOE < 12kk */}
-                  {correction.toeCorrectedTotal < 12 && (
-                    <div className="mt-3 p-3 bg-amber-50 border-l-4 border-amber-400 rounded-r">
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div className="ml-3 flex-1">
-                          <p className="text-sm text-amber-800">
-                            <span className="font-medium">Huomio:</span> Korjattu TOE yhteensä on alle 12kk. 
-                            Palkanmääritystä ei lasketa ennen kuin työssäoloehto 12kk täyttyy.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
-              {/* Wage base calculation - only show if TOE >= 12kk */}
-              {correction.toeCorrectedTotal >= 12 && (
-                <Card>
+              {/* Laajenna tarkastelujaksoa -osio kun TOE < 12kk */}
+          {correction && correction.toeCorrectedTotal < 12 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Laajenna tarkastelujaksoa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+                <div className="space-y-2">
+                  <Label htmlFor="additional-days">
+                    Lisää pidentäviä jaksoja (päivinä)
+                  </Label>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      id="additional-days"
+                      type="number"
+                      min="0"
+                      value={additionalExtendingDays}
+                      onChange={(e) => setAdditionalExtendingDays(e.target.value)}
+                      placeholder="0"
+                      className="w-32"
+                    />
+                    <span className="text-sm text-gray-600">pv</span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Nykyiset pidentävät jaksot: {totalExtendingDays} pv
+                  </p>
+                </div>
+
+                {estimatedTOE !== null && (
+                  <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-medium">Arvioitu TOE laajennuksen jälkeen:</span>
+                      <span className="block mt-1 text-lg font-semibold">
+                        {estimatedTOE.toFixed(1)} kk / 12 kk
+                      </span>
+                      {estimatedTOE >= 12 && (
+                        <span className="block mt-1 text-green-700 font-medium">
+                          ✓ TOE täyttyy laajennuksen jälkeen
+                        </span>
+                      )}
+                      {estimatedTOE < 12 && (
+                        <span className="block mt-1 text-amber-700">
+                          Tarvitaan vielä {(12 - estimatedTOE).toFixed(1)} kk. Lisää päiviä tai hae lisää tietoja taaksepäin.
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+              {/* Wage base calculation - näytetään aina, mutta null arvot jos TOE < 12kk */}
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Palkkapohjan korjaus</CardTitle>
+                  <CardTitle className="text-lg">Palkanmäärittelyn korjaus</CardTitle>
+                  {estimatedTOE !== null && estimatedTOE >= 12 && correction.toeCorrectedTotal < 12 && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Laskettu laajennuksen jälkeen (TOE: {estimatedTOE.toFixed(1)} kk)
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="text-gray-600">Palkkatuetun brutto:</div>
-                      <div className="font-semibold text-gray-900">{formatCurrency(correction.subsidizedGrossTotal)}</div>
+                  {/* Näytä huomio jos TOE < 12kk */}
+                  {correction.toeCorrectedTotal < 12 && (estimatedTOE === null || estimatedTOE < 12) && (
+                    <div className="p-3 bg-amber-50 border-l-4 border-amber-400 rounded-r">
+                      <p className="text-sm text-amber-800">
+                        <span className="font-medium">Huomio:</span> Korjattu TOE yhteensä on alle 12kk ({correction.toeCorrectedTotal.toFixed(1)} kk / 12 kk). 
+                        Palkanmääritystä ei lasketa ennen kuin työssäoloehto 12kk täyttyy.
+                      </p>
                     </div>
-                    <div>
-                      <div className="text-gray-600">Hyväksyttävä osuus ({subsidyRule === "NO_TOE_EXTENDS" ? "0%" : "75%"}):</div>
-                      <div className="font-semibold text-gray-900">{formatCurrency(correction.acceptedForWage)}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-600">TOE-palkka (järjestelmä):</div>
-                      <div className="font-semibold text-gray-900">{formatCurrency(systemTotalSalary)}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-600">Korjaus:</div>
-                      <div className="font-semibold text-gray-900">
-                        {correction.totalSalaryCorrection > 0 ? "+" : ""}{formatCurrency(correction.totalSalaryCorrection)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="pt-3 border-t">
-                    <div className="text-gray-600 text-sm">TOE-palkka (korjattu):</div>
-                    <div className="font-semibold text-gray-900">{formatCurrency(correction.totalSalaryCorrected)}</div>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <div className="text-gray-600 text-sm">Perustepalkka/kk (korjattu):</div>
-                    <div className="font-semibold text-gray-900">{formatCurrency(correction.averageSalaryCorrected)}</div>
-                  </div>
+                  )}
+                  
+                  {(() => {
+                    // Tarkista onko TOE täyttynyt (joko korjauksen jälkeen tai laajennuksen jälkeen)
+                    const toeFulfilled = correction.toeCorrectedTotal >= 12 || (estimatedTOE !== null && estimatedTOE >= 12);
+                    
+                    // Käytä arvioitua palkanmäärittelyä jos TOE täyttyy laajennuksen jälkeen
+                    const wageData = (estimatedTOE !== null && estimatedTOE >= 12 && correction.toeCorrectedTotal < 12 && estimatedWageCorrection)
+                      ? estimatedWageCorrection
+                      : toeFulfilled
+                        ? {
+                            totalSalaryCorrected: correction.totalSalaryCorrected,
+                            totalSalaryCorrection: correction.totalSalaryCorrection,
+                            averageSalaryCorrected: correction.averageSalaryCorrected,
+                            averageSalaryCorrection: correction.averageSalaryCorrection,
+                            acceptedForWage: correction.acceptedForWage,
+                          }
+                        : {
+                            totalSalaryCorrected: 0,
+                            totalSalaryCorrection: 0,
+                            averageSalaryCorrected: 0,
+                            averageSalaryCorrection: 0,
+                            acceptedForWage: 0,
+                          };
+                    
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <div className="text-gray-600">Palkkatuetun brutto:</div>
+                            <div className="font-semibold text-gray-900">
+                              {toeFulfilled ? formatCurrency(correction.subsidizedGrossTotal) : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">Hyväksyttävä osuus ({subsidyRule === "NO_TOE_EXTENDS" ? "0%" : "75%"}):</div>
+                            <div className="font-semibold text-gray-900">
+                              {toeFulfilled ? formatCurrency(wageData.acceptedForWage) : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">TOE-palkka (järjestelmä):</div>
+                            <div className="font-semibold text-gray-900">
+                              {toeFulfilled ? formatCurrency(systemTotalSalary) : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">Korjaus:</div>
+                            <div className="font-semibold text-gray-900">
+                              {toeFulfilled 
+                                ? (wageData.totalSalaryCorrection > 0 ? "+" : "") + formatCurrency(wageData.totalSalaryCorrection)
+                                : "—"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="pt-3 border-t">
+                          <div className="text-gray-600 text-sm">TOE-palkka (korjattu):</div>
+                          <div className="font-semibold text-gray-900">
+                            {toeFulfilled ? formatCurrency(wageData.totalSalaryCorrected) : "—"}
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <div className="text-gray-600 text-sm">Perustepalkka/kk (korjattu):</div>
+                          <div className="font-semibold text-gray-900">
+                            {toeFulfilled ? formatCurrency(wageData.averageSalaryCorrected) : "—"}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </CardContent>
               </Card>
-              )}
             </>
           )}
 
@@ -263,11 +370,16 @@ export default function SubsidizedWorkDrawer({
                     onCheckedChange={(checked) => setUseToeCorrection(checked === true)}
                   />
                   <Label htmlFor="use-toe" className="cursor-pointer">
-                    Käytä korjattua TOE-kertymää ({correction?.toeCorrectedTotal.toFixed(1)} kk)
+                    Käytä korjattua TOE-kertymää ({displayTOE?.toFixed(1) || correction?.toeCorrectedTotal.toFixed(1)} kk)
+                    {estimatedTOE !== null && estimatedTOE !== correction?.toeCorrectedTotal && (
+                      <span className="ml-2 text-xs text-gray-500">
+                        (alkuperäinen: {correction?.toeCorrectedTotal.toFixed(1)} kk)
+                      </span>
+                    )}
                   </Label>
                 </div>
-                {/* Only show wage correction option if TOE >= 12kk */}
-                {correction && correction.toeCorrectedTotal >= 12 && (
+                {/* Show wage correction option if TOE >= 12kk (joko korjauksen jälkeen tai laajennuksen jälkeen) */}
+                {correction && (displayTOE ?? correction.toeCorrectedTotal) >= 12 && (
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="use-wage"
@@ -275,7 +387,13 @@ export default function SubsidizedWorkDrawer({
                       onCheckedChange={(checked) => setUseWageCorrection(checked === true)}
                     />
                     <Label htmlFor="use-wage" className="cursor-pointer">
-                      Käytä korjattua palkkapohjaa ({correction ? formatCurrency(correction.averageSalaryCorrected) : "-"})
+                      Käytä korjattua perustepalkkaa ({
+                        (estimatedTOE !== null && estimatedTOE >= 12 && correction.toeCorrectedTotal < 12 && estimatedWageCorrection)
+                          ? formatCurrency(estimatedWageCorrection.averageSalaryCorrected)
+                          : correction
+                          ? formatCurrency(correction.averageSalaryCorrected)
+                          : "-"
+                      })
                     </Label>
                   </div>
                 )}
@@ -285,7 +403,10 @@ export default function SubsidizedWorkDrawer({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => {
+            onOpenChange(false);
+            setAdditionalExtendingDays("0");
+          }}>
             Peruuta
           </Button>
           <Button

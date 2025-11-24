@@ -151,7 +151,7 @@ export default function PaivarahaLaskuri() {
     return new Date(periodEndDate) < new Date(periodStartDate);
   }, [periodStartDate, periodEndDate]);
 
-  // Vertailupalkka
+// Vertailupalkka
   const resultsCompare = useComparisonCalculation({
     compareMode,
     comparePaidDays,
@@ -285,7 +285,7 @@ export default function PaivarahaLaskuri() {
               periodEndDate={periodEndDate}
             />
           ) : null}
-        </div>
+      </div>
       </main>
 
       {/* Breakdown section */}

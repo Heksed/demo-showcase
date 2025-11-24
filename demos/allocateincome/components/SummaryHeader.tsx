@@ -49,40 +49,57 @@ export default function SummaryHeader({
     ? (summary.displayTOEMonths ?? summary.totalTOEMonths)  // Jos TOE täyttyy, käytä tarvittua määrää (fallback totalTOEMonths)
     : summary.totalTOEMonths;  // Jos TOE ei täyty, käytä kaikkia TOE-kuukausia
   
-  const toeMonthsRaw = subsidyCorrection && subsidyCorrection.toeCorrection !== 0 
-    ? subsidyCorrection.toeCorrectedTotal 
-    : baseTOEMonths;
+  // Tarkista onko TOE täyttynyt laajennetun tarkastelujakson perusteella
+  // Jos on, käytetään summary-arvoja subsidyCorrection-arvojen sijaan
+  const useSummaryValues = hasTOEFulfilled && summary.displayTOEMonths && summary.displayTOEMonths >= 12;
+  
+  const toeMonthsRaw = useSummaryValues
+    ? baseTOEMonths  // Käytä summary-arvoja jos TOE täyttyy laajennetun tarkastelujakson perusteella
+    : (subsidyCorrection && subsidyCorrection.toeCorrection !== 0 
+        ? subsidyCorrection.toeCorrectedTotal 
+        : baseTOEMonths);
   const toeMonths = roundToeMonthsDown(toeMonthsRaw);
   
   // Jos palkkatukityö korjataan, käytä korjattua arvoa
+  // Jos TOE täyttyy laajennetun tarkastelujakson perusteella, käytä summary-arvoja
   // Jos korjattu arvo on >= 12, käytä korjattua arvoa / korjattu arvo
   // Jos korjattu arvo on < 12, käytä korjattua arvoa / 12
-  const displayTOE = subsidyCorrection && subsidyCorrection.toeCorrection !== 0
-    ? roundToeMonthsDown(subsidyCorrection.toeCorrectedTotal)
-    : (hasTOEFulfilled
-        ? roundToeMonthsDown(summary.displayTOEMonths ?? summary.totalTOEMonths)
-        : toeMonths);
+  const displayTOE = useSummaryValues
+    ? roundToeMonthsDown(summary.displayTOEMonths ?? summary.totalTOEMonths)
+    : (subsidyCorrection && subsidyCorrection.toeCorrection !== 0
+        ? roundToeMonthsDown(subsidyCorrection.toeCorrectedTotal)
+        : (hasTOEFulfilled
+            ? roundToeMonthsDown(summary.displayTOEMonths ?? summary.totalTOEMonths)
+            : toeMonths));
   
-  const displayTOEMax = subsidyCorrection && subsidyCorrection.toeCorrection !== 0
-    ? (toeMonths >= 12 
-        ? roundToeMonthsDown(subsidyCorrection.toeCorrectedTotal)  // Jos korjattu >= 12, käytä korjattua arvoa
-        : 12)  // Jos korjattu < 12, käytä 12
-    : (hasTOEFulfilled && summary.displayTOEMax
-        ? roundToeMonthsDown(summary.displayTOEMax ?? 12)
-        : 12);
+  const displayTOEMax = useSummaryValues
+    ? roundToeMonthsDown(summary.displayTOEMax ?? 12)
+    : (subsidyCorrection && subsidyCorrection.toeCorrection !== 0
+        ? (toeMonths >= 12 
+            ? roundToeMonthsDown(subsidyCorrection.toeCorrectedTotal)  // Jos korjattu >= 12, käytä korjattua arvoa
+            : 12)  // Jos korjattu < 12, käytä 12
+        : (hasTOEFulfilled && summary.displayTOEMax
+            ? roundToeMonthsDown(summary.displayTOEMax ?? 12)
+            : 12));
   
   // Tarkista onko TOE-kertymä alle 12kk (käytä korjattua arvoa jos saatavilla)
   const isTOELessThan12 = toeMonths < 12;
   
   // Korjattu TOE-palkka (totalSalary)
-  const toeSalary = subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0
-    ? subsidyCorrection.totalSalaryCorrected
-    : summary.totalSalary;
+  // Jos TOE täyttyy laajennetun tarkastelujakson perusteella, käytä summary-arvoja
+  const toeSalary = useSummaryValues
+    ? summary.totalSalary
+    : (subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0
+        ? subsidyCorrection.totalSalaryCorrected
+        : summary.totalSalary);
   
   // Korjattu perustepalkka/kk (averageSalary) - lasketaan korjatusta TOE-palkasta
-  const wageBase = subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0
-    ? subsidyCorrection.averageSalaryCorrected
-    : summary.averageSalary;
+  // Jos TOE täyttyy laajennetun tarkastelujakson perusteella, käytä summary-arvoja
+  const wageBase = useSummaryValues
+    ? summary.averageSalary
+    : (subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0
+        ? subsidyCorrection.averageSalaryCorrected
+        : summary.averageSalary);
   
   // Recalculate daily salary and full daily allowance if wage base changed
   const dailySalary = wageBase / 21.5;
@@ -123,11 +140,11 @@ export default function SummaryHeader({
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         "text-gray-900",
-                        subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
+                        !useSummaryValues && subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
                       )}>
                         {formatCurrency(wageBase)}
                       </span>
-                      {subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
+                      {!useSummaryValues && subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
                         <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
                           Korjattu
                         </span>
@@ -137,11 +154,11 @@ export default function SummaryHeader({
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         "text-gray-900",
-                        subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && "text-blue-600 font-semibold"
+                        !useSummaryValues && subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && "text-blue-600 font-semibold"
                       )}>
                         {`${displayTOE.toFixed(1).replace(/\.0$/, '')}/${displayTOEMax.toFixed(1).replace(/\.0$/, '')}`}
                       </span>
-                      {subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && (
+                      {!useSummaryValues && subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && (
                         <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
                           Korjattu
                         </span>
@@ -210,18 +227,22 @@ export default function SummaryHeader({
 
               {/* Arvot */}
               <div className="grid grid-cols-7 gap-4 text-sm">
-                <div className="text-gray-900">{summary.completionDate}</div>
+                <div className="text-gray-900">
+                  {summary.completionDate || <span className="text-gray-400">—</span>}
+                </div>
                 <div className="text-gray-900">{summary.reviewPeriod}</div>
                 <div className="text-gray-900">{summary.extendingPeriods}</div>
-                <div className="text-blue-600">{summary.definitionPeriod}</div>
+                <div className="text-blue-600">
+                  {summary.definitionPeriod || <span className="text-gray-400">—</span>}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-gray-900",
-                    subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && "text-blue-600 font-semibold"
+                    !useSummaryValues && subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && "text-blue-600 font-semibold"
                   )}>
                     {`${toeMonths.toFixed(1).replace(/\.0$/, '')}/12`}
                   </span>
-                  {subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && (
+                  {!useSummaryValues && subsidyCorrection && subsidyCorrection.toeCorrection !== 0 && (
                     <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
                       Korjattu
                     </span>
@@ -231,11 +252,11 @@ export default function SummaryHeader({
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-gray-900",
-                    subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0 && "text-blue-600 font-semibold"
+                    !useSummaryValues && subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0 && "text-blue-600 font-semibold"
                   )}>
                     {formatCurrency(toeSalary)}
                   </span>
-                  {subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0 && (
+                  {!useSummaryValues && subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0 && (
                     <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
                       Korjattu
                     </span>
@@ -324,7 +345,8 @@ export default function SummaryHeader({
           )}
 
           {/* Subsidy correction info banner */}
-          {subsidyCorrection && (subsidyCorrection.toeCorrection !== 0 || subsidyCorrection.totalSalaryCorrection !== 0) && (
+          {/* Näytetään vain jos TOE ei täyty laajennuksen jälkeen */}
+          {subsidyCorrection && (subsidyCorrection.toeCorrection !== 0 || subsidyCorrection.totalSalaryCorrection !== 0) && !useSummaryValues && (
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
               <div className="font-medium text-blue-900 mb-1">Palkkatuettu työ korjattu manuaalisesti</div>
               <div className="text-blue-700 space-y-1">

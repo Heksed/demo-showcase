@@ -142,12 +142,68 @@ function calcGrossFromToeAccruingMonths(rows: IncomeRow[], rule: SubsidyRule): n
       return rows.reduce((sum, row) => sum + (row.palkka || 0), 0);
       
     case "LOCK_10_MONTHS_THEN_75": {
-      // Only months after the 10th month accrue TOE
-      // Since wage base is calculated only after 12 months TOE is fulfilled,
-      // all months in rows are assumed to be TOE-accruing months
-      // If we had employment start date, we could filter more precisely
-      // For now, we use all gross income (all months are TOE-accruing at this point)
-      return rows.reduce((sum, row) => sum + (row.palkka || 0), 0);
+      // TÄRKEÄ: Tämä funktio saa vain palkkatuetut rivit (rows-parametri)
+      // Normaalityön palkat otetaan mukaan normaalisti systemTotalSalary-muuttujassa
+      // Tässä poistetaan vain ensimmäiset 10 palkkatuettua kuukautta palkanmäärittelystä
+      // Vain 11. kuukaudesta eteenpäin otetaan mukaan palkanmäärittelyyn
+      
+      // Kerää kaikki yksilölliset kuukaudet palkkatuettujen rivien perusteella
+      const monthRows = new Map<string, IncomeRow[]>();
+      
+      for (const row of rows) {
+        // Käytä ansaintaAikaa jos saatavilla, muuten maksupaivaa
+        let dateStr = row.ansaintaAika;
+        if (!dateStr || dateStr.trim() === "") {
+          dateStr = row.maksupaiva;
+        }
+        
+        if (!dateStr || dateStr.trim() === "") {
+          continue;
+        }
+        
+        // Parsitaan päivämäärä
+        let date: Date | null = null;
+        if (row.ansaintaAika && row.ansaintaAika.includes("–")) {
+          // Jos on ansaintaAika muodossa "1.10.2025 – 31.10.2025", käytä alkupäivää
+          const parts = row.ansaintaAika.split(/[–-]/).map(s => s.trim());
+          if (parts.length === 2) {
+            date = parseFinnishDate(parts[0]);
+          }
+        } else {
+          // Muuten käytä maksupaivaa
+          date = parseFinnishDate(dateStr);
+        }
+        
+        if (!date) continue;
+        
+        // Muodosta kuukausiavain (YYYY-MM)
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+        
+        if (!monthRows.has(yearMonth)) {
+          monthRows.set(yearMonth, []);
+        }
+        monthRows.get(yearMonth)!.push(row);
+      }
+      
+      // Järjestä kuukaudet aikajärjestykseen (vanhin ensin)
+      const sortedMonths = Array.from(monthRows.keys()).sort();
+      
+      // Poista ensimmäiset 10 palkkatuettua kuukautta
+      // Vain 11. kuukaudesta eteenpäin otetaan mukaan palkanmäärittelyyn
+      const toeAccruingMonths = sortedMonths.slice(10);
+      
+      // Laske palkat vain TOE-kerryttävien kuukausien palkkatuettujen rivien perusteella
+      let totalGross = 0;
+      for (const month of toeAccruingMonths) {
+        const monthRowsList = monthRows.get(month) || [];
+        for (const row of monthRowsList) {
+          totalGross += row.palkka || 0;
+        }
+      }
+      
+      return totalGross;
     }
     
     case "NONE":
@@ -237,8 +293,10 @@ export function calculateSubsidyCorrection(
   // Step 1: Calculate unique months from subsidized rows
   const subsidizedMonthsCounted = calcSubsidizedMonths(rows);
   
-  // Step 2: Calculate total gross amount from subsidized rows
-  const subsidizedGrossTotal = rows.reduce((sum, row) => sum + (row.palkka || 0), 0);
+  // Step 2: Calculate total gross amount from subsidized rows that accrue TOE
+  // TÄRKEÄ: Laske vain niiden palkkatuettujen rivien palkat, jotka osallistuvat TOE-laskentaan
+  // Tämä on sama kuin calcGrossFromToeAccruingMonths, joka palauttaa vain TOE-kerryttävien kuukausien palkat
+  const subsidizedGrossFromToeAccruingMonths = calcGrossFromToeAccruingMonths(rows, rule);
   
   // Step 3: Calculate correct TOE months from subsidized work
   const correctToeFromSubsidyRaw = calcCorrectToeFromSubsidy(subsidizedMonthsCounted, rule);
@@ -258,6 +316,12 @@ export function calculateSubsidyCorrection(
   // Only use gross income from months that accrue TOE
   const acceptedForWage = calcAcceptedSubsidizedForWage(rows, rule);
   
+  // TÄRKEÄ: subsidizedGrossTotal näytetään UI:ssa, joten se pitäisi näyttää vain TOE-laskentaan osallistuvien kuukausien palkat
+  // Jos palkkatuettua työtä ei ole mukana TOE-laskentaan, näytetään 0
+  const subsidizedGrossTotal = correctToeFromSubsidy > 0 
+    ? subsidizedGrossFromToeAccruingMonths 
+    : 0;
+  
   // Step 7: Calculate corrected TOE-palkka (totalSalary)
   // IMPORTANT: Palkanmääritys lasketaan vasta kun TOE on vähintään 12kk
   // Mikäli palkkatukityö pelkästään tai yhdessä toisen työn kanssa kerryttää alle 12kk työssäoloehtoa,
@@ -270,10 +334,22 @@ export function calculateSubsidyCorrection(
   let averageSalaryCorrection: number;
   
   if (shouldCalculateWageBase) {
-    // Calculate wage base corrections normally
-    // Remove full subsidized gross, add back only accepted portion
-    totalSalaryCorrected = systemTotalSalary - subsidizedGrossTotal + acceptedForWage;
-    totalSalaryCorrection = totalSalaryCorrected - systemTotalSalary;
+    // TÄRKEÄ: Vähennä vain niiden palkkatuettujen työn palkat, jotka osallistuvat TOE-laskentaan
+    // Jos palkkatuettua työtä ei ole mukana TOE-laskentaan (esim. TOE täyttyy normaalityöstä),
+    // niin ei vähennetä mitään palkkatuettua työtä palkanmäärittelystä
+    
+    // Jos palkkatuettua työtä ei ole mukana TOE-laskentaan (correctToeFromSubsidy = 0),
+    // niin ei vähennetä mitään palkkatuettua työtä palkanmäärittelystä
+    if (correctToeFromSubsidy === 0) {
+      // Palkkatuettua työtä ei ole mukana TOE-laskentaan, joten ei vähennetä mitään
+      totalSalaryCorrected = systemTotalSalary;
+      totalSalaryCorrection = 0;
+    } else {
+      // Palkkatuettua työtä on mukana TOE-laskentaan, joten vähennetään vain TOE-kerryttävien kuukausien palkat
+      // Remove subsidized gross from TOE-accruing months, add back only accepted portion
+      totalSalaryCorrected = systemTotalSalary - subsidizedGrossFromToeAccruingMonths + acceptedForWage;
+      totalSalaryCorrection = totalSalaryCorrected - systemTotalSalary;
+    }
     
     // Step 8: Calculate corrected perustepalkka/kk (averageSalary)
     // This is calculated from corrected totalSalary
