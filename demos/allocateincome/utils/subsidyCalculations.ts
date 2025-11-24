@@ -117,33 +117,84 @@ export function calcCorrectToeFromSubsidy(months: number, rule: SubsidyRule): nu
 }
 
 /**
- * Calculates accepted portion of subsidized gross income for wage base calculation.
+ * Calculates gross income only from months that accrue TOE.
  * 
- * TYJ rule: Only a portion of subsidized income is used in wage base calculation.
- * - NO_TOE_EXTENDS: 0% (subsidized income is not used in wage base at all)
- * - PERCENT_75: 75% of gross income is used
- * - LOCK_10_MONTHS_THEN_75: 75% of gross income is used (same as PERCENT_75 for wage base)
- * - NONE: 100% of gross income is used (normal work)
+ * For LOCK_10_MONTHS_THEN_75: Only months after the 10th month accrue TOE,
+ * so only those months' gross income should be used for wage base calculation.
  * 
- * @param gross - Total gross amount from subsidized income rows
+ * Note: This function assumes that by the time wage base is calculated,
+ * all months in the rows are already TOE-accruing months (after 10-month lock).
+ * Wage base is calculated only after 12 months TOE is fulfilled, so at that point
+ * all months in the calculation are TOE-accruing months.
+ * 
+ * @param rows - Subsidized income rows
  * @param rule - Subsidy rule to apply
- * @returns Accepted portion of gross income for wage base calculation
+ * @returns Gross income from TOE-accruing months only
  */
-export function calcAcceptedSubsidizedForWage(gross: number, rule: SubsidyRule): number {
+function calcGrossFromToeAccruingMonths(rows: IncomeRow[], rule: SubsidyRule): number {
   switch (rule) {
     case "NO_TOE_EXTENDS":
-      // Subsidized income is not used in wage base calculation
+      // No months accrue TOE, so no gross income is used
       return 0;
       
     case "PERCENT_75":
+      // All months accrue TOE (at 75%), so all gross income is used
+      return rows.reduce((sum, row) => sum + (row.palkka || 0), 0);
+      
+    case "LOCK_10_MONTHS_THEN_75": {
+      // Only months after the 10th month accrue TOE
+      // Since wage base is calculated only after 12 months TOE is fulfilled,
+      // all months in rows are assumed to be TOE-accruing months
+      // If we had employment start date, we could filter more precisely
+      // For now, we use all gross income (all months are TOE-accruing at this point)
+      return rows.reduce((sum, row) => sum + (row.palkka || 0), 0);
+    }
+    
+    case "NONE":
+    default:
+      // Normal work, all months accrue TOE, so all gross income is used
+      return rows.reduce((sum, row) => sum + (row.palkka || 0), 0);
+  }
+}
+
+/**
+ * Calculates accepted portion of subsidized gross income for wage base calculation.
+ * 
+ * TYJ rule: Only a portion of subsidized income from TOE-accruing months is used in wage base calculation.
+ * - NO_TOE_EXTENDS: 0% (no months accrue TOE, so no income is used)
+ * - PERCENT_75: 75% of gross income from all months (all accrue TOE at 75%)
+ * - LOCK_10_MONTHS_THEN_75: 75% of gross income from months that accrue TOE (months 11+)
+ * - NONE: 100% of gross income (normal work, all months accrue TOE)
+ * 
+ * Important: Palkanmääritys tehdään vasta sitten kun 12kk työssäoloehtoa on saatu täyteen,
+ * eli sillä laskennalla ei ole merkitystä siinä vaiheessa kun TOE vielä kertyy.
+ * Tämän takia LOCK_10_MONTHS_THEN_75 -säännössä kaikki kuukaudet ovat jo TOE-kerryttäviä.
+ * 
+ * @param rows - Subsidized income rows
+ * @param rule - Subsidy rule to apply
+ * @returns Accepted portion of gross income for wage base calculation
+ */
+export function calcAcceptedSubsidizedForWage(rows: IncomeRow[], rule: SubsidyRule): number {
+  // First, get gross income only from TOE-accruing months
+  const grossFromToeAccruingMonths = calcGrossFromToeAccruingMonths(rows, rule);
+  
+  switch (rule) {
+    case "NO_TOE_EXTENDS":
+      // No months accrue TOE, so no income is used in wage base
+      return 0;
+      
+    case "PERCENT_75":
+      // 75% of gross income from TOE-accruing months
+      return grossFromToeAccruingMonths * 0.75;
+      
     case "LOCK_10_MONTHS_THEN_75":
-      // 75% of subsidized income is used in wage base
-      return gross * 0.75;
+      // 75% of gross income from TOE-accruing months (months 11+)
+      return grossFromToeAccruingMonths * 0.75;
       
     case "NONE":
     default:
-      // Normal work, full gross income is used
-      return gross;
+      // Normal work, full gross income from TOE-accruing months
+      return grossFromToeAccruingMonths;
   }
 }
 
@@ -204,18 +255,40 @@ export function calculateSubsidyCorrection(
   const toeCorrectedTotal = roundToeMonthsDown(toeCorrectedTotalRaw);
   
   // Step 6: Calculate accepted portion of subsidized gross for wage base
-  const acceptedForWage = calcAcceptedSubsidizedForWage(subsidizedGrossTotal, rule);
+  // Only use gross income from months that accrue TOE
+  const acceptedForWage = calcAcceptedSubsidizedForWage(rows, rule);
   
   // Step 7: Calculate corrected TOE-palkka (totalSalary)
-  // Remove full subsidized gross, add back only accepted portion
-  const totalSalaryCorrected = systemTotalSalary - subsidizedGrossTotal + acceptedForWage;
-  const totalSalaryCorrection = totalSalaryCorrected - systemTotalSalary;
+  // IMPORTANT: Palkanmääritys lasketaan vasta kun TOE on vähintään 12kk
+  // Mikäli palkkatukityö pelkästään tai yhdessä toisen työn kanssa kerryttää alle 12kk työssäoloehtoa,
+  // ei tarvitse laskea palkanmäärittelyä. Vasta kun Työssäoloehto 12kk täyttyy lasketaan palkanmääritys.
+  const shouldCalculateWageBase = toeCorrectedTotal >= 12;
   
-  // Step 8: Calculate corrected perustepalkka/kk (averageSalary)
-  // This is calculated from corrected totalSalary
-  const systemAverageSalary = periodCount > 0 ? systemTotalSalary / periodCount : 0;
-  const averageSalaryCorrected = periodCount > 0 ? totalSalaryCorrected / periodCount : 0;
-  const averageSalaryCorrection = averageSalaryCorrected - systemAverageSalary;
+  let totalSalaryCorrected: number;
+  let totalSalaryCorrection: number;
+  let averageSalaryCorrected: number;
+  let averageSalaryCorrection: number;
+  
+  if (shouldCalculateWageBase) {
+    // Calculate wage base corrections normally
+    // Remove full subsidized gross, add back only accepted portion
+    totalSalaryCorrected = systemTotalSalary - subsidizedGrossTotal + acceptedForWage;
+    totalSalaryCorrection = totalSalaryCorrected - systemTotalSalary;
+    
+    // Step 8: Calculate corrected perustepalkka/kk (averageSalary)
+    // This is calculated from corrected totalSalary
+    const systemAverageSalary = periodCount > 0 ? systemTotalSalary / periodCount : 0;
+    averageSalaryCorrected = periodCount > 0 ? totalSalaryCorrected / periodCount : 0;
+    averageSalaryCorrection = averageSalaryCorrected - systemAverageSalary;
+  } else {
+    // TOE < 12kk: Do not calculate wage base corrections
+    // Keep system values unchanged
+    totalSalaryCorrected = systemTotalSalary;
+    totalSalaryCorrection = 0;
+    const systemAverageSalary = periodCount > 0 ? systemTotalSalary / periodCount : 0;
+    averageSalaryCorrected = systemAverageSalary;
+    averageSalaryCorrection = 0;
+  }
   
   return {
     subsidizedMonthsCounted,

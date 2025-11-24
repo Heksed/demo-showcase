@@ -163,6 +163,8 @@ export default function PaivarahaLaskuri() {
     formulaConfig,
     flags,
     results,
+    periodStartDate,
+    stepFactorOverride,
   });
 
   // Row3 and formulaList are now in SummaryCard and FormulaCard components
@@ -178,7 +180,7 @@ export default function PaivarahaLaskuri() {
   return (
     <div className="w-full min-h-screen bg-gray-50">
       <header className="sticky top-0 z-20 border bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="w-full max-w-[98%] mx-auto px-6 py-3 flex items-center justify-between">
           <h1 className="text-xl font-semibold tracking-tight">Päivärahalaskuri</h1>
           <div className="flex items-center gap-2">
             
@@ -191,7 +193,7 @@ export default function PaivarahaLaskuri() {
 
       <main
   className={cn(
-    "max-w-8xl mx-auto px-4 py-6 grid gap-6 transition-all duration-300",
+    "w-full max-w-[98%] mx-auto px-6 py-6 grid gap-6 transition-all duration-300",
     compareMode
       ? "lg:grid-cols-[1.6fr_1.4fr]" // vertailutilassa: oikea leveämpi
       : "lg:grid-cols-[2fr_1fr]"     // normaali: vasen 2/3, oikea 1/3
@@ -268,17 +270,26 @@ export default function PaivarahaLaskuri() {
             memberFeePct={memberFeePct}
           />
 
-          <StepPeriodsCard
-            stepPeriods={results.stepPeriods}
-            days={results.days}
-            periodStartDate={periodStartDate}
-            periodEndDate={periodEndDate}
-          />
+          {compareMode && resultsCompare?.stepPeriods ? (
+            <StepPeriodsCard
+              stepPeriods={resultsCompare.stepPeriods}
+              days={resultsCompare.days}
+              periodStartDate={periodStartDate}
+              periodEndDate={periodEndDate}
+            />
+          ) : results.stepPeriods ? (
+            <StepPeriodsCard
+              stepPeriods={results.stepPeriods}
+              days={results.days}
+              periodStartDate={periodStartDate}
+              periodEndDate={periodEndDate}
+            />
+          ) : null}
         </div>
       </main>
 
       {/* Breakdown section */}
-      <section className="max-w-7xl mx-auto px-4 pb-12">
+      <section className="w-full max-w-[98%] mx-auto px-6 pb-12">
         <FormulaCard
           formulaConfig={formulaConfig}
           editFormulas={editFormulas}

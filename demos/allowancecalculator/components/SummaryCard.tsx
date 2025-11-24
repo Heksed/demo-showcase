@@ -97,7 +97,7 @@ export default function SummaryCard({
   memberFeePct,
 }: SummaryCardProps) {
   return (
-    <Card className="sticky top-20">
+    <Card>
       <CardHeader>
         <CardTitle>Päiväraha</CardTitle>
       </CardHeader>

@@ -7,13 +7,13 @@ import { MOCK_PERIODS } from "../mockData";
 
 export default function usePeriodsModel(definitionType: DefinitionType) {
   const [periods, setPeriods] = useState<MonthPeriod[]>(() => {
-    if (definitionType === 'eurotoe' || definitionType === 'eurotoe6') {
-      return MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
-    }
+    // Palauta kaikki periodsit, filtteröinti tehdään tarkastelujakson mukaan Allocateincome-komponentissa
     if (definitionType === 'viikkotoe') {
+      // Viikkotoe tarvitsee erityiskäsittelyn
       return MOCK_PERIODS;
     }
-    return MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
+    // Muille tyypeille (eurotoe, eurotoe6, vuositulo, ulkomaan) palauta kaikki periodsit
+    return MOCK_PERIODS;
   });
 
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set(["2025-12", "viikkotoe-combined"]));
@@ -44,9 +44,7 @@ export default function usePeriodsModel(definitionType: DefinitionType) {
   }, []);
 
   useEffect(() => {
-    if (definitionType === 'eurotoe' || definitionType === 'eurotoe6') {
-      setPeriods(MOCK_PERIODS.filter(p => p.id.startsWith('2025-')));
-    } else if (definitionType === 'viikkotoe') {
+    if (definitionType === 'viikkotoe') {
       const viikkoTOEPeriods = MOCK_PERIODS.filter(p => isViikkoTOEPeriod(p));
       const euroTOEPeriods2025 = MOCK_PERIODS.filter(p => p.id.startsWith('2025-'));
       const euroTOEPeriods2024After = MOCK_PERIODS.filter(p => p.id.startsWith('2024-') && !isViikkoTOEPeriod(p) && p.id >= '2024-09');
@@ -74,7 +72,9 @@ export default function usePeriodsModel(definitionType: DefinitionType) {
 
       setPeriods([...euroTOEPeriods2025, ...euroTOEPeriods2024After, combinedViikkoTOE]);
     } else {
-      setPeriods(MOCK_PERIODS.filter(p => p.id.startsWith('2025-')));
+      // EuroTOE, EuroTOE6, vuositulo, ulkomaan: palauta kaikki periodsit (2023-2025)
+      // Filtteröinti tehdään tarkastelujakson mukaan Allocateincome-komponentissa
+      setPeriods(MOCK_PERIODS);
     }
   }, [definitionType, isViikkoTOEPeriod]);
 

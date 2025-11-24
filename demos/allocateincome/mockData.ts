@@ -244,53 +244,68 @@ export const MOCK_PERIODS: MonthPeriod[] = [
   {
     id: "2024-12",
     ajanjakso: "2024 Joulukuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3300,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-12-1", maksupaiva: "10.12.2024", tulolaji: "Aikapalkka", palkka: 2800, alkuperainenTulo: 0, ansaintaAika: "1.12.2024 - 31.12.2024", tyonantaja: "Posti Oyj" },
+      { id: "2024-12-2", maksupaiva: "10.12.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2024-11",
     ajanjakso: "2024 Marraskuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3200,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-11-1", maksupaiva: "10.11.2024", tulolaji: "Aikapalkka", palkka: 2700, alkuperainenTulo: 0, ansaintaAika: "1.11.2024 - 30.11.2024", tyonantaja: "Posti Oyj" },
+      { id: "2024-11-2", maksupaiva: "10.11.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2024-10",
     ajanjakso: "2024 Lokakuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3100,
+    tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-10-1", maksupaiva: "10.10.2024", tulolaji: "Aikapalkka", palkka: 2600, alkuperainenTulo: 0, ansaintaAika: "1.10.2024 - 31.10.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2024-10-2", maksupaiva: "10.10.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
   },
   {
     id: "2024-09",
     ajanjakso: "2024 Syyskuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3000,
+    tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-09-1", maksupaiva: "10.9.2024", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.9.2024 - 30.9.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2024-09-2", maksupaiva: "10.9.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
   },
   {
     id: "2024-08",
     ajanjakso: "2024 Elokuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Osa-aikatyö Oy",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2900,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
-    viikkoTOERows: []
+    rows: [
+      { id: "2024-08-1", maksupaiva: "10.8.2024", tulolaji: "Aikapalkka", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "1.8.2024 - 31.8.2024", tyonantaja: "Posti Oyj" },
+      { id: "2024-08-2", maksupaiva: "10.8.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ],
+    viikkoTOERows: [] // Säilytetään tyhjä, koska viikkoTOE-näkymä käyttää tätä
   },
   {
     id: "2024-07",
@@ -343,53 +358,382 @@ export const MOCK_PERIODS: MonthPeriod[] = [
   {
     id: "2024-05",
     ajanjakso: "2024 Toukokuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Osa-aikatyö Oy",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2900,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: [],
-    viikkoTOERows: []
+    rows: [
+      { id: "2024-05-1", maksupaiva: "10.5.2024", tulolaji: "Aikapalkka", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "1.5.2024 - 31.5.2024", tyonantaja: "Posti Oyj" },
+      { id: "2024-05-2", maksupaiva: "10.5.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ],
+    viikkoTOERows: [] // Säilytetään tyhjä, koska viikkoTOE-näkymä käyttää tätä
   },
   {
     id: "2024-04",
     ajanjakso: "2024 Huhtikuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2800,
+    tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-04-1", maksupaiva: "10.4.2024", tulolaji: "Aikapalkka", palkka: 2300, alkuperainenTulo: 0, ansaintaAika: "1.4.2024 - 30.4.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2024-04-2", maksupaiva: "10.4.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
   },
   {
     id: "2024-03",
     ajanjakso: "2024 Maaliskuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2700,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-03-1", maksupaiva: "10.3.2024", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "1.3.2024 - 31.3.2024", tyonantaja: "Posti Oyj" },
+      { id: "2024-03-2", maksupaiva: "10.3.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   },
   {
     id: "2024-02",
     ajanjakso: "2024 Helmikuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2600,
+    tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-02-1", maksupaiva: "10.2.2024", tulolaji: "Aikapalkka", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "1.2.2024 - 28.2.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2024-02-2", maksupaiva: "10.2.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
   },
   {
     id: "2024-01",
     ajanjakso: "2024 Tammikuu",
-    toe: 0,
-    jakaja: 0,
-    palkka: 0,
-    tyonantajat: "Ei työtä",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2500,
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
-    rows: []
+    rows: [
+      { id: "2024-01-1", maksupaiva: "10.1.2024", tulolaji: "Aikapalkka", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "1.1.2024 - 31.1.2024", tyonantaja: "Posti Oyj" },
+      { id: "2024-01-2", maksupaiva: "10.1.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  // 2023 kuukaudet - 28kk taaksepäin mock dataa
+  {
+    id: "2023-12",
+    ajanjakso: "2023 Joulukuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3500,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-12-1", maksupaiva: "10.12.2023", tulolaji: "Aikapalkka", palkka: 3000, alkuperainenTulo: 0, ansaintaAika: "1.12.2023 - 31.12.2023", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2023-12-2", maksupaiva: "10.12.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2023-11",
+    ajanjakso: "2023 Marraskuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3400,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-11-1", maksupaiva: "10.11.2023", tulolaji: "Aikapalkka", palkka: 2900, alkuperainenTulo: 0, ansaintaAika: "1.11.2023 - 30.11.2023", tyonantaja: "Posti Oyj" },
+      { id: "2023-11-2", maksupaiva: "10.11.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2023-10",
+    ajanjakso: "2023 Lokakuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3300,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-10-1", maksupaiva: "10.10.2023", tulolaji: "Aikapalkka", palkka: 2800, alkuperainenTulo: 0, ansaintaAika: "1.10.2023 - 31.10.2023", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2023-10-2", maksupaiva: "10.10.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2023-09",
+    ajanjakso: "2023 Syyskuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3200,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-09-1", maksupaiva: "10.9.2023", tulolaji: "Aikapalkka", palkka: 2700, alkuperainenTulo: 0, ansaintaAika: "1.9.2023 - 30.9.2023", tyonantaja: "Posti Oyj" },
+      { id: "2023-09-2", maksupaiva: "10.9.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2023-08",
+    ajanjakso: "2023 Elokuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3100,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-08-1", maksupaiva: "10.8.2023", tulolaji: "Aikapalkka", palkka: 2600, alkuperainenTulo: 0, ansaintaAika: "1.8.2023 - 31.8.2023", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2023-08-2", maksupaiva: "10.8.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2023-07",
+    ajanjakso: "2023 Heinäkuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3000,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-07-1", maksupaiva: "10.7.2023", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.7.2023 - 31.7.2023", tyonantaja: "Posti Oyj" },
+      { id: "2023-07-2", maksupaiva: "10.7.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2023-06",
+    ajanjakso: "2023 Kesäkuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2900,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-06-1", maksupaiva: "10.6.2023", tulolaji: "Aikapalkka", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "1.6.2023 - 30.6.2023", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2023-06-2", maksupaiva: "10.6.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2023-05",
+    ajanjakso: "2023 Toukokuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2800,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-05-1", maksupaiva: "10.5.2023", tulolaji: "Aikapalkka", palkka: 2300, alkuperainenTulo: 0, ansaintaAika: "1.5.2023 - 31.5.2023", tyonantaja: "Posti Oyj" },
+      { id: "2023-05-2", maksupaiva: "10.5.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2023-04",
+    ajanjakso: "2023 Huhtikuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2700,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-04-1", maksupaiva: "10.4.2023", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "1.4.2023 - 30.4.2023", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2023-04-2", maksupaiva: "10.4.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2023-03",
+    ajanjakso: "2023 Maaliskuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2600,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-03-1", maksupaiva: "10.3.2023", tulolaji: "Aikapalkka", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "1.3.2023 - 31.3.2023", tyonantaja: "Posti Oyj" },
+      { id: "2023-03-2", maksupaiva: "10.3.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2023-02",
+    ajanjakso: "2023 Helmikuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2500,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-02-1", maksupaiva: "10.2.2023", tulolaji: "Aikapalkka", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "1.2.2023 - 28.2.2023", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2023-02-2", maksupaiva: "10.2.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2023-01",
+    ajanjakso: "2023 Tammikuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2400,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2023-01-1", maksupaiva: "10.1.2023", tulolaji: "Aikapalkka", palkka: 1900, alkuperainenTulo: 0, ansaintaAika: "1.1.2023 - 31.1.2023", tyonantaja: "Posti Oyj" },
+      { id: "2023-01-2", maksupaiva: "10.1.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  // 2026 kuukaudet - tulevaisuuden mock dataa
+  {
+    id: "2026-12",
+    ajanjakso: "2026 Joulukuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3600,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-12-1", maksupaiva: "10.12.2026", tulolaji: "Aikapalkka", palkka: 3100, alkuperainenTulo: 0, ansaintaAika: "1.12.2026 - 31.12.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2026-12-2", maksupaiva: "10.12.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2026-11",
+    ajanjakso: "2026 Marraskuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3500,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-11-1", maksupaiva: "10.11.2026", tulolaji: "Aikapalkka", palkka: 3000, alkuperainenTulo: 0, ansaintaAika: "1.11.2026 - 30.11.2026", tyonantaja: "Posti Oyj" },
+      { id: "2026-11-2", maksupaiva: "10.11.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2026-10",
+    ajanjakso: "2026 Lokakuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3400,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-10-1", maksupaiva: "10.10.2026", tulolaji: "Aikapalkka", palkka: 2900, alkuperainenTulo: 0, ansaintaAika: "1.10.2026 - 31.10.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2026-10-2", maksupaiva: "10.10.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2026-09",
+    ajanjakso: "2026 Syyskuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3300,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-09-1", maksupaiva: "10.9.2026", tulolaji: "Aikapalkka", palkka: 2800, alkuperainenTulo: 0, ansaintaAika: "1.9.2026 - 30.9.2026", tyonantaja: "Posti Oyj" },
+      { id: "2026-09-2", maksupaiva: "10.9.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2026-08",
+    ajanjakso: "2026 Elokuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3200,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-08-1", maksupaiva: "10.8.2026", tulolaji: "Aikapalkka", palkka: 2700, alkuperainenTulo: 0, ansaintaAika: "1.8.2026 - 31.8.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2026-08-2", maksupaiva: "10.8.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2026-07",
+    ajanjakso: "2026 Heinäkuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3100,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-07-1", maksupaiva: "10.7.2026", tulolaji: "Aikapalkka", palkka: 2600, alkuperainenTulo: 0, ansaintaAika: "1.7.2026 - 31.7.2026", tyonantaja: "Posti Oyj" },
+      { id: "2026-07-2", maksupaiva: "10.7.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2026-06",
+    ajanjakso: "2026 Kesäkuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 3000,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-06-1", maksupaiva: "10.6.2026", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.6.2026 - 30.6.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2026-06-2", maksupaiva: "10.6.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2026-05",
+    ajanjakso: "2026 Toukokuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2900,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-05-1", maksupaiva: "10.5.2026", tulolaji: "Aikapalkka", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "1.5.2026 - 31.5.2026", tyonantaja: "Posti Oyj" },
+      { id: "2026-05-2", maksupaiva: "10.5.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2026-04",
+    ajanjakso: "2026 Huhtikuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2800,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-04-1", maksupaiva: "10.4.2026", tulolaji: "Aikapalkka", palkka: 2300, alkuperainenTulo: 0, ansaintaAika: "1.4.2026 - 30.4.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2026-04-2", maksupaiva: "10.4.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2026-03",
+    ajanjakso: "2026 Maaliskuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2700,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-03-1", maksupaiva: "10.3.2026", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "1.3.2026 - 31.3.2026", tyonantaja: "Posti Oyj" },
+      { id: "2026-03-2", maksupaiva: "10.3.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
+  },
+  {
+    id: "2026-02",
+    ajanjakso: "2026 Helmikuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2600,
+    tyonantajat: "Nokia Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-02-1", maksupaiva: "10.2.2026", tulolaji: "Aikapalkka", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "1.2.2026 - 28.2.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
+      { id: "2026-02-2", maksupaiva: "10.2.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+    ]
+  },
+  {
+    id: "2026-01",
+    ajanjakso: "2026 Tammikuu",
+    toe: 1,
+    jakaja: 21.5,
+    palkka: 2500,
+    tyonantajat: "Posti Oyj",
+    pidennettavatJaksot: 0,
+    rows: [
+      { id: "2026-01-1", maksupaiva: "10.1.2026", tulolaji: "Aikapalkka", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "1.1.2026 - 31.1.2026", tyonantaja: "Posti Oyj" },
+      { id: "2026-01-2", maksupaiva: "10.1.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+    ]
   }
 ];
 

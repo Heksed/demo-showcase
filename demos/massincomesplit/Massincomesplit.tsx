@@ -214,18 +214,22 @@ export default function MassIncomeSplitPrototype() {
   const dateTo = useMemo(() => parseFinnishDate(dateToStr), [dateToStr]);
 
   const filteredRows = useMemo(() => {
+    // Jos "Vain palkkatuettu" on valittu, näytetään kaikki palkkatuetut rivit
+    // riippumatta muista suodattimista
+    if (onlySubsidized) {
+      return rows.filter((r) => {
+        // Tarkista onko rivi palkkatuettu
+        const isSubsidized = r.isSubsidized !== undefined
+          ? r.isSubsidized
+          : SUBSIDIZED_EMPLOYERS.has(r.tyonantaja);
+        return isSubsidized;
+      });
+    }
+    
+    // Normaali filtteröinti kun "Vain palkkatuettu" ei ole valittu
     return rows.filter((r) => {
       if (employer !== "Kaikki työnantajat" && r.tyonantaja !== employer) return false;
       if (incomeType && incomeType !== "Kaikki" && r.tulolaji !== incomeType) return false;
-      // Use isSubsidized field if available, otherwise fall back to SUBSIDIZED_EMPLOYERS set
-      if (onlySubsidized) {
-        if (r.isSubsidized !== undefined) {
-          if (!r.isSubsidized) return false;
-        } else {
-          // Fallback to old logic if isSubsidized is not set
-          if (!SUBSIDIZED_EMPLOYERS.has(r.tyonantaja)) return false;
-        }
-      }
       // Filter out non-benefit affecting income types if hideNonBenefitAffecting is true
       // UNLESS they are explicitly marked as "Huomioitu laskennassa"
       if (hideNonBenefitAffecting) {
@@ -468,9 +472,9 @@ export default function MassIncomeSplitPrototype() {
             </div>
             <div className="md:col-span-2 flex items-end gap-4">
               <div className="flex items-center gap-2">
-                <Checkbox checked={onlySubsidized} onCheckedChange={(v) => setOnlySubsidized(Boolean(v))} id="only-subsidized" />
-                <Label htmlFor="only-subsidized">Vain palkkatuettu</Label>
-              </div>
+              <Checkbox checked={onlySubsidized} onCheckedChange={(v) => setOnlySubsidized(Boolean(v))} id="only-subsidized" />
+              <Label htmlFor="only-subsidized">Vain palkkatuettu</Label>
+            </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={hideNonBenefitAffecting} onCheckedChange={(v) => setHideNonBenefitAffecting(Boolean(v))} id="hide-non-benefit" />
                 <Label htmlFor="hide-non-benefit" className="text-sm">Piilota laskentaan vaikuttamattomat</Label>
@@ -480,15 +484,15 @@ export default function MassIncomeSplitPrototype() {
 
           <div className="mt-6 rounded-xl bg-teal-50 px-4 py-3 text-sm">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-medium">
-                Valitut rivit <span className="font-semibold">{selectedRowsFiltered.length}</span> / {filteredRows.length}
-              </div>
-              <div className="flex items-center gap-6">
-                <div>Yhteensä <span className="font-semibold">{formatCurrency(totalFiltered)}</span></div>
-                {onlySubsidized && subsidizedFiltered > 0 && (
-                  <div>75% palkkatuetuista <span className="font-semibold">{formatCurrency(roundToCents(subsidizedFiltered * 0.75))}</span></div>
-                )}
-              </div>
+            <div className="font-medium">
+              Valitut rivit <span className="font-semibold">{selectedRowsFiltered.length}</span> / {filteredRows.length}
+            </div>
+            <div className="flex items-center gap-6">
+              <div>Yhteensä <span className="font-semibold">{formatCurrency(totalFiltered)}</span></div>
+              {onlySubsidized && subsidizedFiltered > 0 && (
+                <div>75% palkkatuetuista <span className="font-semibold">{formatCurrency(roundToCents(subsidizedFiltered * 0.75))}</span></div>
+              )}
+            </div>
             </div>
             {selectedSubsidizedRows.length > 0 && (
               <div className="mt-3 pt-3 border-t border-teal-200 flex items-center justify-between">

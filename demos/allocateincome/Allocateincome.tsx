@@ -34,11 +34,14 @@ import useViikkoTOEHandlers from "./hooks/useViikkoTOEHandlers";
 /* Local MOCK_PERIODS fallback removed */
 
 // --- Helper Functions ---
-import { formatCurrency } from "./utils";
+import { formatCurrency, parseFinnishDate } from "./utils";
 import { isoToFI } from "./utils";
 import { getFinnishMonthName } from "./utils";
 import { getVisibleRows } from "./utils";
 import { daysBetween } from "./utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 
 // distributeByDays / distributeEqualMonths moved to utils
 
@@ -53,6 +56,81 @@ export default function AllocateIncome() {
   const [definitionOverride, setDefinitionOverride] = useState<{start: string, end: string} | null>(null);
   const [viikkoTOEVähennysSummat, setViikkoTOEVähennysSummat] = useState<{[periodId: string]: number}>({});
   const { periods, setPeriods, expandedPeriods, togglePeriod, isViikkoTOEPeriod } = usePeriodsModel(definitionType as any);
+
+  // Tarkastelujakson muokkausmahdollisuus - lue sessionStoragesta jos saatavilla
+  const [reviewPeriodStart, setReviewPeriodStart] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("reviewPeriodStart");
+      if (stored) {
+        return stored;
+      }
+    }
+    // Oletusarvo riippuu definitionType:sta, mutta koska se on state, käytetään yleistä oletusarvoa
+    // Päivitetään useEffect:issa jos definitionType on eurotoe
+    return "01.01.2023";
+  });
+  
+  const [reviewPeriodEnd, setReviewPeriodEnd] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("reviewPeriodEnd");
+      if (stored) {
+        return stored;
+      }
+    }
+    // Oletusarvo riippuu definitionType:sta, mutta koska se on state, käytetään yleistä oletusarvoa
+    // Päivitetään useEffect:issa jos definitionType on eurotoe
+    return "31.12.2025";
+  });
+
+  // Parse period date from ajanjakso string (e.g., "2025 Joulukuu" -> Date)
+  const parsePeriodDate = (ajanjakso: string): Date | null => {
+    const parts = ajanjakso.split(' ');
+    if (parts.length !== 2) return null;
+    const year = parseInt(parts[0], 10);
+    const monthName = parts[1];
+    const monthMap: { [key: string]: number } = {
+      'Tammikuu': 0, 'Helmikuu': 1, 'Maaliskuu': 2, 'Huhtikuu': 3,
+      'Toukokuu': 4, 'Kesäkuu': 5, 'Heinäkuu': 6, 'Elokuu': 7,
+      'Syyskuu': 8, 'Lokakuu': 9, 'Marraskuu': 10, 'Joulukuu': 11
+    };
+    const month = monthMap[monthName];
+    if (month === undefined || isNaN(year)) return null;
+    return new Date(year, month, 1);
+  };
+
+  // Filter periods based on review period
+  const filteredPeriods = useMemo(() => {
+    // ViikkoTOE-tyypillä käytetään suoraan usePeriodsModel hookin palauttamia periodsit
+    // eikä filtteröidä niitä, koska viikkoTOE-näkymä on erillinen
+    if (definitionType === 'viikkotoe') {
+      return periods;
+    }
+    
+    const startDate = parseFinnishDate(reviewPeriodStart);
+    const endDate = parseFinnishDate(reviewPeriodEnd);
+    
+    if (!startDate || !endDate) return periods;
+    
+    // Set end date to last day of the month
+    const endDateLastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+    
+    return periods.filter(period => {
+      // Special handling for viikkotoe-combined period (ei pitäisi tulla tänne viikkoTOE-tyypillä)
+      if (period.id === "viikkotoe-combined") {
+        // ViikkoTOE-aika on 2024-05 - 2024-08, joten tarkista onko tarkastelujakso sisältää tämän
+        const viikkoTOEStart = new Date(2024, 4, 1); // May 2024 (month index 4)
+        const viikkoTOEEnd = new Date(2024, 7, 31); // August 2024 (month index 7)
+        // Include if review period overlaps with ViikkoTOE period
+        return viikkoTOEStart <= endDateLastDay && viikkoTOEEnd >= startDate;
+      }
+      
+      const periodDate = parsePeriodDate(period.ajanjakso);
+      if (!periodDate) return false;
+      
+      // Check if period's first day is within review period
+      return periodDate >= startDate && periodDate <= endDateLastDay;
+    });
+  }, [periods, reviewPeriodStart, reviewPeriodEnd, definitionType]);
 
   const handleVähennysSummaChange = (periodId: string, summa: number) => {
     setViikkoTOEVähennysSummat(prev => ({
@@ -102,14 +180,33 @@ export default function AllocateIncome() {
 
   const { handleViikkoTOESave, handleViikkoTOEDelete, handleViikkoTOEAdd } = useViikkoTOEHandlers(setPeriods);
 
+  // Format review period for display
+  const reviewPeriodDisplay = useMemo(() => {
+    return `${reviewPeriodStart} - ${reviewPeriodEnd}`;
+  }, [reviewPeriodStart, reviewPeriodEnd]);
+
+  // Järjestä filteredPeriods uusimmasta vanhimpaan (uusin ensin)
+  const sortedFilteredPeriods = useMemo(() => {
+    return [...filteredPeriods].sort((a, b) => {
+      // Erikoistapaus: viikkotoe-combined periodi pysyy omalla paikallaan (tulee viimeiseksi)
+      if (a.id === "viikkotoe-combined") return 1;
+      if (b.id === "viikkotoe-combined") return -1;
+      
+      // Järjestä period ID:n mukaan (uusin ensin)
+      // Period ID on muodossa "YYYY-MM", joten string vertailu toimii
+      return b.id.localeCompare(a.id);
+    });
+  }, [filteredPeriods]);
+
   const summary = useTOESummary({
-    periods,
-      definitionType,
+    periods: sortedFilteredPeriods,
+    definitionType,
     definitionOverride,
     calculateTOEValue,
     calculateEffectiveIncomeTotal,
     isViikkoTOEPeriod,
     viikkoTOEVähennysSummat,
+    reviewPeriod: reviewPeriodDisplay,
   }) as any;
 
   // getVisibleRows moved to utils to ensure split-child rows are shown correctly
@@ -147,6 +244,52 @@ export default function AllocateIncome() {
     }
   }, []);
 
+  // Aseta default tarkastelujakso euroTOE näkymässä (ei viikkoTOE)
+  useEffect(() => {
+    // Jos definitionType on viikkoTOE, ei muuteta arvoja
+    if (definitionType === 'viikkotoe') {
+      return;
+    }
+    
+    // Jos definitionType on eurotoe (tai eurotoe6, vuositulo, ulkomaan), aseta default 2026
+    if (definitionType === 'eurotoe' || definitionType === 'eurotoe6' || definitionType === 'vuositulo' || definitionType === 'ulkomaan') {
+      // Tarkista ovatko nykyiset arvot vanhat oletusarvot (1.1.2023 - 31.12.2025)
+      // Tarkista myös sessionStoragesta, koska arvot voivat olla sieltä luettu
+      let storedStart = reviewPeriodStart;
+      let storedEnd = reviewPeriodEnd;
+      
+      if (typeof window !== "undefined") {
+        const sessionStart = sessionStorage.getItem("reviewPeriodStart");
+        const sessionEnd = sessionStorage.getItem("reviewPeriodEnd");
+        if (sessionStart && sessionEnd) {
+          storedStart = sessionStart;
+          storedEnd = sessionEnd;
+        }
+      }
+      
+      const isOldDefault = storedStart === "01.01.2023" && storedEnd === "31.12.2025";
+      
+      if (isOldDefault) {
+        // Päivitä uusiin oletusarvoihin (1.1.2026 - 31.12.2026)
+        setReviewPeriodStart("01.01.2026");
+        setReviewPeriodEnd("31.12.2026");
+        // Päivitä myös sessionStorage
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("reviewPeriodStart", "01.01.2026");
+          sessionStorage.setItem("reviewPeriodEnd", "31.12.2026");
+        }
+      }
+    }
+  }, [definitionType]); // Suoritetaan kun definitionType muuttuu
+
+  // Tallenna tarkastelujakso sessionStorageen kun se muuttuu
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("reviewPeriodStart", reviewPeriodStart);
+      sessionStorage.setItem("reviewPeriodEnd", reviewPeriodEnd);
+    }
+  }, [reviewPeriodStart, reviewPeriodEnd]);
+
   // Collect all income rows from periods for Massincomesplit
   const collectAllIncomeRows = (periods: MonthPeriod[]): IncomeRow[] => {
     return periods.flatMap(period => period.rows || []);
@@ -167,10 +310,25 @@ export default function AllocateIncome() {
     );
   }, [periods]);
 
+  // Hae palkkatuetun työn työnantajan nimi
+  const subsidizedEmployerName = useMemo(() => {
+    for (const period of periods) {
+      for (const row of period.rows) {
+        const isSubsidized = row.isSubsidized !== undefined
+          ? row.isSubsidized
+          : SUBSIDIZED_EMPLOYERS.has(row.tyonantaja);
+        if (isSubsidized) {
+          return row.tyonantaja;
+        }
+      }
+    }
+    return undefined;
+  }, [periods]);
+
   // Handler for navigating to Massincomesplit with data
   const handleNavigateToMassIncomeSplit = () => {
-    // Collect all income rows from periods
-    const allRows = collectAllIncomeRows(periods);
+    // Collect all income rows from filtered periods (within review period)
+    const allRows = collectAllIncomeRows(sortedFilteredPeriods);
     
     // Save to sessionStorage
     if (typeof window !== "undefined") {
@@ -178,13 +336,42 @@ export default function AllocateIncome() {
       // Also save TOE and total salary for drawer
       sessionStorage.setItem("toeSystemTotal", JSON.stringify(summary.totalTOEMonths));
       sessionStorage.setItem("systemTotalSalary", JSON.stringify(summary.totalSalary));
-      sessionStorage.setItem("periodCount", JSON.stringify(periods.length));
+      sessionStorage.setItem("periodCount", JSON.stringify(sortedFilteredPeriods.length));
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-7xl space-y-4">
+
+        {/* Tarkastelujakson muokkaus - näytetään vain muille tyypeille kuin viikkotoe */}
+        {definitionType !== 'viikkotoe' && (
+          <Card className="p-4 mb-4">
+            <div className="flex items-center gap-4">
+              <Label className="font-medium text-gray-700 whitespace-nowrap">Tarkastelujakso:</Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  type="text" 
+                  placeholder="PP.KK.VVVV" 
+                  value={reviewPeriodStart}
+                  onChange={(e) => setReviewPeriodStart(e.target.value)}
+                  className="w-32"
+                />
+                <span className="text-gray-600">-</span>
+                <Input 
+                  type="text" 
+                  placeholder="PP.KK.VVVV" 
+                  value={reviewPeriodEnd}
+                  onChange={(e) => setReviewPeriodEnd(e.target.value)}
+                  className="w-32"
+                />
+              </div>
+              <div className="text-sm text-gray-600">
+                TOE lasketaan tämän jakson sisällä olevista kuukausista
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Palkkatuetun työn indikaattori */}
         {hasSubsidizedWork && (
@@ -212,6 +399,8 @@ export default function AllocateIncome() {
           setDefinitionType={(v: any) => setDefinitionType(v)}
           formatCurrency={formatCurrency}
           subsidyCorrection={subsidyCorrection}
+          hasSubsidizedWork={hasSubsidizedWork}
+          subsidizedEmployerName={subsidizedEmployerName}
         />
 
         {/* Suodata tulotietoja painike */}
@@ -223,7 +412,7 @@ export default function AllocateIncome() {
 
         {/* Periods Table */}
         <PeriodsTable
-          periods={periods}
+          periods={sortedFilteredPeriods}
           definitionType={definitionType as any}
           expandedPeriods={expandedPeriods}
           togglePeriod={togglePeriod}

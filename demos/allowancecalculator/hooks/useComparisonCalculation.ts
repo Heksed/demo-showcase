@@ -4,7 +4,7 @@
 
 import { useMemo } from "react";
 import type { FormulaConfig } from "../types";
-import { clamp, roundToCents } from "../utils";
+import { clamp, roundToCents, calculateDateByCumulativePaidDays } from "../utils";
 
 interface ComparisonParams {
   compareMode: boolean;
@@ -25,7 +25,10 @@ interface ComparisonParams {
     perDayReductionIncome: number;
     travelAllowanceTotal: number;
     days: number;
+    priorPaidDays: number;
   };
+  periodStartDate: string;
+  stepFactorOverride: string;
 }
 
 export default function useComparisonCalculation(params: ComparisonParams) {
@@ -40,6 +43,8 @@ export default function useComparisonCalculation(params: ComparisonParams) {
     formulaConfig,
     flags,
     results,
+    periodStartDate,
+    stepFactorOverride,
   } = params;
 
   const resultsCompare = useMemo(() => {
@@ -96,6 +101,104 @@ export default function useComparisonCalculation(params: ComparisonParams) {
       cmpNet + results.travelAllowanceTotal
     ); // kulukorvaus/ pv samana
 
+    // ✨ 2.6 Porrastusajanjaksot vertailulaskennassa
+    const stepFactorByCumulativeDaysCfg = (dayInPeriod: number) => {
+      if (dayInPeriod > formulaConfig.step2Threshold)
+        return {
+          factor: formulaConfig.step2Factor,
+          label: `Porrastus ${Math.round(formulaConfig.step2Factor * 100)}%`,
+        } as const;
+      if (dayInPeriod > formulaConfig.step1Threshold)
+        return {
+          factor: formulaConfig.step1Factor,
+          label: `Porrastus ${Math.round(formulaConfig.step1Factor * 100)}%`,
+        } as const;
+      return { factor: 1.0, label: "Ei porrastusta" } as const;
+    };
+
+    const cmpStepPeriods = (() => {
+      if (stepFactorOverride && stepFactorOverride !== "auto") {
+        return null; // Ei näytetä kun override on käytössä
+      }
+
+      const periods: Array<{
+        factor: number;
+        percentage: number;
+        days: number;
+        startDay: number;
+        endDay: number;
+        amount: number;
+        dailyAmount: number;
+        startDate: string;
+        endDate: string;
+      }> = [];
+      let currentFactor: number | null = null;
+      let currentStart = 1;
+      let currentDays = 0;
+      let currentAmount = 0;
+
+      for (let i = 0; i < cmpDays; i++) {
+        const dayInPeriod = i + 1; // Jakson sisäinen päivä (1, 2, 3, ...)
+        const { factor } = stepFactorByCumulativeDaysCfg(dayInPeriod);
+        const dailyAmount = cmpAdjustedDaily * factor;
+
+        if (currentFactor !== factor) {
+          // Tallenna edellinen jakso
+          if (currentFactor !== null) {
+            periods.push({
+              factor: currentFactor,
+              percentage: Math.round(currentFactor * 100),
+              days: currentDays,
+              startDay: currentStart,
+              endDay: currentStart + currentDays - 1,
+              amount: roundToCents(currentAmount),
+              dailyAmount: roundToCents(cmpAdjustedDaily * currentFactor),
+              startDate: calculateDateByCumulativePaidDays(
+                periodStartDate,
+                results.priorPaidDays + currentStart
+              ),
+              endDate: calculateDateByCumulativePaidDays(
+                periodStartDate,
+                results.priorPaidDays + currentStart + currentDays - 1
+              ),
+            });
+          }
+
+          // Aloita uusi jakso
+          currentFactor = factor;
+          currentStart = i + 1;
+          currentDays = 1;
+          currentAmount = dailyAmount;
+        } else {
+          currentDays++;
+          currentAmount += dailyAmount;
+        }
+      }
+
+      // Tallenna viimeinen jakso
+      if (currentFactor !== null) {
+        periods.push({
+          factor: currentFactor,
+          percentage: Math.round(currentFactor * 100),
+          days: currentDays,
+          startDay: currentStart,
+          endDay: currentStart + currentDays - 1,
+          amount: roundToCents(currentAmount),
+          dailyAmount: roundToCents(cmpAdjustedDaily * currentFactor),
+          startDate: calculateDateByCumulativePaidDays(
+            periodStartDate,
+            results.priorPaidDays + currentStart
+          ),
+          endDate: calculateDateByCumulativePaidDays(
+            periodStartDate,
+            results.priorPaidDays + currentStart + currentDays - 1
+          ),
+        });
+      }
+
+      return periods;
+    })();
+
     return {
       days: cmpDays,
       fullDaily: cmpFullDaily,
@@ -107,6 +210,7 @@ export default function useComparisonCalculation(params: ComparisonParams) {
       memberFee: cmpMemberFee,
       net: cmpNet,
       totalPayable: cmpTotal,
+      stepPeriods: cmpStepPeriods,
     };
   }, [
     compareMode,
@@ -124,6 +228,9 @@ export default function useComparisonCalculation(params: ComparisonParams) {
     results.perDayReductionIncome,
     results.travelAllowanceTotal,
     results.days,
+    results.priorPaidDays,
+    periodStartDate,
+    stepFactorOverride,
   ]);
 
   return resultsCompare;
