@@ -46,7 +46,7 @@ export default function SummaryHeader({
   
   // Jos TOE täyttyy, käytä tarvittua määrää, muuten käytä kaikkia TOE-kuukausia
   const baseTOEMonths = hasTOEFulfilled
-    ? summary.displayTOEMonths  // Jos TOE täyttyy, käytä tarvittua määrää
+    ? (summary.displayTOEMonths ?? summary.totalTOEMonths)  // Jos TOE täyttyy, käytä tarvittua määrää (fallback totalTOEMonths)
     : summary.totalTOEMonths;  // Jos TOE ei täyty, käytä kaikkia TOE-kuukausia
   
   const toeMonthsRaw = subsidyCorrection && subsidyCorrection.toeCorrection !== 0 
@@ -60,7 +60,7 @@ export default function SummaryHeader({
   const displayTOE = subsidyCorrection && subsidyCorrection.toeCorrection !== 0
     ? roundToeMonthsDown(subsidyCorrection.toeCorrectedTotal)
     : (hasTOEFulfilled
-        ? roundToeMonthsDown(summary.displayTOEMonths!)
+        ? roundToeMonthsDown(summary.displayTOEMonths ?? summary.totalTOEMonths)
         : toeMonths);
   
   const displayTOEMax = subsidyCorrection && subsidyCorrection.toeCorrection !== 0
@@ -68,7 +68,7 @@ export default function SummaryHeader({
         ? roundToeMonthsDown(subsidyCorrection.toeCorrectedTotal)  // Jos korjattu >= 12, käytä korjattua arvoa
         : 12)  // Jos korjattu < 12, käytä 12
     : (hasTOEFulfilled && summary.displayTOEMax
-        ? roundToeMonthsDown(summary.displayTOEMax)
+        ? roundToeMonthsDown(summary.displayTOEMax ?? 12)
         : 12);
   
   // Tarkista onko TOE-kertymä alle 12kk (käytä korjattua arvoa jos saatavilla)
