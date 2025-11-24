@@ -61,6 +61,9 @@ export default function AllocateIncome() {
   // Alustetaan false, ja luetaan sessionStoragesta useEffect:issa client-puolella
   const [hasCalculated, setHasCalculated] = useState<boolean>(false);
   
+  // Loading state "Laske TOE" -painikkeelle
+  const [isCalculatingTOE, setIsCalculatingTOE] = useState<boolean>(false);
+  
   // Lue hasCalculated sessionStoragesta client-puolella
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -622,7 +625,7 @@ export default function AllocateIncome() {
   }, [calculateTOECompletionWithExtending, totalExtendingDays, additionalExtendingDays, reviewPeriodEnd]);
 
   // Handler "Laske TOE" -painikkeelle
-  const handleCalculateTOE = useCallback(() => {
+  const handleCalculateTOE = useCallback(async () => {
     // Varmista että päättymispäivä on asetettu (pitäisi olla jo kuluva päivä)
     let endDateStr = reviewPeriodEnd;
     if (!endDateStr || endDateStr.trim() === "") {
@@ -630,6 +633,12 @@ export default function AllocateIncome() {
       endDateStr = formatDateFI(today);
       setReviewPeriodEnd(endDateStr);
     }
+    
+    // Aseta loading-tila päälle
+    setIsCalculatingTOE(true);
+    
+    // Simuloi tietokannasta latausta (1-2 sekuntia)
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     // Aseta laskenta tehtyksi - tämä näyttää periodsit ja päivittää laskennat
     setHasCalculated(true);
@@ -639,6 +648,9 @@ export default function AllocateIncome() {
     }
     
     const result = calculateTOECompletion();
+    
+    // Poista loading-tila
+    setIsCalculatingTOE(false);
     
     if (!result) {
       alert("Tarkastelujakson päättymispäivää ei voitu parsia. Tarkista päivämäärän muoto (PP.KK.VVVV).");
@@ -767,8 +779,19 @@ export default function AllocateIncome() {
                 onClick={handleCalculateTOE}
                 variant="outline"
                 className="whitespace-nowrap"
+                disabled={isCalculatingTOE}
               >
-                Laske TOE
+                {isCalculatingTOE ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Ladataan...
+                  </>
+                ) : (
+                  "Laske TOE"
+                )}
               </Button>
               
             </div>

@@ -250,11 +250,6 @@ export default function SubsidizedWorkDrawer({
                           ✓ TOE täyttyy laajennuksen jälkeen
                         </span>
                       )}
-                      {estimatedTOE < 12 && (
-                        <span className="block mt-1 text-amber-700">
-                          Tarvitaan vielä {(12 - estimatedTOE).toFixed(1)} kk. Lisää päiviä tai hae lisää tietoja taaksepäin.
-                        </span>
-                      )}
                     </p>
                   </div>
                 )}

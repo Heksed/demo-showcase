@@ -51,7 +51,13 @@ export default function SummaryHeader({
   
   // Tarkista onko TOE täyttynyt laajennetun tarkastelujakson perusteella
   // Jos on, käytetään summary-arvoja subsidyCorrection-arvojen sijaan
-  const useSummaryValues = hasTOEFulfilled && summary.displayTOEMonths && summary.displayTOEMonths >= 12;
+  // MUTTA: Jos korjaus on tehty ja käytössä, käytetään korjauksen arvoja
+  const hasActiveCorrection = subsidyCorrection && (
+    subsidyCorrection.totalSalaryCorrection !== 0 || 
+    subsidyCorrection.averageSalaryCorrection !== 0
+  );
+  const useSummaryValues = hasTOEFulfilled && summary.displayTOEMonths && summary.displayTOEMonths >= 12 
+    && !hasActiveCorrection;
   
   const toeMonthsRaw = useSummaryValues
     ? baseTOEMonths  // Käytä summary-arvoja jos TOE täyttyy laajennetun tarkastelujakson perusteella
@@ -86,19 +92,21 @@ export default function SummaryHeader({
   const isTOELessThan12 = toeMonths < 12;
   
   // Korjattu TOE-palkka (totalSalary)
-  // Jos TOE täyttyy laajennetun tarkastelujakson perusteella, käytä summary-arvoja
-  const toeSalary = useSummaryValues
-    ? summary.totalSalary
-    : (subsidyCorrection && subsidyCorrection.totalSalaryCorrection !== 0
-        ? subsidyCorrection.totalSalaryCorrected
+  // Jos korjaus on tehty ja käytössä, käytä korjauksen arvoja
+  // Muuten käytä summary-arvoja jos TOE täyttyy laajennetun tarkastelujakson perusteella
+  const toeSalary = hasActiveCorrection
+    ? subsidyCorrection.totalSalaryCorrected
+    : (useSummaryValues
+        ? summary.totalSalary
         : summary.totalSalary);
   
   // Korjattu perustepalkka/kk (averageSalary) - lasketaan korjatusta TOE-palkasta
-  // Jos TOE täyttyy laajennetun tarkastelujakson perusteella, käytä summary-arvoja
-  const wageBase = useSummaryValues
-    ? summary.averageSalary
-    : (subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0
-        ? subsidyCorrection.averageSalaryCorrected
+  // Jos korjaus on tehty ja käytössä, käytä korjauksen arvoja
+  // Muuten käytä summary-arvoja jos TOE täyttyy laajennetun tarkastelujakson perusteella
+  const wageBase = hasActiveCorrection
+    ? subsidyCorrection.averageSalaryCorrected
+    : (useSummaryValues
+        ? summary.averageSalary
         : summary.averageSalary);
   
   // Recalculate daily salary and full daily allowance if wage base changed

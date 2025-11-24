@@ -151,10 +151,6 @@ export default function useTOESummary({
       // TÄRKEÄ: Lisää periodi requiredPeriods-taulukkoon VASTA jos periodin TOE > 0
       // Tämä varmistaa että vain TOE-kerryttävät periodsit osallistuvat laskentaan
       if (periodTOE > 0) {
-        // Lisää periodi requiredPeriods-taulukkoon ennen kuin lisätään TOE-kuukaudet
-        // Tämä varmistaa että periodi on mukana jos se osallistuu täyttymiseen
-        requiredPeriods.unshift(period); // Lisää alkuun (vanhin ensin, jotta järjestys on oikea)
-        
         collectedTOEMonths += periodTOE;
         
         // Jos 12kk saavutettu, rajoita requiredPeriods vain niihin periodsit jotka osallistuivat täyttymiseen
@@ -164,11 +160,20 @@ export default function useTOESummary({
           
           // Rajoita requiredPeriods vain niihin periodsit jotka osallistuivat täyttymiseen
           // Lasketaan taaksepäin: montako periodia tarvitaan täyttämään 12kk
-          // TÄRKEÄ: Tallenna vain ne periodsit, joilla on TOE > 0
+          // TÄRKEÄ: Tallenna vain ne periodsit, joilla on TOE > 0 ja jotka osallistuvat täyttymiseen
           let tempCollected = 0;
           const periodsNeeded: MonthPeriod[] = []; // Tallenna periodsit, joilla on TOE > 0
-          for (let i = requiredPeriods.length - 1; i >= 0; i--) {
-            const p = requiredPeriods[i];
+          
+          // Käy periodsit läpi taaksepäin (uusimmasta vanhimpaan) ja kerää ne, jotka osallistuvat täyttymiseen
+          for (let i = sortedPeriods.length - 1; i >= 0; i--) {
+            const p = sortedPeriods[i];
+            const pDate = parsePeriodDate(p.ajanjakso);
+            if (!pDate || !reviewPeriodEndDate) continue;
+            
+            // Tarkista, että periodi on tarkastelujakson sisällä
+            if (pDate > reviewPeriodEndDate) continue;
+            if (reviewPeriodStartDate && pDate < reviewPeriodStartDate) continue;
+            
             let pTOE = definitionType === 'viikkotoe' && p.viikkoTOERows && p.viikkoTOERows.length > 0
               ? p.toe
               : calculateTOEValue(p);
@@ -211,11 +216,16 @@ export default function useTOESummary({
               }
             }
           }
+          
           // Pidä vain ne periodit jotka osallistuivat täyttymiseen ja joilla on TOE > 0
           // Korvaa requiredPeriods täysin periodsNeeded-taulukolla
           requiredPeriods.splice(0, requiredPeriods.length);
           requiredPeriods.push(...periodsNeeded);
           break;
+        } else {
+          // Jos 12kk ei ole vielä saavutettu, lisää periodi requiredPeriods-taulukkoon
+          // Tämä varmistaa että periodi on mukana jos se osallistuu täyttymiseen
+          requiredPeriods.unshift(period); // Lisää alkuun (vanhin ensin, jotta järjestys on oikea)
         }
       }
       // Jos periodin TOE on 0, ei lisätä sitä requiredPeriods-taulukkoon
