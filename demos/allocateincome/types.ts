@@ -36,6 +36,17 @@ export type SubsidyCorrection = {
   averageSalaryCorrected: number; // Korjattu perustepalkka/kk (laskettu korjatusta totalSalarysta)
   averageSalaryCorrection: number; // Korjaus perustepalkkaan
   rule: SubsidyRule;
+  // Manual period adjustments (for manual correction workflow)
+  manualPeriodAdjustments?: Array<{
+    periodId: string;
+    includeInToe: boolean;
+    includeInWage: boolean;
+    divisorDays: number;
+    subsidyType?: SubsidyRule;
+  }>;
+  // Määrittelyjakso korjatun TOE:n perusteella
+  definitionPeriodStart?: string; // Format: "DD.MM.YYYY"
+  definitionPeriodEnd?: string; // Format: "DD.MM.YYYY"
 };
 
 export type ViikkoTOERow = {
@@ -102,5 +113,67 @@ export const NON_BENEFIT_AFFECTING_INCOME_TYPES: string[] = [
   "Kokouspalkkio",
   "Luentopalkkio",
 ];
+
+// Types for period-based UI with segment-based calculation
+export type SegmentType = "COMMON" | "SUBSIDY_ONLY";
+
+export interface SubsidySegment {
+  id: string;
+  type: SegmentType;
+  
+  // Number of calendar months in this segment (e.g. 10 for a 10-month common period)
+  calendarMonths: number;
+  
+  // TOE as the system currently sees it (before any 0.75 conversion)
+  toeNormalSystem: number;     // TOE from normal work in this segment
+  toeSubsidizedSystem: number; // TOE from subsidized work in this segment
+  
+  // Wages for wage determination
+  wageNormalTotal: number;       // wages from normal work in this segment
+  wageSubsidizedTotal: number;   // wages from subsidized work in this segment
+  
+  // Period IDs that belong to this segment
+  periodIds: string[];
+  
+  // For manual adjustments (handler can override)
+  includeInToe: boolean;       // include this segment in the TOE recalculation
+  includeInWage: boolean;      // include this segment in the wage base (usually same as includeInToe)
+}
+
+export interface PeriodRow {
+  periodId: string;
+  periodDate: Date; // Periodin kuukausi
+  maksupaiva: string; // Näytettävä maksupäivä (ensimmäinen maksupäivä tai periodin kuukausi)
+  
+  // Normaalityö (näytetään vain jos on)
+  normalWorkWage?: number;
+  normalWorkTOE?: number; // Korjattu normaalityön TOE periodille
+  
+  // Palkkatuettu työ
+  subsidizedWorkWage: number;
+  subsidizedWorkEmployer: string; // Yritys
+  subsidizedWorkTOE: number; // Järjestelmän TOE (ennen korjausta)
+  correctedSubsidizedTOE: number; // Korjattu palkkatuetun työn TOE periodille
+  
+  // Yhteensä korjattu TOE periodille (normalWorkTOE + correctedSubsidizedTOE)
+  correctedTOE: number;
+  jakaja: number; // Jakaja-päivät
+  
+  // Segment-tyyppi (taustalla, ei näytetä suoraan)
+  segmentType: SegmentType;
+  
+  // For LOCK_10_MONTHS_THEN_75: position from employment start (0-based, undefined if not applicable)
+  subsidizedPosition?: number;
+  
+  // Original period data
+  originalPeriod: MonthPeriod;
+  
+  // Manually editable fields (for manual correction workflow)
+  manualIncludeInToe?: boolean; // Override for includeInToe (undefined = use calculated value)
+  manualIncludeInWage?: boolean; // Override for includeInWage (undefined = use calculated value)
+  manualDivisorDays?: number; // Override for divisorDays (undefined = use original jakaja)
+  manualSubsidyType?: SubsidyRule; // Override for subsidy rule per period (undefined = use global rule)
+  isZeroedOut?: boolean; // Flag for zeroed out periods (TOE = 0, divisorDays = 0, includeInToe = false, includeInWage = false)
+}
 
 

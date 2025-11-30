@@ -270,7 +270,7 @@ export default function AllocateIncome() {
 
   const summary = useTOESummary({
     periods: sortedFilteredPeriods,
-    definitionType,
+      definitionType,
     definitionOverride,
     calculateTOEValue,
     calculateEffectiveIncomeTotal,
@@ -749,6 +749,29 @@ export default function AllocateIncome() {
     }
   };
 
+  // Handler for extending review period to 28 months
+  const handleExtendReviewPeriodTo28Months = useCallback(() => {
+    // Get end date
+    let endDate = parseFinnishDate(reviewPeriodEnd);
+    if (!endDate) {
+      endDate = new Date();
+    }
+    
+    // Calculate 28 months back from end date
+    const extendedStartDate = new Date(endDate);
+    extendedStartDate.setMonth(extendedStartDate.getMonth() - 28);
+    extendedStartDate.setDate(1); // Set to first day of month
+    
+    // Update review period start
+    const startDateStr = formatDateFI(extendedStartDate);
+    setReviewPeriodStart(startDateStr);
+    
+    // Save to sessionStorage
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("reviewPeriodStart", startDateStr);
+    }
+  }, [reviewPeriodEnd]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-7xl space-y-4">
@@ -828,66 +851,66 @@ export default function AllocateIncome() {
 
         {/* TOE Yhteenveto - näytetään vasta laskennan jälkeen */}
         {hasCalculated && (
-          <SummaryHeader
-            summary={summary as any}
-            definitionType={definitionType}
-            setDefinitionType={(v: any) => setDefinitionType(v)}
-            formatCurrency={formatCurrency}
+        <SummaryHeader
+          summary={summary as any}
+          definitionType={definitionType}
+          setDefinitionType={(v: any) => setDefinitionType(v)}
+          formatCurrency={formatCurrency}
             subsidyCorrection={subsidyCorrection}
             hasSubsidizedWork={hasSubsidizedWork}
             subsidizedEmployerName={subsidizedEmployerName}
-          />
+        />
         )}
 
         {/* Suodata tulotietoja painike - näytetään vasta laskennan jälkeen */}
         {hasCalculated && (
-          <div className="flex justify-end mb-4">
+        <div className="flex justify-end mb-4">
             <Link href="/massincomesplit" onClick={handleNavigateToMassIncomeSplit}>
-              <Button className="bg-[#0e4c92] hover:bg-[#0d4383]">Suodata tulotietoja</Button>
-            </Link>
-          </div>
+            <Button className="bg-[#0e4c92] hover:bg-[#0d4383]">Suodata tulotietoja</Button>
+          </Link>
+        </div>
         )}
 
         {/* Periods Table - näytetään vasta laskennan jälkeen */}
         {hasCalculated && (
-          <PeriodsTable
+        <PeriodsTable
             periods={sortedFilteredPeriods}
-            definitionType={definitionType as any}
-            expandedPeriods={expandedPeriods}
-            togglePeriod={togglePeriod}
-            isViikkoTOEPeriod={isViikkoTOEPeriod}
-            calculateTOEValue={calculateTOEValue}
-            calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
-            getVisibleRows={getVisibleRows}
-            isRowDeleted={isRowDeleted}
-            NON_BENEFIT_AFFECTING_INCOME_TYPES={NON_BENEFIT_AFFECTING_INCOME_TYPES}
-            restoreIncomeType={restoreIncomeType}
-            openAllocationModalSingle={openAllocationModalSingle}
-            onOpenAllocationModalBatch={openAllocationModalBatch}
-            includeIncomeInCalculation={includeIncomeInCalculation}
-            deleteIncomeType={deleteIncomeType}
-            openSplitModal={(periodId, rowId) => split.openSplitModal(periodId, rowId)}
-            onShowSavedAllocation={(row) => {
-                                                          const savedAllocation = row.allocationData;
-                                                          if (savedAllocation) {
-                allocation.setAllocationContext(savedAllocation.originalContext);
-                allocation.setAllocationMethod(savedAllocation.allocationMethod);
-                allocation.setStartDate(savedAllocation.startDate);
-                allocation.setEndDate(savedAllocation.endDate);
-                allocation.setDistributionType(savedAllocation.distributionType);
-                allocation.setDirection(savedAllocation.direction);
-                allocation.setMonthCount(savedAllocation.monthCount);
-                allocation.setModalOpen(true);
-                allocation.setViewMode(true);
-              }
-            }}
-            onOpenAddIncome={() => addIncome.setOpen(true)}
-            onViikkoTOESave={handleViikkoTOESave}
-            onViikkoTOEDelete={handleViikkoTOEDelete}
-            onViikkoTOEAdd={handleViikkoTOEAdd}
-            onVähennysSummaChange={handleVähennysSummaChange}
-            formatCurrency={formatCurrency}
-          />
+          definitionType={definitionType as any}
+          expandedPeriods={expandedPeriods}
+          togglePeriod={togglePeriod}
+          isViikkoTOEPeriod={isViikkoTOEPeriod}
+          calculateTOEValue={calculateTOEValue}
+          calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
+          getVisibleRows={getVisibleRows}
+          isRowDeleted={isRowDeleted}
+          NON_BENEFIT_AFFECTING_INCOME_TYPES={NON_BENEFIT_AFFECTING_INCOME_TYPES}
+          restoreIncomeType={restoreIncomeType}
+          openAllocationModalSingle={openAllocationModalSingle}
+          onOpenAllocationModalBatch={openAllocationModalBatch}
+          includeIncomeInCalculation={includeIncomeInCalculation}
+          deleteIncomeType={deleteIncomeType}
+          openSplitModal={(periodId, rowId) => split.openSplitModal(periodId, rowId)}
+          onShowSavedAllocation={(row) => {
+                                                        const savedAllocation = row.allocationData;
+                                                        if (savedAllocation) {
+              allocation.setAllocationContext(savedAllocation.originalContext);
+              allocation.setAllocationMethod(savedAllocation.allocationMethod);
+              allocation.setStartDate(savedAllocation.startDate);
+              allocation.setEndDate(savedAllocation.endDate);
+              allocation.setDistributionType(savedAllocation.distributionType);
+              allocation.setDirection(savedAllocation.direction);
+              allocation.setMonthCount(savedAllocation.monthCount);
+              allocation.setModalOpen(true);
+              allocation.setViewMode(true);
+            }
+          }}
+          onOpenAddIncome={() => addIncome.setOpen(true)}
+          onViikkoTOESave={handleViikkoTOESave}
+          onViikkoTOEDelete={handleViikkoTOEDelete}
+          onViikkoTOEAdd={handleViikkoTOEAdd}
+          onVähennysSummaChange={handleVähennysSummaChange}
+          formatCurrency={formatCurrency}
+        />
         )}
 
         {/* Pagination */}
@@ -988,10 +1011,15 @@ export default function AllocateIncome() {
           open={subsidyDrawerOpen}
           onOpenChange={setSubsidyDrawerOpen}
           rows={subsidizedRows}
+          periods={sortedFilteredPeriods}
           toeSystemTotal={summary.totalTOEMonths}
           systemTotalSalary={summary.totalSalaryAllPeriods || summary.totalSalary}
           periodCount={summary.requiredPeriodsCount || sortedFilteredPeriods.length}
           totalExtendingDays={totalExtendingDays}
+          reviewPeriodStart={reviewPeriodStart}
+          reviewPeriodEnd={reviewPeriodEnd}
+          calculateTOEValue={calculateTOEValue}
+          calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
           onApplyCorrection={(correction) => {
             setSubsidyCorrection(correction);
             // Tallenna sessionStorageen pysyvyyttä varten
@@ -1009,6 +1037,7 @@ export default function AllocateIncome() {
           }}
           onExtendPeriod={handleExtendPeriod}
           estimateTOEWithExtending={estimateTOEWithExtending}
+          onExtendReviewPeriodTo28Months={handleExtendReviewPeriodTo28Months}
         />
       )}
     </div>

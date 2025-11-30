@@ -295,8 +295,10 @@ export default function useTOESummary({
     switch (definitionType) {
       case 'eurotoe': {
         // Määrittelyjakso: 12kk taaksepäin täyttymispäivästä
-        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
-        if (completionDate) {
+        // Jos korjaus on tehty ja määrittelyjakso on tallennettu, käytä sitä
+        if (subsidyCorrection?.definitionPeriodStart && subsidyCorrection?.definitionPeriodEnd) {
+          definitionPeriod = `${subsidyCorrection.definitionPeriodStart} - ${subsidyCorrection.definitionPeriodEnd}`;
+        } else if (completionDate) {
           const definitionStart = new Date(completionDate);
           definitionStart.setMonth(definitionStart.getMonth() - 12);
           // Aseta kuukauden ensimmäiseksi päiväksi
@@ -318,8 +320,11 @@ export default function useTOESummary({
       }
       case 'eurotoe6': {
         // Määrittelyjakso: 6kk taaksepäin täyttymispäivästä
-        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
-        if (completionDate) {
+        // Jos korjaus on tehty ja määrittelyjakso on tallennettu, käytä sitä
+        // (EuroTOE6 käyttää viimeisiä 6 periodia, mutta näytetään koko määrittelyjakso)
+        if (subsidyCorrection?.definitionPeriodStart && subsidyCorrection?.definitionPeriodEnd) {
+          definitionPeriod = `${subsidyCorrection.definitionPeriodStart} - ${subsidyCorrection.definitionPeriodEnd}`;
+        } else if (completionDate) {
           const definitionStart = new Date(completionDate);
           definitionStart.setMonth(definitionStart.getMonth() - 6);
           // Aseta kuukauden ensimmäiseksi päiväksi
@@ -359,7 +364,10 @@ export default function useTOESummary({
 
         // ViikkoTOE: käytetään laskettua completionDate:ä
         // Määrittelyjakso lasketaan taaksepäin täyttymispäivästä
-        if (completionDate) {
+        // Jos korjaus on tehty ja määrittelyjakso on tallennettu, käytä sitä
+        if (subsidyCorrection?.definitionPeriodStart && subsidyCorrection?.definitionPeriodEnd) {
+          definitionPeriod = `${subsidyCorrection.definitionPeriodStart} - ${subsidyCorrection.definitionPeriodEnd}`;
+        } else if (completionDate) {
           let collectedTOEMonths = 0;
           let monthsBack = 0;
           
@@ -395,8 +403,10 @@ export default function useTOESummary({
       }
       case 'vuositulo': {
         // Vuositulo: määrittelyjakso on täyttymispäivän vuosi
-        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
-        if (completionDate) {
+        // Jos korjaus on tehty ja määrittelyjakso on tallennettu, käytä sitä
+        if (subsidyCorrection?.definitionPeriodStart && subsidyCorrection?.definitionPeriodEnd) {
+          definitionPeriod = `${subsidyCorrection.definitionPeriodStart} - ${subsidyCorrection.definitionPeriodEnd}`;
+        } else if (completionDate) {
           const year = completionDate.getFullYear();
           definitionPeriod = `01.01.${year} - 31.12.${year}`;
         } else {
@@ -410,8 +420,10 @@ export default function useTOESummary({
       }
       case 'ulkomaan': {
         // Ulkomaan: määrittelyjakso 12kk taaksepäin täyttymispäivästä
-        // Jos TOE ei täyty (completionDate on null), määrittelyjaksoa ei voida laskea
-        if (completionDate) {
+        // Jos korjaus on tehty ja määrittelyjakso on tallennettu, käytä sitä
+        if (subsidyCorrection?.definitionPeriodStart && subsidyCorrection?.definitionPeriodEnd) {
+          definitionPeriod = `${subsidyCorrection.definitionPeriodStart} - ${subsidyCorrection.definitionPeriodEnd}`;
+        } else if (completionDate) {
           const definitionStart = new Date(completionDate);
           definitionStart.setMonth(definitionStart.getMonth() - 12);
           definitionStart.setDate(1);
