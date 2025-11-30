@@ -66,7 +66,7 @@ export default function SubsidizedWorkDrawer({
   estimateTOEWithExtending,
   onExtendReviewPeriodTo28Months,
 }: SubsidizedWorkDrawerProps) {
-  const [subsidyRule, setSubsidyRule] = useState<SubsidyRule>("PERCENT_75");
+  const [subsidyRule, setSubsidyRule] = useState<SubsidyRule>("NONE");
   const [useToeCorrection, setUseToeCorrection] = useState(true);
   const [useWageCorrection, setUseWageCorrection] = useState(true);
   const [employmentStartDate, setEmploymentStartDate] = useState<string>("");
@@ -128,6 +128,10 @@ export default function SubsidizedWorkDrawer({
   useEffect(() => {
     if (!employmentStartDateOriginal) {
       // If no employment start date is entered, don't auto-select
+      // Reset to NONE if date is cleared and rule was auto-selected
+      if (subsidyRule === "PERCENT_75") {
+        setSubsidyRule("NONE");
+      }
       return;
     }
     
@@ -135,10 +139,15 @@ export default function SubsidizedWorkDrawer({
     // Use original date for comparison, not the first day of month
     if (employmentStartDateOriginal < RULE_DATE_AFTER) {
       setSubsidyRule("PERCENT_75");
+    } else {
+      // If employment start date is on or after 2.9.2024, don't set any default
+      // Reset to NONE if rule was previously auto-selected (PERCENT_75)
+      // This ensures user must manually select a rule for dates on or after 2.9.2024
+      if (subsidyRule === "PERCENT_75") {
+        setSubsidyRule("NONE");
+      }
     }
-    // If employment start date is on or after 2.9.2024, user can select the rule
-    // (no automatic selection)
-  }, [employmentStartDateOriginal]);
+  }, [employmentStartDateOriginal, subsidyRule]);
 
   // Select TOE period (up to 28 months)
   const toePeriodSelection = useMemo(() => {
