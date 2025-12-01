@@ -56,7 +56,19 @@ export default function useTOESummary({
 }: Params) {
   const summary = useMemo(() => {
     const totalTOEMonthsCalc = periods.reduce((sum, period) => sum + calculateTOEValue(period), 0);
-    const totalJakaja = periods.reduce((sum, period) => sum + period.jakaja, 0);
+    
+    // Helper function to get corrected jakaja for a period
+    const getCorrectedJakaja = (period: MonthPeriod): number => {
+      if (subsidyCorrection && subsidyCorrection.periodCorrectedTOE) {
+        const corrected = subsidyCorrection.periodCorrectedTOE.find(p => p.periodId === period.id);
+        if (corrected) {
+          return corrected.correctedJakaja;
+        }
+      }
+      return period.jakaja;
+    };
+    
+    const totalJakaja = periods.reduce((sum, period) => sum + getCorrectedJakaja(period), 0);
 
     const totalSalary = definitionType === 'viikkotoe' ?
       periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateEffectiveIncomeTotal(p), 0) +
@@ -274,7 +286,9 @@ export default function useTOESummary({
           }
           
           // Jos periodin TOE on 0, ei lisätä jakajaa
-          return periodTOE > 0 ? sum + period.jakaja : sum;
+          // Käytä korjattua jakajaa jos saatavilla
+          const periodJakaja = getCorrectedJakaja(period);
+          return periodTOE > 0 ? sum + periodJakaja : sum;
         }, 0)
       : totalJakaja; // Jos TOE ei täyty, käytä kaikkia periodsien jakaja-arvoja
     
@@ -315,7 +329,14 @@ export default function useTOESummary({
           ? requiredSalary / requiredPeriods.length
           : (periods.length > 0 ? totalSalary / periods.length : 0);
         dailySalary = averageSalary / 21.5;
+        
+        // Käytä korjauksen jakajaa, jos se on saatavilla
         workingDaysTotal = requiredTOEMonths > 0 ? requiredJakaja : totalJakaja;
+        
+        // Jos korjaus on tehty ja siinä on totalDivisorDays, käytä sitä
+        if (subsidyCorrection && subsidyCorrection.totalDivisorDays !== undefined && requiredTOEMonths > 0) {
+          workingDaysTotal = subsidyCorrection.totalDivisorDays;
+        }
         break;
       }
       case 'eurotoe6': {
@@ -341,10 +362,19 @@ export default function useTOESummary({
           ? requiredPeriods.slice(-6)
           : periods.slice(-6);
         const salary6Months = periodsToUse.reduce((sum, period) => sum + calculateEffectiveIncomeTotal(period), 0);
-        const jakaja6Months = periodsToUse.reduce((sum, period) => sum + period.jakaja, 0);
+        const jakaja6Months = periodsToUse.reduce((sum, period) => sum + getCorrectedJakaja(period), 0);
         averageSalary = periodsToUse.length > 0 ? salary6Months / periodsToUse.length : 0;
         dailySalary = averageSalary / 21.5;
+        
+        // Käytä korjauksen jakajaa, jos se on saatavilla
+        // jakaja6Months on jo laskettu käyttäen getCorrectedJakaja-funktiota
         workingDaysTotal = jakaja6Months;
+        
+        // Jos korjaus on tehty ja siinä on totalDivisorDays, käytä sitä
+        // (jakaja6Months käyttää jo korjattuja arvoja, mutta totalDivisorDays on tarkempi)
+        if (subsidyCorrection && subsidyCorrection.totalDivisorDays !== undefined && requiredTOEMonths > 0) {
+          workingDaysTotal = subsidyCorrection.totalDivisorDays;
+        }
         break;
       }
       case 'viikkotoe': {
@@ -360,7 +390,14 @@ export default function useTOESummary({
         const salaryToUse = requiredTOEMonths > 0 ? requiredSalary : totalSalary;
         averageSalary = periodsToUse.length > 0 ? salaryToUse / periodsToUse.length : 0;
         dailySalary = averageSalary / 21.5;
+        
+        // Käytä korjauksen jakajaa, jos se on saatavilla
         workingDaysTotal = requiredTOEMonths > 0 ? requiredJakaja : totalJakaja;
+        
+        // Jos korjaus on tehty ja siinä on totalDivisorDays, käytä sitä
+        if (subsidyCorrection && subsidyCorrection.totalDivisorDays !== undefined && requiredTOEMonths > 0) {
+          workingDaysTotal = subsidyCorrection.totalDivisorDays;
+        }
 
         // ViikkoTOE: käytetään laskettua completionDate:ä
         // Määrittelyjakso lasketaan taaksepäin täyttymispäivästä
@@ -436,7 +473,14 @@ export default function useTOESummary({
         
         averageSalary = periods.length > 0 ? totalSalary / periods.length : 0;
         dailySalary = averageSalary / 21.5;
+        
+        // Käytä korjauksen jakajaa, jos se on saatavilla
         workingDaysTotal = totalJakaja;
+        
+        // Jos korjaus on tehty ja siinä on totalDivisorDays, käytä sitä
+        if (subsidyCorrection && subsidyCorrection.totalDivisorDays !== undefined && requiredTOEMonths > 0) {
+          workingDaysTotal = subsidyCorrection.totalDivisorDays;
+        }
         break;
       }
     }

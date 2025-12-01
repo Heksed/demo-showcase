@@ -750,27 +750,6 @@ export default function AllocateIncome() {
   };
 
   // Handler for extending review period to 28 months
-  const handleExtendReviewPeriodTo28Months = useCallback(() => {
-    // Get end date
-    let endDate = parseFinnishDate(reviewPeriodEnd);
-    if (!endDate) {
-      endDate = new Date();
-    }
-    
-    // Calculate 28 months back from end date
-    const extendedStartDate = new Date(endDate);
-    extendedStartDate.setMonth(extendedStartDate.getMonth() - 28);
-    extendedStartDate.setDate(1); // Set to first day of month
-    
-    // Update review period start
-    const startDateStr = formatDateFI(extendedStartDate);
-    setReviewPeriodStart(startDateStr);
-    
-    // Save to sessionStorage
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("reviewPeriodStart", startDateStr);
-    }
-  }, [reviewPeriodEnd]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -910,6 +889,7 @@ export default function AllocateIncome() {
           onViikkoTOEAdd={handleViikkoTOEAdd}
           onVähennysSummaChange={handleVähennysSummaChange}
           formatCurrency={formatCurrency}
+          subsidyCorrection={subsidyCorrection}
         />
         )}
 
@@ -1020,6 +1000,19 @@ export default function AllocateIncome() {
           reviewPeriodEnd={reviewPeriodEnd}
           calculateTOEValue={calculateTOEValue}
           calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
+          onReviewPeriodChange={(start, end) => {
+            setReviewPeriodStart(start || "");
+            setReviewPeriodEnd(end);
+            // Save to sessionStorage
+            if (typeof window !== "undefined") {
+              if (start) {
+                sessionStorage.setItem("reviewPeriodStart", start);
+              } else {
+                sessionStorage.removeItem("reviewPeriodStart");
+              }
+              sessionStorage.setItem("reviewPeriodEnd", end);
+            }
+          }}
           onApplyCorrection={(correction) => {
             setSubsidyCorrection(correction);
             // Tallenna sessionStorageen pysyvyyttä varten
@@ -1037,7 +1030,6 @@ export default function AllocateIncome() {
           }}
           onExtendPeriod={handleExtendPeriod}
           estimateTOEWithExtending={estimateTOEWithExtending}
-          onExtendReviewPeriodTo28Months={handleExtendReviewPeriodTo28Months}
         />
       )}
     </div>

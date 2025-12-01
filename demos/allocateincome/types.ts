@@ -43,10 +43,19 @@ export type SubsidyCorrection = {
     includeInWage: boolean;
     divisorDays: number;
     subsidyType?: SubsidyRule;
+    correctedTOE?: number; // Korjattu TOE-arvo periodille
+  }>;
+  // Periodikohtaiset korjatut TOE-arvot (kaikille periodille)
+  periodCorrectedTOE?: Array<{
+    periodId: string;
+    correctedTOE: number;
+    correctedJakaja: number;
   }>;
   // Määrittelyjakso korjatun TOE:n perusteella
   definitionPeriodStart?: string; // Format: "DD.MM.YYYY"
   definitionPeriodEnd?: string; // Format: "DD.MM.YYYY"
+  // Korjattu jakaja (todelliset TOE jakajanpäivät)
+  totalDivisorDays?: number; // Korjattu jakaja, jota käytetään TOE-laskennassa
 };
 
 export type ViikkoTOERow = {

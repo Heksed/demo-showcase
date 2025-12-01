@@ -632,7 +632,9 @@ export function distributeCorrectedTOEToPeriods(
   subsidizedEmployers: Set<string>,
   segmentsUsed?: SubsidySegment[], // Optional: to filter only periods in selected segments
   rule?: "LOCK_10_MONTHS_THEN_75" | "PERCENT_75" | "NO_TOE_EXTENDS" | "NONE",
-  employmentStartDate?: Date | null // Added: employment start date for PERCENT_75 filtering
+  employmentStartDate?: Date | null, // Added: employment start date for PERCENT_75 filtering
+  reviewPeriodStart?: Date | null, // Added: review period start for filtering
+  reviewPeriodEnd?: Date | null // Added: review period end for filtering
 ): PeriodRow[] {
   const periodRows: PeriodRow[] = [];
   
@@ -657,6 +659,14 @@ export function distributeCorrectedTOEToPeriods(
   for (const period of periods) {
     const periodDate = parsePeriodDate(period.ajanjakso);
     if (!periodDate) continue;
+    
+    // Filter by review period: only include periods within review period
+    if (reviewPeriodEnd && periodDate > reviewPeriodEnd) {
+      continue; // Skip periods after review period end
+    }
+    if (reviewPeriodStart && periodDate < reviewPeriodStart) {
+      continue; // Skip periods before review period start
+    }
     
     // For PERCENT_75 rule: only include periods from employment start date onwards
     if (rule === "PERCENT_75" && employmentStartDate && periodDate < employmentStartDate) {
@@ -792,7 +802,7 @@ export function distributeCorrectedTOEToPeriods(
       normalWorkTOE: hasNormalWork ? roundToeMonthsDown(correctedNormalTOE) : undefined,
       subsidizedWorkWage: hasSubsidizedWork ? subsidizedWage : 0, // 0 if no subsidized work
       subsidizedWorkEmployer,
-      subsidizedWorkTOE: hasSubsidizedWork ? periodTOE : 0,
+      subsidizedWorkTOE: hasSubsidizedWork ? segment.toeSubsidizedSystem : 0, // Use segment's subsidized TOE, not period TOE
       correctedSubsidizedTOE: hasSubsidizedWork ? roundToeMonthsDown(correctedSubsidizedTOE) : 0,
       correctedTOE: roundToeMonthsDown(correctedTOE), // Total corrected TOE
       jakaja: period.jakaja,

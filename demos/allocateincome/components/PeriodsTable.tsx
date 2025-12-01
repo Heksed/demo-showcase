@@ -8,7 +8,7 @@ import { ChevronDown, ChevronRight, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import EuroTOETable from "./EuroTOETable";
 import ViikkoTOETable from "./ViikkoTOETable";
-import type { IncomeRow, MonthPeriod } from "../types";
+import type { IncomeRow, MonthPeriod, SubsidyCorrection } from "../types";
 
 // Subsidized employers - same list as in Allocateincome
 const SUBSIDIZED_EMPLOYERS = new Set<string>(["Nokia Oyj"]);
@@ -39,6 +39,7 @@ type Props = {
   onViikkoTOEAdd?: (periodId: string, newRowData: any) => void;
   onVähennysSummaChange: (periodId: string, summa: number) => void;
   formatCurrency: (n: number) => string;
+  subsidyCorrection?: SubsidyCorrection | null;
 };
 
 export default function PeriodsTable({
@@ -65,6 +66,7 @@ export default function PeriodsTable({
   onViikkoTOEAdd,
   onVähennysSummaChange,
   formatCurrency,
+  subsidyCorrection,
 }: Props) {
   const [viikkoTOEVähennysSummat, setViikkoTOEVähennysSummat] = useState<{[periodId: string]: number}>({});
 
@@ -88,6 +90,45 @@ export default function PeriodsTable({
     });
   };
 
+  // Get corrected TOE for a period
+  const getCorrectedTOE = (period: MonthPeriod): number => {
+    if (period.viikkoTOERows && period.viikkoTOERows.length > 0) {
+      return period.toe;
+    }
+    
+    // If correction is applied, use periodCorrectedTOE
+    if (subsidyCorrection && subsidyCorrection.periodCorrectedTOE) {
+      const corrected = subsidyCorrection.periodCorrectedTOE.find(p => p.periodId === period.id);
+      if (corrected) {
+        return corrected.correctedTOE;
+      }
+    }
+    
+    // Otherwise, use original calculation
+    return calculateTOEValue(period);
+  };
+
+  // Get corrected jakaja for a period
+  const getCorrectedJakaja = (period: MonthPeriod): number => {
+    const periodTOE = getCorrectedTOE(period);
+    
+    // If TOE is 0, jakaja should be 0
+    if (periodTOE <= 0) {
+      return 0;
+    }
+    
+    // If correction is applied, use periodCorrectedTOE
+    if (subsidyCorrection && subsidyCorrection.periodCorrectedTOE) {
+      const corrected = subsidyCorrection.periodCorrectedTOE.find(p => p.periodId === period.id);
+      if (corrected) {
+        return corrected.correctedJakaja;
+      }
+    }
+    
+    // Otherwise, use original jakaja
+    return period.jakaja;
+  };
+
   return (
     <Card>
       <CardContent className="p-0">
@@ -101,7 +142,7 @@ export default function PeriodsTable({
                 <th className="px-4 py-3 text-left text-sm font-medium">Jakaja</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Palkka</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Työnantajat</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Pidennettävät jaksot</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Pidentävät jaksot</th>
                 <th className="px-4 py-3 text-left text-sm font-medium w-24"></th>
               </tr>
             </thead>
@@ -133,16 +174,10 @@ export default function PeriodsTable({
                       </button>
                     </td>
                     <td className="px-4 py-3 text-sm font-medium">
-                      {period.viikkoTOERows && period.viikkoTOERows.length > 0
-                        ? period.toe
-                        : calculateTOEValue(period)}
+                      {getCorrectedTOE(period)}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      {(period.viikkoTOERows && period.viikkoTOERows.length > 0
-                        ? period.toe
-                        : calculateTOEValue(period)) > 0
-                        ? period.jakaja
-                        : 0}
+                      {getCorrectedJakaja(period)}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium">
                       {period.viikkoTOERows && period.viikkoTOERows.length > 0
