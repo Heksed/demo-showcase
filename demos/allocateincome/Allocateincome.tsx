@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import useEuroTOEHandlers from "./hooks/useEuroTOEHandlers";
 import Link from "next/link";
 import { MOCK_EMPLOYMENT } from "./mockData";
@@ -19,6 +21,7 @@ import AddIncomeDialog from "./components/AddIncomeDialog";
 import useAddIncomeModal from "./hooks/useAddIncomeModal";
 import PeriodsTable from "./components/PeriodsTable";
 import SubsidizedWorkDrawer from "./components/SubsidizedWorkDrawer";
+import ManualSubsidizedWorkDrawer from "./components/ManualSubsidizedWorkDrawer";
 import useOpenAllocation from "./hooks/useOpenAllocation";
 import useViikkoTOEHandlers from "./hooks/useViikkoTOEHandlers";
 
@@ -41,7 +44,6 @@ import { getFinnishMonthName } from "./utils";
 import { getVisibleRows } from "./utils";
 import { daysBetween } from "./utils";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 
 // distributeByDays / distributeEqualMonths moved to utils
@@ -88,6 +90,7 @@ export default function AllocateIncome() {
   // Subsidy correction state - read from sessionStorage on mount
   const [subsidyCorrection, setSubsidyCorrection] = useState<SubsidyCorrection | null>(null);
   const [subsidyDrawerOpen, setSubsidyDrawerOpen] = useState(false);
+  const [correctionMode, setCorrectionMode] = useState<"automatic" | "manual">("automatic");
   
   // Aseta tarkastelujakson päättymispäiväksi kuluva päivä automaattisesti
   useEffect(() => {
@@ -816,14 +819,25 @@ export default function AllocateIncome() {
                   </p>
                 </div>
               </div>
-              <Button 
-                onClick={() => setSubsidyDrawerOpen(true)}
-                variant="outline"
-                size="sm"
-                className="ml-4"
-              >
-                Korjaa palkkatuen vaikutukset
-              </Button>
+              <div className="ml-4 flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="correction-mode" className="text-xs text-gray-600">
+                    Manuaalinen
+                  </Label>
+                  <Switch
+                    id="correction-mode"
+                    checked={correctionMode === "manual"}
+                    onCheckedChange={(checked) => setCorrectionMode(checked ? "manual" : "automatic")}
+                  />
+                </div>
+                <Button 
+                  onClick={() => setSubsidyDrawerOpen(true)}
+                  variant="outline"
+                  size="sm"
+                >
+                  Korjaa palkkatuen vaikutukset
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -987,50 +1001,98 @@ export default function AllocateIncome() {
 
       {/* Subsidized Work Drawer */}
       {hasCalculated && (
-        <SubsidizedWorkDrawer
-          open={subsidyDrawerOpen}
-          onOpenChange={setSubsidyDrawerOpen}
-          rows={subsidizedRows}
-          periods={sortedFilteredPeriods}
-          toeSystemTotal={summary.totalTOEMonths}
-          systemTotalSalary={summary.totalSalaryAllPeriods || summary.totalSalary}
-          periodCount={summary.requiredPeriodsCount || sortedFilteredPeriods.length}
-          totalExtendingDays={totalExtendingDays}
-          reviewPeriodStart={reviewPeriodStart}
-          reviewPeriodEnd={reviewPeriodEnd}
-          calculateTOEValue={calculateTOEValue}
-          calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
-          onReviewPeriodChange={(start, end) => {
-            setReviewPeriodStart(start || "");
-            setReviewPeriodEnd(end);
-            // Save to sessionStorage
-            if (typeof window !== "undefined") {
-              if (start) {
-                sessionStorage.setItem("reviewPeriodStart", start);
-              } else {
-                sessionStorage.removeItem("reviewPeriodStart");
-              }
-              sessionStorage.setItem("reviewPeriodEnd", end);
-            }
-          }}
-          onApplyCorrection={(correction) => {
-            setSubsidyCorrection(correction);
-            // Tallenna sessionStorageen pysyvyyttä varten
-            if (typeof window !== "undefined") {
-              sessionStorage.setItem("subsidyCorrection", JSON.stringify(correction));
-            }
-            
-            // Jos korjauksen jälkeen TOE >= 12kk, päivitä tarkastelujakso normaalisti
-            if (correction.toeCorrectedTotal >= 12) {
-              // calculateTOECompletion käyttää jo subsidyCorrection statea, joten se päivittyy automaattisesti
-              // Tässä tapauksessa korjaus on jo asetettu, joten laskenta tapahtuu automaattisesti
-              // Ei tarvitse kutsua calculateTOECompletion uudelleen
-            }
-            // Jos TOE < 12kk, dialogi avataan SubsidizedWorkDrawer-komponentissa
-          }}
-          onExtendPeriod={handleExtendPeriod}
-          estimateTOEWithExtending={estimateTOEWithExtending}
-        />
+        <>
+          {correctionMode === "automatic" ? (
+            <SubsidizedWorkDrawer
+              open={subsidyDrawerOpen}
+              onOpenChange={setSubsidyDrawerOpen}
+              rows={subsidizedRows}
+              periods={sortedFilteredPeriods}
+              toeSystemTotal={summary.totalTOEMonths}
+              systemTotalSalary={summary.totalSalaryAllPeriods || summary.totalSalary}
+              periodCount={summary.requiredPeriodsCount || sortedFilteredPeriods.length}
+              totalExtendingDays={totalExtendingDays}
+              reviewPeriodStart={reviewPeriodStart}
+              reviewPeriodEnd={reviewPeriodEnd}
+              calculateTOEValue={calculateTOEValue}
+              calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
+              onReviewPeriodChange={(start, end) => {
+                setReviewPeriodStart(start || "");
+                setReviewPeriodEnd(end);
+                // Save to sessionStorage
+                if (typeof window !== "undefined") {
+                  if (start) {
+                    sessionStorage.setItem("reviewPeriodStart", start);
+                  } else {
+                    sessionStorage.removeItem("reviewPeriodStart");
+                  }
+                  sessionStorage.setItem("reviewPeriodEnd", end);
+                }
+              }}
+              onApplyCorrection={(correction) => {
+                setSubsidyCorrection(correction);
+                // Tallenna sessionStorageen pysyvyyttä varten
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("subsidyCorrection", JSON.stringify(correction));
+                }
+                
+                // Jos korjauksen jälkeen TOE >= 12kk, päivitä tarkastelujakso normaalisti
+                if (correction.toeCorrectedTotal >= 12) {
+                  // calculateTOECompletion käyttää jo subsidyCorrection statea, joten se päivittyy automaattisesti
+                  // Tässä tapauksessa korjaus on jo asetettu, joten laskenta tapahtuu automaattisesti
+                  // Ei tarvitse kutsua calculateTOECompletion uudelleen
+                }
+                // Jos TOE < 12kk, dialogi avataan SubsidizedWorkDrawer-komponentissa
+              }}
+              onExtendPeriod={handleExtendPeriod}
+              estimateTOEWithExtending={estimateTOEWithExtending}
+            />
+          ) : (
+            <ManualSubsidizedWorkDrawer
+              open={subsidyDrawerOpen}
+              onOpenChange={setSubsidyDrawerOpen}
+              rows={subsidizedRows}
+              periods={sortedFilteredPeriods}
+              toeSystemTotal={summary.totalTOEMonths}
+              systemTotalSalary={summary.totalSalaryAllPeriods || summary.totalSalary}
+              periodCount={summary.requiredPeriodsCount || sortedFilteredPeriods.length}
+              totalExtendingDays={totalExtendingDays}
+              reviewPeriodStart={reviewPeriodStart}
+              reviewPeriodEnd={reviewPeriodEnd}
+              calculateTOEValue={calculateTOEValue}
+              calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
+              onReviewPeriodChange={(start, end) => {
+                setReviewPeriodStart(start || "");
+                setReviewPeriodEnd(end);
+                // Save to sessionStorage
+                if (typeof window !== "undefined") {
+                  if (start) {
+                    sessionStorage.setItem("reviewPeriodStart", start);
+                  } else {
+                    sessionStorage.removeItem("reviewPeriodStart");
+                  }
+                  sessionStorage.setItem("reviewPeriodEnd", end);
+                }
+              }}
+              onApplyCorrection={(correction) => {
+                setSubsidyCorrection(correction);
+                // Tallenna sessionStorageen pysyvyyttä varten
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("subsidyCorrection", JSON.stringify(correction));
+                }
+                
+                // Jos korjauksen jälkeen TOE >= 12kk, päivitä tarkastelujakso normaalisti
+                if (correction.toeCorrectedTotal >= 12) {
+                  // calculateTOECompletion käyttää jo subsidyCorrection statea, joten se päivittyy automaattisesti
+                  // Tässä tapauksessa korjaus on jo asetettu, joten laskenta tapahtuu automaattisesti
+                  // Ei tarvitse kutsua calculateTOECompletion uudelleen
+                }
+              }}
+              onExtendPeriod={handleExtendPeriod}
+              estimateTOEWithExtending={estimateTOEWithExtending}
+            />
+          )}
+        </>
       )}
     </div>
   );

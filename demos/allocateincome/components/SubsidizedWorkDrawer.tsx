@@ -1150,7 +1150,7 @@ export default function SubsidizedWorkDrawer({
                               placeholder="PP.KK.VVVV"
                               value={employmentStartDate}
                               onChange={(e) => setEmploymentStartDate(e.target.value)}
-                              className={`w-40 ${!hasValidEmploymentStartDate ? 'border-red-500' : ''}`}
+                              className={`w-40 bg-white ${!hasValidEmploymentStartDate ? 'border-red-500' : ''}`}
                               pattern="\d{1,2}\.\d{1,2}\.\d{4}"
                               title="Syötä päivämäärä muodossa PP.KK.VVVV (esim. 01.01.2025)"
                             />
@@ -1179,7 +1179,7 @@ export default function SubsidizedWorkDrawer({
                           value={localReviewPeriodStart}
                           onChange={(e) => handleReviewPeriodStartChange(e.target.value)}
                           onBlur={handleReviewPeriodStartBlur}
-                          className="w-32 text-sm"
+                          className="w-32 text-sm bg-white"
                           pattern="\d{1,2}\.\d{1,2}\.\d{4}"
                           title="Syötä päivämäärä muodossa PP.KK.VVVV"
                         />
@@ -1190,7 +1190,7 @@ export default function SubsidizedWorkDrawer({
                           value={localReviewPeriodEnd}
                           onChange={(e) => handleReviewPeriodEndChange(e.target.value)}
                           onBlur={handleReviewPeriodEndBlur}
-                          className="w-32 text-sm"
+                          className="w-32 text-sm bg-white"
                           pattern="\d{1,2}\.\d{1,2}\.\d{4}"
                           title="Syötä päivämäärä muodossa PP.KK.VVVV"
                         />

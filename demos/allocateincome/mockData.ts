@@ -300,16 +300,13 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     ajanjakso: "2024 Elokuu",
     toe: 1,
     jakaja: 21.5,
-    palkka: 2900, // Normaalityö (1900) + palkkatuettu työ (1000)
-    tyonantajat: "Posti Oyj, Nokia Oyj",
+    palkka: 2400, // Normaalityö (1900 + 500)
+    tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      // Normaalityö (Posti Oyj) - vähennetty 500e
+      // Normaalityö (Posti Oyj)
       { id: "2024-08-1", maksupaiva: "10.8.2024", tulolaji: "Aikapalkka", palkka: 1900, alkuperainenTulo: 0, ansaintaAika: "1.8.2024 - 31.8.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-08-2", maksupaiva: "10.8.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
-      // Palkkatuettu työ (Nokia Oyj) - lisätty 1000e
-      { id: "2024-08-3", maksupaiva: "20.8.2024", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.8.2024 - 31.8.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2024-08-4", maksupaiva: "20.8.2024", tulolaji: "Lomaraha", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "2024-08-2", maksupaiva: "10.8.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ],
     viikkoTOERows: [] // Säilytetään tyhjä, koska viikkoTOE-näkymä käyttää tätä
   },

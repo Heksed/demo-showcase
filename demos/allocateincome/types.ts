@@ -56,6 +56,17 @@ export type SubsidyCorrection = {
   definitionPeriodEnd?: string; // Format: "DD.MM.YYYY"
   // Korjattu jakaja (todelliset TOE jakajanpäivät)
   totalDivisorDays?: number; // Korjattu jakaja, jota käytetään TOE-laskennassa
+  // Korjausmoodi: automaattinen tai manuaalinen
+  correctionMode?: "automatic" | "manual";
+  // Manuaaliset periodikohtaiset arvot (vain manuaalisessa moodissa)
+  manualPeriodValues?: Array<{
+    periodId: string;
+    manualSubsidizedWage: number; // Manuaalinen palkkatukityön palkka
+    manualTOE: number; // Manuaalinen TOE-arvo
+    manualJakaja: number; // Manuaalinen jakaja
+    includeInToe: boolean;
+    includeInWage: boolean;
+  }>;
 };
 
 export type ViikkoTOERow = {
