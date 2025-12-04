@@ -15,6 +15,11 @@ import { calculateTOEValueFromSalary } from "../domain/toe";
 // SUBSIDIZED_EMPLOYERS set (should match the one in Allocateincome.tsx)
 const SUBSIDIZED_EMPLOYERS = new Set(["Nokia Oyj"]);
 
+// Rule date: 2.9.2024 (September 2, 2024)
+// Employment starting before this date: 6 months TOE required
+// Employment starting on or after this date: 12 months TOE required
+const RULE_DATE_AFTER = new Date(2024, 8, 2); // month is 0-based, so 8 = September
+
 interface ManualSubsidizedWorkDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -153,14 +158,31 @@ export default function ManualSubsidizedWorkDrawer({
     return parseFinnishDate(localReviewPeriodEnd) || new Date();
   }, [localReviewPeriodEnd]);
 
-  // Parse employment start date
-  const employmentStartDateParsed = useMemo(() => {
+  // Parse employment start date (original for comparison with RULE_DATE_AFTER)
+  const employmentStartDateOriginal = useMemo(() => {
     if (!employmentStartDate || employmentStartDate.trim() === "") return null;
-    const parsed = parseFinnishDate(employmentStartDate);
-    if (!parsed) return null;
-    // Set to first day of month for calculations
-    return new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+    return parseFinnishDate(employmentStartDate);
   }, [employmentStartDate]);
+
+  // Parse employment start date and set to first day of month for calculations
+  const employmentStartDateParsed = useMemo(() => {
+    if (!employmentStartDateOriginal) return null;
+    // Set to first day of month for use in calculations
+    return new Date(employmentStartDateOriginal.getFullYear(), employmentStartDateOriginal.getMonth(), 1);
+  }, [employmentStartDateOriginal]);
+
+  // Determine TOE requirement based on employment start date
+  // Old law (before 2.9.2024): 6 months TOE required
+  // New law (on or after 2.9.2024): 12 months TOE required
+  const requiredTOEMonths = useMemo(() => {
+    // If employment start date is provided and it's before 2.9.2024, use old law (6kk)
+    // Use original date for comparison, not the first day of month
+    if (employmentStartDateOriginal && employmentStartDateOriginal < RULE_DATE_AFTER) {
+      return 6;
+    }
+    // Otherwise, use new law (12kk)
+    return 12;
+  }, [employmentStartDateOriginal]);
 
   // Build initial period rows from periods
   const initialPeriodRows = useMemo(() => {
@@ -567,7 +589,7 @@ export default function ManualSubsidizedWorkDrawer({
               <div className="mb-4 p-3 bg-gray-50 rounded border">
                 <Label className="text-sm font-medium mb-3 block">Palkkatuen sääntö</Label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                  <div className="flex items-center justify-between p-3 border rounded-lg bg-white">
                     <div className="flex-1">
                       <div className="font-medium">Palkkatuki</div>
                       <div className="text-xs text-gray-600 mt-1">Ei TOE-kertymää, vain pidentää viitejaksoa</div>
@@ -579,7 +601,7 @@ export default function ManualSubsidizedWorkDrawer({
                       }}
                     />
                   </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                  <div className="flex items-center justify-between p-3 border rounded-lg bg-white">
                     <div className="flex-1">
                       <div className="font-medium">Palkkatuettu työ alkanut ennen 2.9.2024</div>
                       <div className="text-xs text-gray-600 mt-1">75% kaikista kuukausista</div>
@@ -591,7 +613,7 @@ export default function ManualSubsidizedWorkDrawer({
                       }}
                     />
                   </div>
-                  <div className="p-3 border rounded-lg hover:bg-gray-50">
+                  <div className="p-3 border rounded-lg bg-white">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex-1">
                         <div className="font-medium">Poikkeusperuste</div>
@@ -824,68 +846,88 @@ export default function ManualSubsidizedWorkDrawer({
               <CardTitle className="text-lg">Palkanmäärittelyn korjaus</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {/* Hyväksyttävät palkat ja Perustepalkka/kk - grid layout */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                {/* Hyväksyttävät palkat yhteensä */}
-                <div className="p-3 bg-green-50 rounded border border-green-200">
-                  <div className="text-xs text-green-700 mb-1 font-medium">Hyväksyttävät palkat yhteensä:</div>
-                  <div className="text-2xl font-semibold text-green-900">
-                    {formatCurrency(manualTotals.totalAcceptedWage)}
-                  </div>
-                  <div className="text-xs text-green-700 mt-1">
-                    Jakaja: {manualTotals.totalJakaja.toFixed(1)} päivää
-                  </div>
-                </div>
+              {(() => {
+                // Tarkista onko TOE täyttynyt
+                const toeFulfilled = manualTotals.totalTOE >= requiredTOEMonths;
                 
-                {/* Perustepalkka/kk (korjattu) */}
-                <div className="p-3 bg-purple-50 rounded border border-purple-200">
-                  <div className="text-xs text-purple-700 mb-1 font-medium">Perustepalkka/kk (korjattu):</div>
-                  <div className="text-2xl font-semibold text-purple-900">
-                    {formatCurrency(periodCount > 0 ? manualTotals.totalAcceptedWage / periodCount : 0)}
-                  </div>
-                  <div className="text-xs text-purple-700 mt-1">
-                    Päiväpalkka: {formatCurrency(manualTotals.totalJakaja > 0 ? manualTotals.totalAcceptedWage / manualTotals.totalJakaja : 0)} / päivä
-                  </div>
-                </div>
-              </div>
-              
-              {/* Päiväpalkka-laskenta */}
-              {manualTotals.totalJakaja > 0 && (
-                <div className="pt-3 border-t mb-4">
-                  <div className="text-xs text-gray-600 mb-1">Päiväpalkka-laskenta:</div>
-                  <div className="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded">
-                    Päiväpalkka = Hyväksyttävät palkat yhteensä / Jakajan päivät yhteensä
-                    <br />
-                    Päiväpalkka = {formatCurrency(manualTotals.totalAcceptedWage)} / {manualTotals.totalJakaja.toFixed(1)} päivää
-                    <br />
-                    <span className="font-semibold text-gray-900">
-                      Päiväpalkka = {formatCurrency(manualTotals.totalJakaja > 0 ? manualTotals.totalAcceptedWage / manualTotals.totalJakaja : 0)} / päivä
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-              {/* Korjattu palkka ja Järjestelmän palkka */}
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-gray-600">Korjattu palkka:</span>
-                  <span className="font-semibold text-gray-900 ml-2">
-                    {formatCurrency(manualTotals.totalAcceptedWage)}
-                  </span>
-                  <span className="text-gray-500 text-xs ml-2">
-                    (Muu työ: {formatCurrency(manualTotals.totalNormalWage)} + Palkkatuettu (muunto): {formatCurrency(manualTotals.totalSubsidizedWage)})
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Järjestelmän palkka (ennen korjausta):</span>
-                  <span className="font-semibold text-gray-900 ml-2">
-                    {formatCurrency(systemTotalSalary)}
-                  </span>
-                  <span className="text-gray-500 text-xs ml-2">
-                    (Muu työ: {formatCurrency(manualTotals.totalNormalWage)} + Palkkatuettu (järjestelmä): {formatCurrency(manualPeriodRows.reduce((sum, row) => sum + row.originalSubsidizedWage, 0))})
-                  </span>
-                </div>
-              </div>
+                if (!toeFulfilled) {
+                  return (
+                    <div className="p-3 bg-amber-50 border-l-4 border-amber-400 rounded-r">
+                      <p className="text-sm text-amber-800">
+                        <span className="font-medium">Huomio:</span> Korjattu TOE yhteensä on alle {requiredTOEMonths}kk ({manualTotals.totalTOE.toFixed(1)} kk / {requiredTOEMonths} kk). 
+                        Palkanmääritystä ei lasketa ennen kuin työssäoloehto {requiredTOEMonths}kk täyttyy.
+                      </p>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <>
+                    {/* Hyväksyttävät palkat ja Perustepalkka/kk - grid layout */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      {/* Hyväksyttävät palkat yhteensä */}
+                      <div className="p-3 bg-green-50 rounded border border-green-200">
+                        <div className="text-xs text-green-700 mb-1 font-medium">Hyväksyttävät palkat yhteensä:</div>
+                        <div className="text-2xl font-semibold text-green-900">
+                          {formatCurrency(manualTotals.totalAcceptedWage)}
+                        </div>
+                        <div className="text-xs text-green-700 mt-1">
+                          Jakaja: {manualTotals.totalJakaja.toFixed(1)} päivää
+                        </div>
+                      </div>
+                      
+                      {/* Perustepalkka/kk (korjattu) */}
+                      <div className="p-3 bg-purple-50 rounded border border-purple-200">
+                        <div className="text-xs text-purple-700 mb-1 font-medium">Perustepalkka/kk (korjattu):</div>
+                        <div className="text-2xl font-semibold text-purple-900">
+                          {formatCurrency(periodCount > 0 ? manualTotals.totalAcceptedWage / periodCount : 0)}
+                        </div>
+                        <div className="text-xs text-purple-700 mt-1">
+                          Päiväpalkka: {formatCurrency(manualTotals.totalJakaja > 0 ? manualTotals.totalAcceptedWage / manualTotals.totalJakaja : 0)} / päivä
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Päiväpalkka-laskenta */}
+                    {manualTotals.totalJakaja > 0 && (
+                      <div className="pt-3 border-t mb-4">
+                        <div className="text-xs text-gray-600 mb-1">Päiväpalkka-laskenta:</div>
+                        <div className="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded">
+                          Päiväpalkka = Hyväksyttävät palkat yhteensä / Jakajan päivät yhteensä
+                          <br />
+                          Päiväpalkka = {formatCurrency(manualTotals.totalAcceptedWage)} / {manualTotals.totalJakaja.toFixed(1)} päivää
+                          <br />
+                          <span className="font-semibold text-gray-900">
+                            Päiväpalkka = {formatCurrency(manualTotals.totalJakaja > 0 ? manualTotals.totalAcceptedWage / manualTotals.totalJakaja : 0)} / päivä
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Korjattu palkka ja Järjestelmän palkka */}
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">Korjattu palkka:</span>
+                        <span className="font-semibold text-gray-900 ml-2">
+                          {formatCurrency(manualTotals.totalAcceptedWage)}
+                        </span>
+                        <span className="text-gray-500 text-xs ml-2">
+                          (Muu työ: {formatCurrency(manualTotals.totalNormalWage)} + Palkkatuettu (muunto): {formatCurrency(manualTotals.totalSubsidizedWage)})
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Järjestelmän palkka (ennen korjausta):</span>
+                        <span className="font-semibold text-gray-900 ml-2">
+                          {formatCurrency(systemTotalSalary)}
+                        </span>
+                        <span className="text-gray-500 text-xs ml-2">
+                          (Muu työ: {formatCurrency(manualTotals.totalNormalWage)} + Palkkatuettu (järjestelmä): {formatCurrency(manualPeriodRows.reduce((sum, row) => sum + row.originalSubsidizedWage, 0))})
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
 
