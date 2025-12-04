@@ -4,7 +4,6 @@
 
 export const PERIODS = [
   { value: "1m", label: "1 kuukausi (21,5 pv)" },
-  { value: "2w", label: "2 viikkoa (10 pv)" },
   { value: "4w", label: "4 viikkoa (20 pv)" },
 ] as const;
 
@@ -12,14 +11,11 @@ export type PeriodKey = (typeof PERIODS)[number]["value"];
 
 export const DAYS_BY_PERIOD: Record<PeriodKey, number> = {
   "1m": 21.5,
-  "2w": 10,
   "4w": 20,
 };
 
 export const BENEFIT_TYPES = [
   { value: "ansioturva", label: "Ansioturva" },
-  { value: "peruspaivaraha", label: "Peruspäiväraha" },
-  { value: "tyomarkkinatuki", label: "Työmarkkinatuki" },
 ] as const;
 
 // Etuuden valintalista (esimerkkivaihtoehtoja)

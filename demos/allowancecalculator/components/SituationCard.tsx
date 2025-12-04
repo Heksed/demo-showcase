@@ -64,7 +64,6 @@ interface SituationCardProps {
   flags: {
     baseOnlyW: boolean;
     tyossaoloehto80: boolean;
-    yrittajaPaivaraha: boolean;
     kulukorvaus: boolean;
     kulukorvausKorotus: boolean;
     lapsikorotus: boolean;
@@ -527,7 +526,6 @@ const net = gross - withholding - memberFee;`}
           {[
             { key: "baseOnlyW", label: "Vain perusosa" },
             { key: "tyossaoloehto80", label: "Työssäoloehto 80%" },
-            { key: "yrittajaPaivaraha", label: "Yrittäjäpäiväraha" },
             { key: "kulukorvaus", label: "Kulukorvaus" },
             { key: "kulukorvausKorotus", label: "Kulukorvauksen korotusosa" },
             { key: "lapsikorotus", label: "Lapsikorotus" },

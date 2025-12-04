@@ -79,6 +79,8 @@ interface SummaryCardProps {
     net: number;
     travelAllowancePerDay: number;
     travelAllowanceTotal: number;
+    childIncrementPerDay: number;
+    childIncrementTotal: number;
     totalPayable: number;
   };
   benefits: BenefitRow[];
@@ -116,8 +118,7 @@ export default function SummaryCard({
             <p>
               Nykyinen täysi päiväraha ({euro(results.fullDailyBeforeProtection)}/pv) jäi alle
               80 % vertailutasosta ({euro(results.prevFullDailyRef)}/pv → min{" "}
-              {euro(results.eightyFloor)}/pv). Laskenta käyttää vähintään 80 % tasoa ennen
-              sovittelua.
+              {euro(results.eightyFloor)}/pv).
             </p>
           </div>
         )}
@@ -155,15 +156,15 @@ export default function SummaryCard({
           <div className="text-gray-700">Täysi päiväraha</div>
           <div className="text-right font-semibold">{euro(results.fullDaily)}</div>
 
-          {/* Vähennetty ansiopäiväraha - näytetään kun on etuuksia */}
-          {results.benefitsTotalPure > 0 && (
+          {/* Vähennetty ansiopäiväraha - näytetään kun on etuuksia MUTTA EI tuloja */}
+          {results.benefitsTotalPure > 0 && results.incomesTotal === 0 && (
             <>
               <div className="text-gray-700">Vähennetty ansiopäiväraha</div>
               <div className="text-right font-semibold">{euro(results.adjustedDaily)}</div>
             </>
           )}
 
-          {/* Soviteltu päiväraha - näytetään kun on tuloja */}
+          {/* Soviteltu päiväraha - näytetään kun on tuloja (riippumatta onko etuuksia) */}
           {results.incomesTotal > 0 && (
             <>
               <div className="text-gray-700">Soviteltu päiväraha</div>
@@ -287,8 +288,19 @@ export default function SummaryCard({
               <div className="text-gray-500">Kulukorvaus yhteensä</div>
               <div className="text-right">{euro(results.travelAllowanceTotal)}</div>
 
+              {/* Lapsikorotus - näytetään vain jos > 0 */}
+              {results.childIncrementTotal > 0 && (
+                <>
+                  <div className="text-gray-500">Lapsikorotus / pv</div>
+                  <div className="text-right">{euro(results.childIncrementPerDay)}</div>
+
+                  <div className="text-gray-500">Lapsikorotus yhteensä</div>
+                  <div className="text-right">{euro(results.childIncrementTotal)}</div>
+                </>
+              )}
+
               <div className="text-gray-700">Maksettava yhteensä</div>
-              <div className="text-right font-semibold">{euro(results.totalPayable)}</div>
+              <div className="text-right text-lg font-bold">{euro(results.totalPayable)}</div>
             </div>
           ) : (
             /* --- Vertailu: 4 saraketta --- */
@@ -303,7 +315,7 @@ export default function SummaryCard({
                 const withholdingCmp = grossCmp * (taxPct / 100);
                 const memberFeeCmp = grossCmp * (memberFeePct / 100);
                 const netCmp = grossCmp - withholdingCmp - memberFeeCmp;
-                const totalPayableCmp = netCmp + results.travelAllowanceTotal; // kulukorvaus sama
+                const totalPayableCmp = netCmp + results.travelAllowanceTotal + results.childIncrementTotal; // kulukorvaus + lapsikorotus
 
                 return (
                   <>
@@ -317,6 +329,21 @@ export default function SummaryCard({
                       base={results.travelAllowanceTotal}
                       compare={results.travelAllowanceTotal}
                     />
+                    {/* Lapsikorotus - näytetään vain jos > 0 */}
+                    {results.childIncrementTotal > 0 && (
+                      <>
+                        <Row3
+                          label="Lapsikorotus / pv"
+                          base={results.childIncrementPerDay}
+                          compare={results.childIncrementPerDay}
+                        />
+                        <Row3
+                          label="Lapsikorotus yhteensä"
+                          base={results.childIncrementTotal}
+                          compare={results.childIncrementTotal}
+                        />
+                      </>
+                    )}
                     <Row3
                       label="Maksettava yhteensä"
                       base={results.totalPayable}

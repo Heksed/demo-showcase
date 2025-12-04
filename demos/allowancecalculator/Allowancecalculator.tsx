@@ -101,7 +101,6 @@ export default function PaivarahaLaskuri() {
   const [flags, setFlags] = useState({
     baseOnlyW: false, // Base part only, employment type W
     tyossaoloehto80: false, // Employment condition 80%
-    yrittajaPaivaraha: false, // Entrepreneur's allowance
     kulukorvaus: false, // Expense compensation (tax-free)
     kulukorvausKorotus: false, // Expense compensation increase portion
     lapsikorotus: false, // Child increment

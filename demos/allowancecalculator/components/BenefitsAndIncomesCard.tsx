@@ -7,11 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import { DevField } from "@/components/DevField";
 import type { BenefitRow, IncomeRow } from "../types";
-import { INCOME_OPTIONS, BENEFIT_CATALOG } from "../constants";
 
 interface BenefitsAndIncomesCardProps {
   benefits: BenefitRow[];
@@ -53,36 +51,17 @@ export default function BenefitsAndIncomesCard({
         {incomes.map((i) => (
           <div
             key={i.id}
-            className="grid grid-cols-1 md:grid-cols-12 items-end gap-3 p-3 rounded-xl border bg-white"
+            className="grid grid-cols-1 md:grid-cols-12 items-end gap-2 p-3 rounded-xl border bg-white"
           >
-            <div className="md:col-span-5 space-y-2">
-              <Label>Tulon tyyppi</Label>
-              <Select
-                value={i.type}
-                onValueChange={(v) =>
-                  setIncomes((prev) =>
-                    prev.map((x) => (x.id === i.id ? { ...x, type: v as IncomeRow["type"] } : x))
-                  )
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ei tuloja" />
-                </SelectTrigger>
-                <SelectContent>
-                  {INCOME_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="md:col-span-2 space-y-2">
+              <Label>Tulo</Label>
             </div>
 
-            <div className="md:col-span-5 space-y-2">
+            <div className="md:col-span-4 space-y-2">
               <Label>Tulot jaksolla (€)</Label>
               <DevField
                 fieldId={`income-amount-${i.id}`}
-                fieldLabel="Tulot jaksolla (Income Amount)"
+                fieldLabel="Tulot jaksolla (Income Amount)" 
                 userStory="User enters the income amount received during the benefit period. This income will reduce the daily allowance through income adjustment."
                 business="Income during the benefit period reduces the allowance. The system applies protected income rules and adjustment percentages based on the income type."
                 formula="adjustment = max(0, (income - protectedIncome) × adjustmentPct)"
@@ -107,6 +86,33 @@ const dailyAllowanceAfterIncome = dailyAllowance - (reduction / incomeDays);`}
               </DevField>
             </div>
 
+            <div className="md:col-span-4 space-y-2">
+              <Label>Suojaosa (€)</Label>
+              <DevField
+                fieldId={`income-protected-${i.id}`}
+                fieldLabel="Suojaosa (Protected Amount)"
+                userStory="User sets the protected amount of income that doesn't reduce unemployment allowance. Amount above this is adjusted."
+                business="Protected amount allows receiving a certain amount of income without reduction. Only the excess amount is adjusted against the allowance."
+                formula="adjustmentBase = max(0, income - protectedAmount)"
+                code={`const adjustmentBase = Math.max(0, i.amount - (i.protectedAmount || 0));
+const reduction = adjustmentBase * adjustmentPct;`}
+                example="If income = 500€ and protected = 300€: only (500-300) = 200€ is adjusted."
+              >
+                <Input
+                  type="number"
+                  step={0.01}
+                  value={i.protectedAmount || 0}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value || "0");
+                    setIncomes((prev) =>
+                      prev.map((x) => (x.id === i.id ? { ...x, protectedAmount: v } : x))
+                    );
+                  }}
+                  disabled={i.type === "none"}
+                />
+              </DevField>
+            </div>
+
             <div className="md:col-span-2 flex justify-end">
               <Button variant="ghost" size="icon" onClick={() => removeIncomeRow(i.id)}>
                 <Trash2 className="h-5 w-5" />
@@ -119,32 +125,13 @@ const dailyAllowanceAfterIncome = dailyAllowance - (reduction / incomeDays);`}
         {benefits.map((b) => (
           <div
             key={b.id}
-            className="grid grid-cols-1 md:grid-cols-12 items-end gap-3 p-3 rounded-xl border bg-white"
+            className="grid grid-cols-1 md:grid-cols-12 items-end gap-2 p-3 rounded-xl border bg-white"
           >
-            <div className="md:col-span-5 space-y-2">
-              <Label>Etuus (vähentävä)</Label>
-              <Select
-                value={b.name}
-                onValueChange={(v) => {
-                  setBenefits((prev) =>
-                    prev.map((x) => (x.id === b.id ? { ...x, name: v } : x))
-                  );
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Valitse etuus" />
-                </SelectTrigger>
-                <SelectContent>
-                  {BENEFIT_CATALOG.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.label}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="md:col-span-2 space-y-2">
+              <Label>Vähentävä etuus</Label>
             </div>
 
-            <div className="md:col-span-3 space-y-2">
+            <div className="md:col-span-8 space-y-2">
               <Label>Määrä jaksolla (€)</Label>
               <DevField
                 fieldId={`benefit-amount-${b.id}`}
@@ -174,33 +161,7 @@ adjustedDaily = fullDaily - totalBenefitReduction;`}
               </DevField>
             </div>
 
-            <div className="md:col-span-3 space-y-2">
-              <Label>Suojaosa (€)</Label>
-              <DevField
-                fieldId={`benefit-protected-${b.id}`}
-                fieldLabel="Suojaosa (Protected Amount)"
-                userStory="User sets the protected amount of the benefit that doesn't reduce unemployment allowance. Amount above this is deducted."
-                business="Protected amount allows receiving a certain amount of other benefits without reduction. Only the excess amount reduces unemployment allowance."
-                formula="excessBenefit = max(0, benefitAmount - protectedAmount)"
-                code={`const excess = Math.max(ben.amount - (ben.protectedAmount || 0), 0);
-const reduction = excess / days;`}
-                example="If benefit = 800€ and protected = 300€: only (800-300) = 500€ reduces allowance."
-              >
-                <Input
-                  type="number"
-                  step={0.01}
-                  value={b.protectedAmount || 0}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value || "0");
-                    setBenefits((prev) =>
-                      prev.map((x) => (x.id === b.id ? { ...x, protectedAmount: v } : x))
-                    );
-                  }}
-                />
-              </DevField>
-            </div>
-
-            <div className="md:col-span-1 flex justify-end">
+            <div className="md:col-span-2 flex justify-end">
               <Button variant="ghost" size="icon" onClick={() => removeBenefitRow(b.id)}>
                 <Trash2 className="h-5 w-5" />
               </Button>

@@ -228,16 +228,69 @@ export default function useAllowanceCalculation(params: CalculationParams) {
     const travelAllowanceTotal = roundToCents(travelAllowancePerDay * days);
 
     // Lapsikorotus (poistui 1.4.2024)
-    const childIncrementPerDay =
-      flags.lapsikorotus && calcDate < "2024-04-01"
-        ? (() => {
-            if (childCount <= 0) return 0;
-            if (childCount === 1) return 5.84;
-            if (childCount === 2) return 8.57;
-            return 11.05; // 3+ children
-          })()
-        : 0;
-    const childIncrementTotal = roundToCents(childIncrementPerDay * days);
+    // Laske päiväkohtaisesti: vain päivät ennen 1.4.2024 saavat lapsikorotuksen
+    const CHILD_INCREMENT_END_DATE = "2024-04-01";
+    
+    const calculateChildIncrementForPeriod = (
+      periodStart: string,
+      periodEnd: string,
+      hasChildIncrement: boolean,
+      count: number
+    ): { perDay: number; total: number; daysWithIncrement: number } => {
+      if (!hasChildIncrement || count <= 0) {
+        return { perDay: 0, total: 0, daysWithIncrement: 0 };
+      }
+
+      // Määritä päiväkohtainen korotus
+      const incrementPerDay = 
+        count === 1 ? 5.84 :
+        count === 2 ? 8.57 :
+        11.05; // 3+ children
+
+      // Tarkista päivämäärät
+      const incrementEndDate = new Date(CHILD_INCREMENT_END_DATE);
+      const periodStartDate = new Date(periodStart);
+      const periodEndDate = new Date(periodEnd);
+
+      // Jos koko jakso on 1.4.2024 jälkeen, ei lapsikorotusta
+      if (periodStartDate >= incrementEndDate) {
+        return { perDay: 0, total: 0, daysWithIncrement: 0 };
+      }
+
+      // Jos koko jakso on ennen 1.4.2024, kaikki päivät saavat korotuksen
+      if (periodEndDate < incrementEndDate) {
+        const daysInPeriod = businessDaysBetween(periodStart, addDaysISO(periodEnd, 1));
+        return {
+          perDay: incrementPerDay,
+          total: roundToCents(incrementPerDay * daysInPeriod),
+          daysWithIncrement: daysInPeriod
+        };
+      }
+
+      // Jakso ulottuu 1.4.2024 yli: laske vain päivät ennen 1.4.2024
+      // Viimeinen päivä ennen poistumista on 31.3.2024
+      const lastDayWithIncrement = addDaysISO(CHILD_INCREMENT_END_DATE, -1);
+      const daysWithIncrement = businessDaysBetween(
+        periodStart,
+        addDaysISO(lastDayWithIncrement, 1) // +1 koska businessDaysBetween on exclusive end
+      );
+
+      return {
+        perDay: incrementPerDay, // Näytetään päiväkohtainen korotus
+        total: roundToCents(incrementPerDay * daysWithIncrement),
+        daysWithIncrement
+      };
+    };
+
+    const childIncrement = calculateChildIncrementForPeriod(
+      periodStartDate,
+      periodEndDate,
+      flags.lapsikorotus,
+      childCount
+    );
+
+    const childIncrementPerDay = childIncrement.perDay;
+    const childIncrementTotal = childIncrement.total;
 
     // Yhteenveto
     const gross = roundToCents(adjustedDaily * days);

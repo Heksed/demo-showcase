@@ -16,6 +16,7 @@ export interface IncomeRow {
   id: string;
   type: (typeof INCOME_OPTIONS)[number]["value"];
   amount: number; // € per period
+  protectedAmount?: number; // suojaosa
 }
 
 // Benefit type
