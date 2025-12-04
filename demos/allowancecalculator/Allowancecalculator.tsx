@@ -107,6 +107,9 @@ export default function PaivarahaLaskuri() {
     ulkomaanPaivaraha: false, // Foreign per diem
   });
 
+  // Show/hide formulas card
+  const [showFormulas, setShowFormulas] = useState<boolean>(false);
+
   // Bridge Select's string callback to our union type for benefitType
   const handleBenefitTypeChange = (value: string) => setBenefitType(value as BenefitType);
 
@@ -289,20 +292,28 @@ export default function PaivarahaLaskuri() {
 
       {/* Breakdown section */}
       <section className="w-full max-w-[98%] mx-auto px-6 pb-12">
-        <FormulaCard
-          formulaConfig={formulaConfig}
-          editFormulas={editFormulas}
-          setEditFormulas={setEditFormulas}
-          setFormulaNumber={setFormulaNumber}
-          setFormulaInt={setFormulaInt}
-          setFormulaPercent={setFormulaPercent}
-          resetFormulaConfig={resetFormulaConfig}
-          baseSalary={baseSalary}
-          taxPct={taxPct}
-          memberFeePct={memberFeePct}
-          results={results}
-          flags={flags}
-        />
+        <div className="mb-4 flex items-center gap-3">
+          <Switch checked={showFormulas} onCheckedChange={setShowFormulas} />
+          <Label className="text-sm text-gray-700 cursor-pointer" onClick={() => setShowFormulas(!showFormulas)}>
+            Näytä laskukaavat
+          </Label>
+        </div>
+        {showFormulas && (
+          <FormulaCard
+            formulaConfig={formulaConfig}
+            editFormulas={editFormulas}
+            setEditFormulas={setEditFormulas}
+            setFormulaNumber={setFormulaNumber}
+            setFormulaInt={setFormulaInt}
+            setFormulaPercent={setFormulaPercent}
+            resetFormulaConfig={resetFormulaConfig}
+            baseSalary={baseSalary}
+            taxPct={taxPct}
+            memberFeePct={memberFeePct}
+            results={results}
+            flags={flags}
+          />
+        )}
       </section>
     </div>
   );
