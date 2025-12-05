@@ -24,6 +24,7 @@ import SubsidizedWorkDrawer from "./components/SubsidizedWorkDrawer";
 import ManualSubsidizedWorkDrawer from "./components/ManualSubsidizedWorkDrawer";
 import useOpenAllocation from "./hooks/useOpenAllocation";
 import useViikkoTOEHandlers from "./hooks/useViikkoTOEHandlers";
+import ForeignWork from "../foreignwork/ForeignWork";
 
 // ============================================================================
 // Allocate Income – Income allocation demo
@@ -753,6 +754,11 @@ export default function AllocateIncome() {
   };
 
   // Handler for extending review period to 28 months
+
+  // Render foreign work scenario if definitionType is 'ulkomaan'
+  if (definitionType === 'ulkomaan') {
+    return <ForeignWork />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
