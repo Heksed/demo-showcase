@@ -362,6 +362,7 @@ export default function SpainWorkScenario() {
             toeStartDate={toeStartDate}
             definitionType={definitionType}
             setDefinitionType={setDefinitionType}
+            onWageDefinitionClick={() => setWageDefinitionOpen(true)}
           />
         )}
 

@@ -25,6 +25,7 @@ import ManualSubsidizedWorkDrawer from "./components/ManualSubsidizedWorkDrawer"
 import useOpenAllocation from "./hooks/useOpenAllocation";
 import useViikkoTOEHandlers from "./hooks/useViikkoTOEHandlers";
 import ForeignWork from "../foreignwork/ForeignWork";
+import WageDefinitionDrawer from "../foreignwork/components/WageDefinitionDrawer";
 
 // ============================================================================
 // Allocate Income – Income allocation demo
@@ -92,6 +93,17 @@ export default function AllocateIncome() {
   const [subsidyCorrection, setSubsidyCorrection] = useState<SubsidyCorrection | null>(null);
   const [subsidyDrawerOpen, setSubsidyDrawerOpen] = useState(false);
   const [correctionMode, setCorrectionMode] = useState<"automatic" | "manual">("automatic");
+  
+  // Palkanmäärityksen state
+  const [wageDefinitionOpen, setWageDefinitionOpen] = useState(false);
+  const [wageDefinitionResult, setWageDefinitionResult] = useState<{
+    totalSalary: number;
+    divisorDays: number;
+    monthlyWage: number;
+    dailyWage: number;
+    definitionPeriodStart: string;
+    definitionPeriodEnd: string;
+  } | null>(null);
   
   // Aseta tarkastelujakson päättymispäiväksi kuluva päivä automaattisesti
   useEffect(() => {
@@ -195,6 +207,14 @@ export default function AllocateIncome() {
       [periodId]: summa
     }));
   };
+
+  // Funktio joka parsii määrittelyjakson päivämääristä
+  const parseDefinitionPeriod = useCallback((definitionPeriod: string): { start: string; end: string } | null => {
+    if (!definitionPeriod) return null;
+    const parts = definitionPeriod.split(' - ');
+    if (parts.length !== 2) return null;
+    return { start: parts[0].trim(), end: parts[1].trim() };
+  }, []);
 
   // --- Split income modal state moved to hook ---
   const split = useSplitIncome(setPeriods);
@@ -859,6 +879,10 @@ export default function AllocateIncome() {
             hasSubsidizedWork={hasSubsidizedWork}
             subsidizedEmployerName={subsidizedEmployerName}
             reviewPeriodEnd={reviewPeriodEnd}
+            wageDefinitionResult={wageDefinitionResult}
+            onWageDefinitionClick={() => {
+              setWageDefinitionOpen(true);
+            }}
         />
         )}
 
@@ -1100,6 +1124,31 @@ export default function AllocateIncome() {
             />
           )}
         </>
+      )}
+
+      {/* Palkanmääritysikkuna */}
+      {hasCalculated && (
+        <WageDefinitionDrawer
+          open={wageDefinitionOpen}
+          onOpenChange={setWageDefinitionOpen}
+          periods={sortedFilteredPeriods}
+          defaultStartDate={(() => {
+            const parsed = parseDefinitionPeriod(summary.definitionPeriod);
+            return parsed?.start || "";
+          })()}
+          defaultEndDate={(() => {
+            const parsed = parseDefinitionPeriod(summary.definitionPeriod);
+            return parsed?.end || "";
+          })()}
+          showIndexAdjustment={false}
+          onApply={(result) => {
+            setWageDefinitionResult(result);
+            setWageDefinitionOpen(false);
+            // Tässä voisi tulevaisuudessa päivittää summary-tietoja
+            // tai tallentaa määrittelyjakson muutokset
+            console.log("Palkanmääritys tallennettu:", result);
+          }}
+        />
       )}
     </div>
   );

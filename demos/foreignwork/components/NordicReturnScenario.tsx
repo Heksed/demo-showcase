@@ -513,6 +513,7 @@ export default function NordicReturnScenario() {
             definitionType={definitionType}
             setDefinitionType={setDefinitionType}
             onExtendingPeriodsClick={() => setExtendingPeriodsDialogOpen(true)}
+            onWageDefinitionClick={() => setWageDefinitionOpen(true)}
           />
         )}
 

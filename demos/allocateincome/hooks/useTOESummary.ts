@@ -80,6 +80,12 @@ export default function useTOESummary({
       const periodDate = parsePeriodDate(period.ajanjakso);
       if (!periodDate || periodDate >= HYBRID_TOE_CUTOFF_DATE) return 0;
       
+      // Jos periodilla ei ole palkkatietoja EIKÄ tuntitietoja, ei kerrytä TOE:ta
+      // Tämä varmistaa että tyhjät periodit eivät kerrytä TOE:ta
+      if (period.rows.length === 0 && (period.tunnitYhteensä === undefined || period.tunnitYhteensä === null)) {
+        return 0;
+      }
+      
       const hours = getDefaultHoursForPeriod(period);
       const hoursPerWeek = hours / WEEKS_PER_MONTH; // Laske tunnit/viikko
       
@@ -558,22 +564,19 @@ export default function useTOESummary({
       }
     }
 
-    const telDeductionRate = 0.0354;
-    const salaryAfterTelDeduction = averageSalary * (1 - telDeductionRate);
+    // Laske täysi päiväraha TOE-palkan perusteella (dokumentaation mukaan)
+    // 1. TOE-palkka / päivä = TOE-palkka / jakajanpäivät
+    // 2. Täysi ansiopäiväraha = 37,21 + 0,45 × (TOE-palkka/pv - 37,21)
     const basicDailyAllowance = 37.21;
-    const incomeThreshold = 3291;
-
-    let unemploymentBenefit = 0;
-    if (salaryAfterTelDeduction <= incomeThreshold) {
-      unemploymentBenefit = salaryAfterTelDeduction * 0.45;
-    } else {
-      const firstPart = incomeThreshold * 0.45;
-      const excessPart = (salaryAfterTelDeduction - incomeThreshold) * 0.20;
-      unemploymentBenefit = firstPart + excessPart;
+    let fullDailyAllowance = 0;
+    if (totalSalary > 0 && workingDaysTotal > 0) {
+      // 1. TOE-palkka / päivä
+      const toeSalaryPerDay = totalSalary / workingDaysTotal;
+      
+      // 2. Täysi ansiopäiväraha = 37,21 + 0,45 × (TOE-palkka/pv - 37,21)
+      const earningsPart = 0.45 * Math.max(0, toeSalaryPerDay - basicDailyAllowance);
+      fullDailyAllowance = basicDailyAllowance + earningsPart;
     }
-
-    const unemploymentBenefitPerDay = unemploymentBenefit / 21.5;
-    const fullDailyAllowance = basicDailyAllowance + unemploymentBenefitPerDay;
 
     // Käytä käyttäjän määrittelemää tarkastelujaksoa jos se on annettu, muuten käytä oletusarvoa
     const reviewPeriodDisplay = reviewPeriod || (definitionType === 'viikkotoe' ? definitionPeriod : "01.01.2025 - 31.12.2025");

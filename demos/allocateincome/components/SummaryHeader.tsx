@@ -32,6 +32,8 @@ export default function SummaryHeader({
   hasSubsidizedWork,
   subsidizedEmployerName,
   reviewPeriodEnd,
+  onWageDefinitionClick,
+  wageDefinitionResult,
 }: {
   summary: Summary;
   definitionType: "eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan";
@@ -41,6 +43,15 @@ export default function SummaryHeader({
   hasSubsidizedWork?: boolean;
   subsidizedEmployerName?: string;
   reviewPeriodEnd?: string;
+  onWageDefinitionClick?: () => void; // Callback kun määrittelyjakso klikataan
+  wageDefinitionResult?: { // Palkanmäärityksen tulos (määrittelyjakson mukainen)
+    totalSalary: number;
+    divisorDays: number;
+    monthlyWage: number;
+    dailyWage: number;
+    definitionPeriodStart: string;
+    definitionPeriodEnd: string;
+  } | null;
 }) {
   // Laske TOE-alkupäivä: aina seuraavan TOE-kertymän alkupäivä
   // Eli tarkastelujakson päättymispäivän seuraava päivä
@@ -107,13 +118,17 @@ export default function SummaryHeader({
   const isTOELessThan12 = toeMonths < 12;
   
   // Korjattu TOE-palkka (totalSalary)
+  // Jos palkanmääritys on tehty, käytä sen arvoa (määrittelyjakson mukainen)
   // Jos korjaus on tehty ja käytössä, käytä korjauksen arvoja
   // Muuten käytä summary-arvoja jos TOE täyttyy laajennetun tarkastelujakson perusteella
-  const toeSalary = hasActiveCorrection
+  const toeSalary = wageDefinitionResult?.totalSalary ?? (hasActiveCorrection
     ? subsidyCorrection.totalSalaryCorrected
     : (useSummaryValues
         ? summary.totalSalary
-        : summary.totalSalary);
+        : summary.totalSalary));
+  
+  // Jakaja: käytä palkanmäärityksen jakajaa jos saatavilla (määrittelyjakson mukainen), muuten summaryn jakajaa
+  const displayJakaja = wageDefinitionResult?.divisorDays ?? summary.totalJakaja ?? 0;
   
   // Korjattu perustepalkka/kk (averageSalary) - lasketaan korjatusta TOE-palkasta
   // Jos korjaus on tehty ja käytössä, käytä korjauksen arvoja
@@ -124,22 +139,22 @@ export default function SummaryHeader({
         ? summary.averageSalary
         : summary.averageSalary);
   
-  // Recalculate daily salary and full daily allowance if wage base changed
+  // Recalculate daily salary and full daily allowance
   const dailySalary = wageBase / 21.5;
-  const telDeductionRate = 0.0354;
-  const salaryAfterTelDeduction = wageBase * (1 - telDeductionRate);
-  const incomeThreshold = 3291;
-  let unemploymentBenefit = 0;
-  if (salaryAfterTelDeduction <= incomeThreshold) {
-    unemploymentBenefit = salaryAfterTelDeduction * 0.45;
-  } else {
-    const firstPart = incomeThreshold * 0.45;
-    const excessPart = (salaryAfterTelDeduction - incomeThreshold) * 0.20;
-    unemploymentBenefit = firstPart + excessPart;
+  
+  // Laske täysi päiväraha TOE-palkan perusteella (dokumentaation mukaan)
+  // 1. TOE-palkka / päivä = TOE-palkka / jakajanpäivät
+  // 2. Täysi ansiopäiväraha = 37,21 + 0,45 × (TOE-palkka/pv - 37,21)
+  let fullDailyAllowance = 0;
+  if (toeSalary > 0 && displayJakaja > 0) {
+    // 1. TOE-palkka / päivä
+    const toeSalaryPerDay = toeSalary / displayJakaja;
+    
+    // 2. Täysi ansiopäiväraha = 37,21 + 0,45 × (TOE-palkka/pv - 37,21)
+    const basicDailyAllowance = 37.21;
+    const earningsPart = 0.45 * Math.max(0, toeSalaryPerDay - basicDailyAllowance);
+    fullDailyAllowance = basicDailyAllowance + earningsPart;
   }
-  const unemploymentBenefitPerDay = unemploymentBenefit / 21.5;
-  const basicDailyAllowance = 37.21;
-  const fullDailyAllowance = basicDailyAllowance + unemploymentBenefitPerDay;
   return (
     <Card className="mb-4">
       <CardContent className="p-6">
@@ -257,8 +272,16 @@ export default function SummaryHeader({
                 </div>
                 <div className="text-gray-900">{summary.reviewPeriod}</div>
                 <div className="text-gray-900">{summary.extendingPeriods}</div>
-                <div className="text-blue-600">
-                  {summary.definitionPeriod || <span className="text-gray-400">—</span>}
+                <div 
+                  className={cn(
+                    "text-blue-600",
+                    onWageDefinitionClick && (wageDefinitionResult || summary.definitionPeriod) && "cursor-pointer hover:underline"
+                  )}
+                  onClick={onWageDefinitionClick && (wageDefinitionResult || summary.definitionPeriod) ? onWageDefinitionClick : undefined}
+                >
+                  {wageDefinitionResult 
+                    ? `${wageDefinitionResult.definitionPeriodStart} - ${wageDefinitionResult.definitionPeriodEnd}`
+                    : (summary.definitionPeriod || <span className="text-gray-400">—</span>)}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn(
@@ -273,7 +296,7 @@ export default function SummaryHeader({
                     </span>
                   )}
                 </div>
-                <div className="text-gray-900">{definitionType === 'vuositulo' ? formatCurrency(toeSalary) : summary.totalJakaja}</div>
+                <div className="text-gray-900">{definitionType === 'vuositulo' ? formatCurrency(toeSalary) : displayJakaja}</div>
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-gray-900",

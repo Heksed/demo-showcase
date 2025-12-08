@@ -27,7 +27,11 @@ const FINLAND_WAGE_TOTAL = FINLAND_WAGE_MAY + FINLAND_WAGE_JUNE;
 const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
   return periods.map(period => {
     // Tarkista onko kyseessä Suomen työn periodi (toukokuu-kesäkuu 2025)
-    const isFinlandPeriod = period.ajanjakso === "2025 Toukokuu" || period.ajanjakso === "2025 Kesäkuu";
+    // Tarkista sekä ajanjakso että ID
+    const isFinlandPeriod = 
+      period.ajanjakso === "2025 Toukokuu" || period.ajanjakso === "2025 Kesäkuu" ||
+      period.id === "2025-05" || period.id === "2025-06" ||
+      period.ajanjakso.includes("2025") && (period.ajanjakso.includes("Toukokuu") || period.ajanjakso.includes("Kesäkuu"));
     
     if (!isFinlandPeriod || period.rows.length > 0) {
       return period; // Ei Suomen periodi tai jo täytetty
@@ -35,7 +39,11 @@ const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
 
     let newPeriod = { ...period };
     
-    if (period.ajanjakso === "2025 Toukokuu") {
+    // Tarkista toukokuu: ajanjakso tai ID
+    const isMay = period.ajanjakso === "2025 Toukokuu" || period.id === "2025-05" || 
+                  (period.ajanjakso.includes("2025") && period.ajanjakso.includes("Toukokuu"));
+    
+    if (isMay) {
       // Toukokuu: 7.5.2025 - 31.5.2025 (25 päivää)
       // Jakaja: 21.5 (täysi kuukausi)
       newPeriod = {
@@ -57,7 +65,12 @@ const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
           }
         ]
       };
-    } else if (period.ajanjakso === "2025 Kesäkuu") {
+    } 
+    // Tarkista kesäkuu: ajanjakso tai ID
+    const isJune = period.ajanjakso === "2025 Kesäkuu" || period.id === "2025-06" || 
+                    (period.ajanjakso.includes("2025") && period.ajanjakso.includes("Kesäkuu"));
+    
+    if (isJune) {
       // Kesäkuu: 1.6.2025 - 7.6.2025 (7 päivää)
       // Jakaja: 21.5 (täysi kuukausi)
       newPeriod = {
@@ -179,13 +192,7 @@ export default function EUWorkScenario() {
     });
   }, []);
 
-  // Täydennä Suomen työn palkkatiedot
-  const handleFillFinlandWorkData = useCallback(() => {
-    setPeriods(prev => fillFinlandWorkData(prev));
-    setFinlandDataFilled(true);
-  }, []);
-
-  // Filtteröi periodsit tarkastelujakson mukaan
+  // Generoi kaikki 14 kk tarkastelujaksolta (tyhjät kuukaudet mukaan lukien)
   const filteredPeriods = useMemo(() => {
     if (!hasCalculated) return [];
     if (!reviewPeriodStart || !reviewPeriodEnd) return [];
@@ -194,15 +201,112 @@ export default function EUWorkScenario() {
     const endDate = parseFinnishDate(reviewPeriodEnd);
     if (!startDate || !endDate) return [];
     
+    // Generoi kaikki kuukaudet tarkastelujaksolta (14 kk taaksepäin loppupäivästä)
+    const monthNames = [
+      'Tammikuu', 'Helmikuu', 'Maaliskuu', 'Huhtikuu',
+      'Toukokuu', 'Kesäkuu', 'Heinäkuu', 'Elokuu',
+      'Syyskuu', 'Lokakuu', 'Marraskuu', 'Joulukuu'
+    ];
+    
+    const generatedPeriods: MonthPeriod[] = [];
     const endDateLastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
     
-    return periods.filter(period => {
-      const periodDate = parsePeriodDate(period.ajanjakso);
-      if (!periodDate) return false;
+    // Laske tarkastelujakson alkupäivä (14 kk taaksepäin)
+    const effectiveStartDate = new Date(startDate);
+    effectiveStartDate.setDate(1); // Kuukauden ensimmäinen päivä
+    
+    // Aloita loppupäivästä ja mene taaksepäin effectiveStartDate asti
+    const currentDate = new Date(endDate);
+    const minDate = new Date(effectiveStartDate);
+    minDate.setDate(1);
+    
+    while (currentDate >= minDate) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const monthName = monthNames[month];
+      const ajanjakso = `${year} ${monthName}`;
       
-      return periodDate >= startDate && periodDate <= endDateLastDay;
-    });
+      // Tarkista onko tämä kuukausi tarkastelujakson sisällä
+      const periodStart = new Date(year, month, 1);
+      const periodEnd = new Date(year, month + 1, 0);
+      
+      if (periodStart <= endDateLastDay && periodEnd >= effectiveStartDate) {
+        // Etsi onko periods state:ssa periodi tälle kuukaudelle
+        // Tarkista ensin ID:llä, sitten ajanjaksolla
+        const periodId = `${year}-${String(month + 1).padStart(2, '0')}`;
+        let existingPeriod = periods.find(p => p.id === periodId);
+        
+        // Jos ei löydy ID:llä, etsi ajanjaksolla
+        if (!existingPeriod) {
+          existingPeriod = periods.find(p => {
+            const periodDate = parsePeriodDate(p.ajanjakso);
+            if (!periodDate) return false;
+            return periodDate.getFullYear() === year && periodDate.getMonth() === month;
+          });
+        }
+        
+        if (existingPeriod) {
+          // Käytä periods state:sta löytyvää periodia (sisältää päivitetyt tiedot)
+          generatedPeriods.push(existingPeriod);
+        } else {
+          // Luo tyhjä periodi jos sitä ei löydy periods state:sta
+          generatedPeriods.push({
+            id: periodId,
+            ajanjakso: ajanjakso,
+            toe: 0.0,
+            jakaja: 0,
+            palkka: 0,
+            tyonantajat: "",
+            pidennettavatJaksot: 0,
+            rows: []
+          });
+        }
+      }
+      
+      // Siirry edelliseen kuukauteen
+      currentDate.setMonth(currentDate.getMonth() - 1);
+    }
+    
+    return generatedPeriods;
   }, [periods, reviewPeriodStart, reviewPeriodEnd, hasCalculated, parsePeriodDate]);
+
+  // Täydennä Suomen työn palkkatiedot
+  const handleFillFinlandWorkData = useCallback(() => {
+    // Käytä filteredPeriods:ia, jotta dynaamisesti generoidut periodit päivittyvät
+    // filteredPeriods sisältää kaikki tarkastelujakson periodit, mukaan lukien toukokuu ja kesäkuu 2025
+    setPeriods(prev => {
+      // Yhdistä filteredPeriods ja prev state, jotta kaikki periodit päivittyvät
+      const allPeriods = [...filteredPeriods];
+      
+      // Lisää prev state:n periodit, joita ei ole filteredPeriods:issa
+      const filteredIds = new Set(filteredPeriods.map(p => p.id));
+      prev.forEach(p => {
+        if (!filteredIds.has(p.id)) {
+          allPeriods.push(p);
+        }
+      });
+      
+      // Päivitä periodit fillFinlandWorkData:lla
+      const updatedPeriods = fillFinlandWorkData(allPeriods);
+      
+      // Yhdistä päivitetyt periodit prev stateen ja lisää uudet periodit
+      const periodMap = new Map(updatedPeriods.map(p => [p.id, p]));
+      const prevMap = new Map(prev.map(p => [p.id, p]));
+      
+      // Yhdistä: päivitä olemassa olevat periodit ja lisää uudet
+      const result = prev.map(p => periodMap.get(p.id) || p);
+      
+      // Lisää uudet periodit, joita ei ole prev state:ssa
+      updatedPeriods.forEach(p => {
+        if (!prevMap.has(p.id)) {
+          result.push(p);
+        }
+      });
+      
+      return result;
+    });
+    setFinlandDataFilled(true);
+  }, [filteredPeriods]);
 
   // Järjestä periodsit uusimmasta vanhimpaan
   const sortedFilteredPeriods = useMemo(() => {
@@ -329,6 +433,7 @@ export default function EUWorkScenario() {
             toeStartDate={toeStartDate}
             definitionType={definitionType}
             setDefinitionType={setDefinitionType}
+            onWageDefinitionClick={() => setWageDefinitionOpen(true)}
           />
         )}
 

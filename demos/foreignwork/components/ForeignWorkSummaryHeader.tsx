@@ -34,6 +34,7 @@ interface ForeignWorkSummaryHeaderProps {
   definitionType?: "eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan";
   setDefinitionType?: (v: "eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan") => void;
   onExtendingPeriodsClick?: () => void; // Callback kun pidentävät jaksot klikataan
+  onWageDefinitionClick?: () => void; // Callback kun määrittelyjakso klikataan
 }
 
 export default function ForeignWorkSummaryHeader({
@@ -44,6 +45,7 @@ export default function ForeignWorkSummaryHeader({
   definitionType = "ulkomaan",
   setDefinitionType,
   onExtendingPeriodsClick,
+  onWageDefinitionClick,
 }: ForeignWorkSummaryHeaderProps) {
   // Laske TOE-kuukaudet
   const toeMonthsRaw = summary.displayTOEMonths ?? summary.totalTOEMonths;
@@ -68,23 +70,21 @@ export default function ForeignWorkSummaryHeader({
   // Jakaja: käytä palkanmäärityksen jakajaa jos saatavilla (määrittelyjakson mukainen), muuten summaryn jakajaa
   const displayJakaja = wageDefinitionResult?.divisorDays ?? summary.totalJakaja ?? 0;
   
-  // Laske täysi päiväraha (sama logiikka kuin SummaryHeader:ssa)
+  // TOE-palkka: käytä palkanmäärityksen palkkaa jos saatavilla (määrittelyjakson mukainen), muuten summaryn palkkaa
+  const displayTOESalary = wageDefinitionResult?.totalSalary ?? summary.totalSalary ?? 0;
+  
+  // Laske täysi päiväraha TOE-palkan perusteella (dokumentaation mukaan)
+  // 1. TOE-palkka / päivä = TOE-palkka / jakajanpäivät
+  // 2. Täysi ansiopäiväraha = 37,21 + 0,45 × (TOE-palkka/pv - 37,21)
   let fullDailyAllowance = 0;
-  if (wageBase !== null) {
-    const telDeductionRate = 0.0354;
-    const salaryAfterTelDeduction = wageBase * (1 - telDeductionRate);
-    const incomeThreshold = 3291;
-    let unemploymentBenefit = 0;
-    if (salaryAfterTelDeduction <= incomeThreshold) {
-      unemploymentBenefit = salaryAfterTelDeduction * 0.45;
-    } else {
-      const firstPart = incomeThreshold * 0.45;
-      const excessPart = (salaryAfterTelDeduction - incomeThreshold) * 0.20;
-      unemploymentBenefit = firstPart + excessPart;
-    }
-    const unemploymentBenefitPerDay = unemploymentBenefit / 21.5;
+  if (displayTOESalary > 0 && displayJakaja > 0) {
+    // 1. TOE-palkka / päivä
+    const toeSalaryPerDay = displayTOESalary / displayJakaja;
+    
+    // 2. Täysi ansiopäiväraha = 37,21 + 0,45 × (TOE-palkka/pv - 37,21)
     const basicDailyAllowance = 37.21;
-    fullDailyAllowance = basicDailyAllowance + unemploymentBenefitPerDay;
+    const earningsPart = 0.45 * Math.max(0, toeSalaryPerDay - basicDailyAllowance);
+    fullDailyAllowance = basicDailyAllowance + earningsPart;
   }
 
   return (
@@ -123,7 +123,13 @@ export default function ForeignWorkSummaryHeader({
                     >
                       {summary.extendingPeriods}
                     </div>
-                    <div className="text-blue-600">
+                    <div 
+                      className={cn(
+                        "text-blue-600",
+                        onWageDefinitionClick && definitionPeriod && "cursor-pointer hover:underline"
+                      )}
+                      onClick={onWageDefinitionClick && definitionPeriod ? onWageDefinitionClick : undefined}
+                    >
                       {definitionPeriod || <span className="text-gray-400">—</span>}
                     </div>
                     <div className="text-gray-900">
@@ -131,7 +137,7 @@ export default function ForeignWorkSummaryHeader({
                     </div>
                     <div className="text-gray-900">{displayJakaja}</div>
                     <div className="text-gray-900">
-                      {summary.totalSalary ? formatCurrency(summary.totalSalary) : "—"}
+                      {displayTOESalary ? formatCurrency(displayTOESalary) : "—"}
                     </div>
                   </div>
                 </div>
@@ -169,7 +175,13 @@ export default function ForeignWorkSummaryHeader({
                     >
                       {summary.extendingPeriods}
                     </div>
-                    <div className="text-blue-600">
+                    <div 
+                      className={cn(
+                        "text-blue-600",
+                        onWageDefinitionClick && definitionPeriod && "cursor-pointer hover:underline"
+                      )}
+                      onClick={onWageDefinitionClick && definitionPeriod ? onWageDefinitionClick : undefined}
+                    >
                       {definitionPeriod || <span className="text-gray-400">—</span>}
                     </div>
                     <div className="flex items-center gap-2">
@@ -179,7 +191,7 @@ export default function ForeignWorkSummaryHeader({
                     </div>
                     <div className="text-gray-900">{displayJakaja}</div>
                     <div className="text-gray-900">
-                      {summary.totalSalary ? formatCurrency(summary.totalSalary) : "—"}
+                      {displayTOESalary ? formatCurrency(displayTOESalary) : "—"}
                     </div>
                   </div>
                 </div>
