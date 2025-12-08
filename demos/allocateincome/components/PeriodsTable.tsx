@@ -23,6 +23,7 @@ type Props = {
   isViikkoTOEPeriod: (period: MonthPeriod) => boolean;
   calculateTOEValue: (period: MonthPeriod) => number;
   calculateEffectiveIncomeTotal: (period: MonthPeriod) => number;
+  calculateDisplayIncomeTotal?: (period: MonthPeriod) => number; // Uusi prop näyttöä varten (kaikki rivit mukaan lukien siirtotiedot)
   getVisibleRows: (period: MonthPeriod) => IncomeRow[];
   isRowDeleted: (row: IncomeRow) => boolean;
   NON_BENEFIT_AFFECTING_INCOME_TYPES: string[];
@@ -50,6 +51,7 @@ export default function PeriodsTable({
   isViikkoTOEPeriod,
   calculateTOEValue,
   calculateEffectiveIncomeTotal,
+  calculateDisplayIncomeTotal,
   getVisibleRows,
   isRowDeleted,
   NON_BENEFIT_AFFECTING_INCOME_TYPES,
@@ -152,11 +154,9 @@ export default function PeriodsTable({
                   <tr
                     className={cn(
                       "border-b hover:bg-gray-50",
-                      period.id.startsWith("2024-") && period.toe === 0
-                        ? "bg-gray-100 text-gray-500"
-                        : isViikkoTOEPeriod(period)
-                          ? "bg-blue-50"
-                          : "bg-white"
+                      isViikkoTOEPeriod(period)
+                        ? "bg-blue-50"
+                        : "bg-white"
                     )}
                   >
                     <td className="px-4 py-3">
@@ -182,7 +182,11 @@ export default function PeriodsTable({
                     <td className="px-4 py-3 text-sm font-medium">
                       {period.viikkoTOERows && period.viikkoTOERows.length > 0
                         ? formatCurrency(period.palkka - (viikkoTOEVähennysSummat[period.id] || 0))
-                        : formatCurrency(calculateEffectiveIncomeTotal(period))}
+                        : formatCurrency(
+                            calculateDisplayIncomeTotal 
+                              ? calculateDisplayIncomeTotal(period) // Näytä kaikki rivit (mukaan lukien siirtotiedot)
+                              : calculateEffectiveIncomeTotal(period) // Fallback: suodatettu versio
+                          )}
                     </td>
                     <td className="px-4 py-3 text-sm">{period.tyonantajat}</td>
                     <td className="px-4 py-3 text-sm">

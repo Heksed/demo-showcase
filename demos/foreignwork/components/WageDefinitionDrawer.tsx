@@ -131,40 +131,133 @@ export default function WageDefinitionDrawer({
       return null;
     }
 
-    // Laske päiväkohtaisesti määrittelyjakson sisällä olevat palkat ja päivät
-    let totalSalary = 0;
-    let divisorDays = 0;
+    // Tarkista onko määrittelyjakso ennen 2.9.2024 (viikkoTOE-laskenta)
+    const HYBRID_TOE_CUTOFF_DATE = new Date(2024, 8, 2); // 2.9.2024
+    const isViikkoTOECalculation = endDate < HYBRID_TOE_CUTOFF_DATE;
 
-    periods.forEach(period => {
-      const periodDate = parsePeriodDate(period.ajanjakso);
-      if (!periodDate) return;
-      
-      const periodStart = new Date(periodDate);
-      const periodEnd = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0);
-      
-      // Tarkista leikkaako periodi määrittelyjakson
-      if (periodStart <= endDate && periodEnd >= startDate) {
-        // Laske leikkausjakso (määrittelyjakson sisällä oleva osa periodia)
-        const actualStart = periodStart < startDate ? startDate : periodStart;
-        const actualEnd = periodEnd > endDate ? endDate : periodEnd;
-        
-        // Laske päivien määrä leikkausjaksossa
-        const daysInPeriod = Math.ceil((actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        
-        // Laske periodin päiväkohtainen palkka
-        const periodTotalSalary = period.rows.reduce((sum, row) => sum + row.palkka, 0);
-        const periodDays = period.jakaja || 0;
-        
-        if (periodDays > 0) {
-          // Laske päiväkohtainen palkka periodille
-          const dailySalary = periodTotalSalary / periodDays;
-          // Laske palkka määrittelyjakson sisällä oleville päiville
-          const salaryForPeriod = dailySalary * daysInPeriod;
-          totalSalary += salaryForPeriod;
-          divisorDays += daysInPeriod;
+    let divisorDays: number;
+    let totalSalary = 0;
+
+    if (isViikkoTOECalculation) {
+      // ViikkoTOE-laskenta: käytetään työpäiviä jakajana (ei kalenteripäiviä)
+      // Laske työpäivät määrittelyjaksossa (ma-pe, ei viikonloppuja)
+      let workingDays = 0;
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay(); // 0 = sun, 6 = sat
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Ei sunnuntaita eikä lauantaita
+          workingDays++;
         }
+        currentDate.setDate(currentDate.getDate() + 1);
       }
-    });
+      divisorDays = workingDays;
+
+      // Laske palkat periodien perusteella (päiväkohtaisesti)
+      periods.forEach(period => {
+        const periodDate = parsePeriodDate(period.ajanjakso);
+        if (!periodDate) return;
+        
+        const periodStart = new Date(periodDate);
+        const periodEnd = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0);
+        
+        // Tarkista leikkaako periodi määrittelyjakson
+        if (periodStart <= endDate && periodEnd >= startDate) {
+          // Laske leikkausjakso (määrittelyjakson sisällä oleva osa periodia)
+          const actualStart = periodStart < startDate ? startDate : periodStart;
+          const actualEnd = periodEnd > endDate ? endDate : periodEnd;
+          
+          // Laske työpäivät leikkausjaksossa (ma-pe, ei viikonloppuja)
+          let workingDaysInPeriod = 0;
+          const periodCurrentDate = new Date(actualStart);
+          while (periodCurrentDate <= actualEnd) {
+            const dayOfWeek = periodCurrentDate.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Ei sunnuntaita eikä lauantaita
+              workingDaysInPeriod++;
+            }
+            periodCurrentDate.setDate(periodCurrentDate.getDate() + 1);
+          }
+          
+          // Laske periodin päiväkohtainen palkka (suodata pois siirtotiedot)
+          const periodTotalSalary = period.rows
+            .filter(row => !row.isTransferData) // Suodata pois siirtotiedot
+            .reduce((sum, row) => sum + row.palkka, 0);
+          const periodDays = period.jakaja || 0;
+          
+          if (periodDays > 0) {
+            // Laske päiväkohtainen palkka periodille
+            const dailySalary = periodTotalSalary / periodDays;
+            // Laske palkka määrittelyjakson sisällä oleville työpäiville
+            const salaryForPeriod = dailySalary * workingDaysInPeriod;
+            totalSalary += salaryForPeriod;
+          }
+        }
+      });
+    } else {
+      // Normaali laskenta: käytetään 21.5 päivän kuukausia
+      // Laske kuinka monta kuukautta määrittelyjakso kattaa (21.5 päivän kuukausien perusteella)
+      const monthsInRange = new Set<string>();
+      const end = new Date(endDate);
+      
+      // Aloita kuukauden ensimmäisestä päivästä
+      const startMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+      
+      let monthIterator = new Date(startMonth);
+      while (monthIterator <= endMonth) {
+        const year = monthIterator.getFullYear();
+        const month = monthIterator.getMonth();
+        monthsInRange.add(`${year}-${month}`);
+        monthIterator.setMonth(monthIterator.getMonth() + 1);
+      }
+      
+      // Jakajanpäivät: jokainen kuukausi jota jakso leikkaa = 21.5 päivää
+      divisorDays = monthsInRange.size * 21.5;
+
+      // Laske palkat periodien perusteella
+      periods.forEach(period => {
+        const periodDate = parsePeriodDate(period.ajanjakso);
+        if (!periodDate) return;
+        
+        const periodStart = new Date(periodDate);
+        const periodEnd = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0);
+        
+        // Tarkista leikkaako periodi määrittelyjakson
+        if (periodStart <= endDate && periodEnd >= startDate) {
+          // Laske leikkausjakso (määrittelyjakson sisällä oleva osa periodia)
+          const actualStart = periodStart < startDate ? startDate : periodStart;
+          const actualEnd = periodEnd > endDate ? endDate : periodEnd;
+          
+          // Laske kuinka monta kuukautta tämä periodi kattaa määrittelyjaksossa
+          const periodMonths = new Set<string>();
+          const periodStartMonth = new Date(actualStart.getFullYear(), actualStart.getMonth(), 1);
+          const periodEndMonth = new Date(actualEnd.getFullYear(), actualEnd.getMonth(), 1);
+          
+          let periodMonthIterator = new Date(periodStartMonth);
+          while (periodMonthIterator <= periodEndMonth) {
+            const year = periodMonthIterator.getFullYear();
+            const month = periodMonthIterator.getMonth();
+            periodMonths.add(`${year}-${month}`);
+            periodMonthIterator.setMonth(periodMonthIterator.getMonth() + 1);
+          }
+          
+          // Laske periodin päiväkohtainen palkka (suodata pois siirtotiedot)
+          const periodTotalSalary = period.rows
+            .filter(row => !row.isTransferData) // Suodata pois siirtotiedot
+            .reduce((sum, row) => sum + row.palkka, 0);
+          const periodDays = period.jakaja || 0;
+          
+          if (periodDays > 0) {
+            // Laske päiväkohtainen palkka periodille
+            const dailySalary = periodTotalSalary / periodDays;
+            // Laske palkka määrittelyjakson sisällä oleville kuukausille
+            // Jokainen kuukausi = 21.5 päivää
+            const daysForPeriod = periodMonths.size * 21.5;
+            const salaryForPeriod = dailySalary * daysForPeriod;
+            totalSalary += salaryForPeriod;
+          }
+        }
+      });
+    }
 
     if (divisorDays === 0) {
       return null;

@@ -22,6 +22,9 @@ export type IncomeRow = {
   // Subsidized work fields (optional, for palkkatuettu työ correction)
   isSubsidized?: boolean;
   subsidyRule?: SubsidyRule;
+  
+  // Siirtotiedot: palkat joita ei huomioida palkanmäärityksessä
+  isTransferData?: boolean;
 };
 
 export type SubsidyCorrection = {
@@ -93,6 +96,7 @@ export type MonthPeriod = {
   pidennettavatJaksot: number;
   rows: IncomeRow[];
   viikkoTOERows?: ViikkoTOERow[];
+  tunnitYhteensä?: number; // Tuntitiedot viikkoTOE-laskentaan (ennen 2.9.2024)
 };
 
 export type AllocationMode = "single" | "batch";

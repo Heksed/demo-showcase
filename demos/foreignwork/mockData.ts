@@ -568,3 +568,196 @@ export const NORDIC_RETURN_PERIODS: MonthPeriod[] = [
   // Tämä lisätään erikseen käsittelijän toimesta (pidennettavatJaksot)
 ];
 
+// ============================================================================
+// Scenario 3: Työ EU-maassa (Palkanmääritys Suomessa tehdystä työstä)
+// ============================================================================
+// Päivärahan hakijaksi: 12.2.2025
+// Työ Tanskassa: 11.11.2020 – 9.2.2025 (TOE täyttyy siirtotiedoista)
+// Työ Suomessa: 7.5.2025 – 7.6.2025
+// Palkanmääritys: Suomessa tehdystä työstä
+// Palkka: 2301,26 € (maksetaan 15.6.2025)
+// Palkka jaetaan: toukokuu 1801,09 €, kesäkuu 500,30 €
+// Jakaja: 43 (2 kk x 21.5)
+// Palkka/kk: 1150,63 €
+// TEL-vähennetty: 1109,90 €
+// Päiväraha: 43,70 €
+
+// LÄHTÖTILANNE: Järjestelmä hakee palkat 14 kk ja saa pelkkää tyhjää
+// Käsittelijä hakee siirtotiedot Tanskan kassasta (TOE täyttyy)
+// Käsittelijä lisää Suomen työn palkkatiedot (7.5.2025 - 7.6.2025)
+
+export const EU_WORK_PERIODS: MonthPeriod[] = [
+  // 2025 - Lähtötilanteessa tyhjät periodit
+  {
+    id: "2025-06",
+    ajanjakso: "2025 Kesäkuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2025-05",
+    ajanjakso: "2025 Toukokuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2025-04",
+    ajanjakso: "2025 Huhtikuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2025-03",
+    ajanjakso: "2025 Maaliskuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2025-02",
+    ajanjakso: "2025 Helmikuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2025-01",
+    ajanjakso: "2025 Tammikuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  // 2024 - Tyhjät periodit
+  {
+    id: "2024-12",
+    ajanjakso: "2024 Joulukuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-11",
+    ajanjakso: "2024 Marraskuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-10",
+    ajanjakso: "2024 Lokakuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-09",
+    ajanjakso: "2024 Syyskuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-08",
+    ajanjakso: "2024 Elokuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-07",
+    ajanjakso: "2024 Heinäkuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-06",
+    ajanjakso: "2024 Kesäkuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-05",
+    ajanjakso: "2024 Toukokuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-04",
+    ajanjakso: "2024 Huhtikuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-03",
+    ajanjakso: "2024 Maaliskuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  },
+  {
+    id: "2024-02",
+    ajanjakso: "2024 Helmikuu",
+    toe: 0.0,
+    jakaja: 0,
+    palkka: 0,
+    tyonantajat: "",
+    pidennettavatJaksot: 0,
+    rows: []
+  }
+];
+

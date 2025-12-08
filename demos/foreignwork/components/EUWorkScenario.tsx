@@ -2,116 +2,80 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
-import { SPAIN_WORK_PERIODS } from "../mockData";
+import { EU_WORK_PERIODS } from "../mockData";
 import type { MonthPeriod, IncomeRow } from "../../allocateincome/types";
 import { formatCurrency, parseFinnishDate, formatDateFI } from "../../allocateincome/utils";
+import PeriodsTable from "../../allocateincome/components/PeriodsTable";
+import WageDefinitionDrawer from "./WageDefinitionDrawer";
+import ForeignWorkSummaryHeader from "./ForeignWorkSummaryHeader";
+import TransferDataTOEDialog from "./TransferDataTOEDialog";
+import useTOESummary from "../../allocateincome/hooks/useTOESummary";
 
-// Espanjan työn palkkatiedot täydennetään käsittelijän toimesta
-const SPAIN_WAGE_TOTAL = 12655.30;
-const SPAIN_MONTHLY_AVG = SPAIN_WAGE_TOTAL / 7.5; // 7,5 kuukautta
+// Suomen työn palkkatiedot täydennetään käsittelijän toimesta
+// Palkka: 2301,26 € (maksetaan 15.6.2025)
+// Palkka jaetaan: toukokuu 1801,09 €, kesäkuu 500,30 €
+const FINLAND_WAGE_MAY = 1801.09;
+const FINLAND_WAGE_JUNE = 500.30;
+const FINLAND_WAGE_TOTAL = FINLAND_WAGE_MAY + FINLAND_WAGE_JUNE;
 
-// Funktio joka täydentää Espanjan työn palkkatiedot
-const fillSpainWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
+// Funktio joka täydentää Suomen työn palkkatiedot
+const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
   return periods.map(period => {
-    // Tarkista onko kyseessä Espanjan työn periodi (tammikuu-syyskuu 2025)
-    const isSpainPeriod = period.ajanjakso.startsWith("2025") && 
-      ["Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu", "Elokuu", "Syyskuu"].includes(period.ajanjakso.split(" ")[1]);
+    // Tarkista onko kyseessä Suomen työn periodi (toukokuu-kesäkuu 2025)
+    const isFinlandPeriod = period.ajanjakso === "2025 Toukokuu" || period.ajanjakso === "2025 Kesäkuu";
     
-    if (!isSpainPeriod || period.rows.length > 0) {
-      return period; // Ei Espanjan periodi tai jo täytetty
+    if (!isFinlandPeriod || period.rows.length > 0) {
+      return period; // Ei Suomen periodi tai jo täytetty
     }
 
-    const monthName = period.ajanjakso.split(" ")[1];
     let newPeriod = { ...period };
-
-    // Tammikuu: 0,5 kk (14-31.1.) = 18 päivää
-    // Palkka vähintään 930€ jotta kerryttää 1 TOE
-    // Jakaja: 21.5 lähtötilanteessa vaikka työsuhde alkaisi keskeltä kuuta
-    if (monthName === "Tammikuu") {
-      const tammikuuPalkka = Math.max(930, Math.round(SPAIN_MONTHLY_AVG * 0.5));
+    
+    if (period.ajanjakso === "2025 Toukokuu") {
+      // Toukokuu: 7.5.2025 - 31.5.2025 (25 päivää)
+      // Jakaja: 21.5 (täysi kuukausi)
       newPeriod = {
         ...period,
-        toe: 1.0, // Vähintään 930€, joten 1 TOE
-        jakaja: 21.5, // Lähtötilanteessa 21,5 vaikka työsuhde alkaisi keskeltä kuuta (käsittelijä voi muokata)
-        palkka: tammikuuPalkka,
-        tyonantajat: "Espanjan työnantaja",
-        pidennettavatJaksot: 0,
-        rows: [
-          {
-            id: `spain-01-1`,
-            maksupaiva: "31.1.2025",
-            tulolaji: "Aikapalkka",
-            palkka: tammikuuPalkka,
-            alkuperainenTulo: tammikuuPalkka,
-            ansaintaAika: "14.1.2025 - 31.1.2025",
-            tyonantaja: "Espanjan työnantaja"
-          }
-        ]
-      };
-    }
-    // Helmikuu-elokuu: täysi kuukausi
-    else if (["Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu", "Elokuu"].includes(monthName)) {
-      const monthPalkka = Math.round(SPAIN_MONTHLY_AVG);
-      const monthMap: { [key: string]: { num: number; days: number } } = {
-        "Helmikuu": { num: 2, days: 28 },
-        "Maaliskuu": { num: 3, days: 31 },
-        "Huhtikuu": { num: 4, days: 30 },
-        "Toukokuu": { num: 5, days: 31 },
-        "Kesäkuu": { num: 6, days: 30 },
-        "Heinäkuu": { num: 7, days: 31 },
-        "Elokuu": { num: 8, days: 31 }
-      };
-      const monthInfo = monthMap[monthName];
-      
-      // Varmista että palkka on vähintään 930€ jotta kerryttää 1 TOE
-      const finalPalkka = Math.max(930, monthPalkka);
-      
-      newPeriod = {
-        ...period,
-        toe: 1.0,
+        toe: 1.0, // 1801,09 € >= 930 €
         jakaja: 21.5,
-        palkka: finalPalkka,
-        tyonantajat: "Espanjan työnantaja",
+        palkka: FINLAND_WAGE_MAY,
+        tyonantajat: "Suomen työnantaja",
         pidennettavatJaksot: 0,
         rows: [
           {
-            id: `spain-${String(monthInfo.num).padStart(2, '0')}-1`,
-            maksupaiva: `${monthInfo.days}.${monthInfo.num}.2025`,
+            id: `fin-05-1`,
+            maksupaiva: "15.6.2025",
             tulolaji: "Aikapalkka",
-            palkka: finalPalkka,
-            alkuperainenTulo: finalPalkka,
-            ansaintaAika: `1.${monthInfo.num}.2025 - ${monthInfo.days}.${monthInfo.num}.2025`,
-            tyonantaja: "Espanjan työnantaja"
+            palkka: FINLAND_WAGE_MAY,
+            alkuperainenTulo: FINLAND_WAGE_TOTAL, // Alkuperäinen kokonaispalkka
+            ansaintaAika: "7.5.2025 - 31.5.2025",
+            tyonantaja: "Suomen työnantaja"
           }
         ]
       };
-    }
-    // Syyskuu: 0,5 kk (1-3.9.) = 3 päivää
-    // Palkka vähintään 930€ jotta kerryttää 1 TOE
-    // Jakaja: 21.5 lähtötilanteessa vaikka työsuhde alkaisi keskeltä kuuta
-    else if (monthName === "Syyskuu") {
-      const syyskuuPalkka = Math.max(930, Math.round(SPAIN_MONTHLY_AVG * 0.5));
+    } else if (period.ajanjakso === "2025 Kesäkuu") {
+      // Kesäkuu: 1.6.2025 - 7.6.2025 (7 päivää)
+      // Jakaja: 21.5 (täysi kuukausi)
       newPeriod = {
         ...period,
-        toe: 1.0, // Vähintään 930€, joten 1 TOE
-        jakaja: 21.5, // Lähtötilanteessa 21,5 vaikka työsuhde alkaisi keskeltä kuuta (käsittelijä voi muokata)
-        palkka: syyskuuPalkka,
-        tyonantajat: "Espanjan työnantaja",
+        toe: 0.5, // 500,30 € >= 465 € mutta < 930 €
+        jakaja: 21.5,
+        palkka: FINLAND_WAGE_JUNE,
+        tyonantajat: "Suomen työnantaja",
         pidennettavatJaksot: 0,
         rows: [
           {
-            id: `spain-09-1`,
-            maksupaiva: "3.9.2025",
+            id: `fin-06-1`,
+            maksupaiva: "15.6.2025",
             tulolaji: "Aikapalkka",
-            palkka: syyskuuPalkka,
-            alkuperainenTulo: syyskuuPalkka,
-            ansaintaAika: "1.9.2025 - 3.9.2025",
-            tyonantaja: "Espanjan työnantaja"
+            palkka: FINLAND_WAGE_JUNE,
+            alkuperainenTulo: FINLAND_WAGE_TOTAL, // Alkuperäinen kokonaispalkka
+            ansaintaAika: "1.6.2025 - 7.6.2025",
+            tyonantaja: "Suomen työnantaja"
           }
         ]
       };
@@ -121,21 +85,17 @@ const fillSpainWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
   });
 };
 
-import PeriodsTable from "../../allocateincome/components/PeriodsTable";
-import WageDefinitionDrawer from "./WageDefinitionDrawer";
-import ForeignWorkSummaryHeader from "./ForeignWorkSummaryHeader";
-import useTOESummary from "../../allocateincome/hooks/useTOESummary";
-
-export default function SpainWorkScenario() {
-  const [periods, setPeriods] = useState<MonthPeriod[]>(SPAIN_WORK_PERIODS);
+export default function EUWorkScenario() {
+  const [periods, setPeriods] = useState<MonthPeriod[]>(EU_WORK_PERIODS);
   const [hasCalculated, setHasCalculated] = useState(false);
   const [isCalculatingTOE, setIsCalculatingTOE] = useState(false);
   const [reviewPeriodStart, setReviewPeriodStart] = useState<string>("");
   const [reviewPeriodEnd, setReviewPeriodEnd] = useState<string>("");
   const [wageDefinitionOpen, setWageDefinitionOpen] = useState(false);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
-  const [spainDataFilled, setSpainDataFilled] = useState(false);
+  const [finlandDataFilled, setFinlandDataFilled] = useState(false);
   const [definitionType, setDefinitionType] = useState<"eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan">("ulkomaan");
+  const [transferDataTOEDialogOpen, setTransferDataTOEDialogOpen] = useState(false);
   
   // Palkanmäärityksen tiedot
   const [wageDefinitionResult, setWageDefinitionResult] = useState<{
@@ -147,17 +107,11 @@ export default function SpainWorkScenario() {
     definitionPeriodEnd: string;
   } | null>(null);
 
-  // Täydennä Espanjan työn palkkatiedot
-  const handleFillSpainWorkData = useCallback(() => {
-    setPeriods(prev => fillSpainWorkData(prev));
-    setSpainDataFilled(true);
-  }, []);
-
   // Alusta päättymispäivä
   useEffect(() => {
     if (!hasCalculated) {
-      // Päivärahan hakijaksi: 4.9.2025
-      setReviewPeriodEnd("4.9.2025");
+      // Päivärahan hakijaksi: 12.2.2025
+      setReviewPeriodEnd("12.2.2025");
     }
   }, [hasCalculated]);
 
@@ -183,11 +137,11 @@ export default function SpainWorkScenario() {
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     setHasCalculated(true);
-    // Laske tarkastelujakson alkupäivä (12kk taaksepäin)
+    // Laske tarkastelujakson alkupäivä (14kk taaksepäin)
     const endDate = parseFinnishDate(reviewPeriodEnd);
     if (endDate) {
       const startDate = new Date(endDate);
-      startDate.setMonth(startDate.getMonth() - 12);
+      startDate.setMonth(startDate.getMonth() - 14);
       setReviewPeriodStart(formatDateFI(startDate));
     }
     
@@ -196,6 +150,13 @@ export default function SpainWorkScenario() {
 
   // Laske TOE-arvo periodille
   const calculateTOEValue = useCallback((period: MonthPeriod): number => {
+    // Jos periodilla on TOE-arvo mutta ei palkkatietoja (esim. siirtotiedot Tanskasta),
+    // käytetään periodien toe-kenttää suoraan
+    if (period.rows.length === 0 && period.toe > 0) {
+      return period.toe;
+    }
+    
+    // Muuten lasketaan palkkatietojen perusteella
     const totalSalary = period.rows.reduce((sum, row) => sum + row.palkka, 0);
     if (totalSalary >= 930) return 1.0;
     if (totalSalary >= 465) return 0.5;
@@ -207,7 +168,7 @@ export default function SpainWorkScenario() {
   }, []);
 
   const isViikkoTOEPeriod = useCallback((period: MonthPeriod): boolean => {
-    return false;
+    return false; // Ei viikkoTOE-laskentaa tässä skenaariossa
   }, []);
 
   const togglePeriod = useCallback((periodId: string) => {
@@ -216,6 +177,12 @@ export default function SpainWorkScenario() {
       if (next.has(periodId)) next.delete(periodId); else next.add(periodId);
       return next;
     });
+  }, []);
+
+  // Täydennä Suomen työn palkkatiedot
+  const handleFillFinlandWorkData = useCallback(() => {
+    setPeriods(prev => fillFinlandWorkData(prev));
+    setFinlandDataFilled(true);
   }, []);
 
   // Filtteröi periodsit tarkastelujakson mukaan
@@ -301,12 +268,12 @@ export default function SpainWorkScenario() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-7xl space-y-4">
         {/* Varoitus: Automaattinen palkanmääritys estetty */}
-        {hasCalculated && (
+        {hasCalculated && !finlandDataFilled && (
           <Alert className="mb-4 border-amber-400 bg-amber-50">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-800">
               <strong>Ulkomaan työ:</strong> Järjestelmä ei voi automaattisesti päätellä palkanmääritystä. 
-              Täydennä kuukausille ulkomaan työn palkat jotta palkka voidaan laskea.
+              Täydennä kuukausille Suomen työn palkat jotta palkka voidaan laskea.
             </AlertDescription>
           </Alert>
         )}
@@ -365,19 +332,26 @@ export default function SpainWorkScenario() {
           />
         )}
 
-        {/* Palkanmääritys-painike */}
+        {/* Palkanmääritys-painike ja siirtotiedot */}
         {hasCalculated && (
           <div className="flex justify-start gap-2 mb-4">
-            {!spainDataFilled && (
+            <Button 
+              onClick={() => setTransferDataTOEDialogOpen(true)}
+              variant="outline"
+              className="whitespace-nowrap"
+            >
+              Lisää siirtotiedot
+            </Button>
+            {!finlandDataFilled && (
               <Button 
-                onClick={handleFillSpainWorkData}
+                onClick={handleFillFinlandWorkData}
                 variant="outline"
                 className="whitespace-nowrap bg-green-50 hover:bg-green-100 border-green-300"
               >
-                Täydennä ulkomaan työn palkat
+                Tulorekisterihaku
               </Button>
             )}
-            {spainDataFilled && (
+            {finlandDataFilled && (
               <Button 
                 onClick={() => setWageDefinitionOpen(true)}
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -387,7 +361,6 @@ export default function SpainWorkScenario() {
             )}
           </div>
         )}
-
 
         {/* Periods Table */}
         {hasCalculated && (
@@ -427,6 +400,17 @@ export default function SpainWorkScenario() {
           onApply={(result) => {
             setWageDefinitionResult(result);
             setWageDefinitionOpen(false);
+          }}
+          showIndexAdjustment={false}
+        />
+
+        {/* Transfer Data TOE Dialog */}
+        <TransferDataTOEDialog
+          open={transferDataTOEDialogOpen}
+          onOpenChange={setTransferDataTOEDialogOpen}
+          periods={sortedFilteredPeriods}
+          onSave={(updatedPeriods) => {
+            setPeriods(updatedPeriods);
           }}
         />
       </div>

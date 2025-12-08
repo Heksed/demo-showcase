@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { MonthPeriod, SubsidyCorrection } from "../types";
 import { parseFinnishDate } from "../utils";
+import { roundToeMonthsDown } from "../utils/subsidyCalculations";
 type DefinitionType = 'eurotoe' | 'eurotoe6' | 'viikkotoe' | 'vuositulo' | 'ulkomaan';
 
 // Parse period date from ajanjakso string (e.g., "2025 Joulukuu" -> Date)
@@ -55,7 +56,68 @@ export default function useTOESummary({
   subsidyCorrection = null,
 }: Params) {
   const summary = useMemo(() => {
-    const totalTOEMonthsCalc = periods.reduce((sum, period) => sum + calculateTOEValue(period), 0);
+    // Hybridi-TOE-laskenta: ennen 2.9.2024 = viikkoTOE, 2.9.2024 alkaen = EUROTOE
+    const HYBRID_TOE_CUTOFF_DATE = new Date(2024, 8, 2); // 2.9.2024
+    const DEFAULT_HOURS_PER_WEEK = 18; // Default tuntimäärä viikossa
+    const WEEKS_PER_MONTH = 4.33; // Keskimääräinen viikkojen määrä kuukaudessa
+    const VIKKO_TOE_TO_EURO_TOE_RATIO = 4; // 4 viikkoTOE-yksikköä = 1 EUROTOE-yksikkö
+    const VIKKO_TOE_HOURS_THRESHOLD = 18; // Tuntiraja viikkoTOE-yksikölle
+    
+    // Laske default tuntit periodille (18h/viikko jos puuttuu)
+    const getDefaultHoursForPeriod = (period: MonthPeriod): number => {
+      const periodDate = parsePeriodDate(period.ajanjakso);
+      if (!periodDate || periodDate >= HYBRID_TOE_CUTOFF_DATE) return 0;
+      
+      // Jos periodilla ei ole tuntitietoja, käytä defaultia
+      if (period.tunnitYhteensä === undefined || period.tunnitYhteensä === null) {
+        return DEFAULT_HOURS_PER_WEEK * WEEKS_PER_MONTH; // ~78h/kk
+      }
+      return period.tunnitYhteensä;
+    };
+    
+    // Laske viikkoTOE-viikot periodille (ennen 2.9.2024)
+    const calculateViikkoTOEWeeks = (period: MonthPeriod): number => {
+      const periodDate = parsePeriodDate(period.ajanjakso);
+      if (!periodDate || periodDate >= HYBRID_TOE_CUTOFF_DATE) return 0;
+      
+      const hours = getDefaultHoursForPeriod(period);
+      const hoursPerWeek = hours / WEEKS_PER_MONTH; // Laske tunnit/viikko
+      
+      // Jos >= 18h/viikko, periodi kerryttää 1 viikkoTOE-yksikön per viikko
+      if (hoursPerWeek >= VIKKO_TOE_HOURS_THRESHOLD) {
+        return WEEKS_PER_MONTH; // ~4.33 viikkoa/kk
+      }
+      return 0;
+    };
+    
+    // Muunna viikkoTOE-viikot EUROTOE-kuukausiksi
+    const convertViikkoTOEToEuroTOE = (viikkoTOEWeeks: number): number => {
+      return viikkoTOEWeeks / VIKKO_TOE_TO_EURO_TOE_RATIO;
+    };
+    
+    // Laske hybridi-TOE: ennen 2.9.2024 = viikkoTOE, 2.9.2024 alkaen = EUROTOE
+    let viikkoTOEMonthsAsEuroTOE = 0;
+    let euroTOEMonths = 0;
+    
+    periods.forEach(period => {
+      const periodDate = parsePeriodDate(period.ajanjakso);
+      if (!periodDate) return;
+      
+      if (periodDate < HYBRID_TOE_CUTOFF_DATE) {
+        // Ennen 2.9.2024: laske viikkoTOE-säännöillä
+        const viikkoTOEWeeks = calculateViikkoTOEWeeks(period);
+        const euroTOEFromViikko = convertViikkoTOEToEuroTOE(viikkoTOEWeeks);
+        viikkoTOEMonthsAsEuroTOE += euroTOEFromViikko;
+      } else {
+        // 2.9.2024 alkaen: laske EUROTOE-säännöillä
+        const periodTOE = calculateTOEValue(period);
+        euroTOEMonths += periodTOE;
+      }
+    });
+    
+    // Yhdistä arvot ja pyöristä 0.5 tarkkuudella
+    const totalTOEMonthsCalcRaw = viikkoTOEMonthsAsEuroTOE + euroTOEMonths;
+    const totalTOEMonthsCalc = roundToeMonthsDown(totalTOEMonthsCalcRaw);
     
     // Helper function to get corrected jakaja for a period
     const getCorrectedJakaja = (period: MonthPeriod): number => {
@@ -123,9 +185,20 @@ export default function useTOESummary({
       // Tarkista myös, että periodi on tarkastelujakson alkupäivän jälkeen
       if (reviewPeriodStartDate && periodDate < reviewPeriodStartDate) continue;
       
-      let periodTOE = definitionType === 'viikkotoe' && period.viikkoTOERows && period.viikkoTOERows.length > 0
-        ? period.toe
-        : calculateTOEValue(period);
+      // Laske periodin TOE-arvo hybridi-TOE-logiikalla
+      let periodTOE: number;
+      if (definitionType === 'viikkotoe' && period.viikkoTOERows && period.viikkoTOERows.length > 0) {
+        // ViikkoTOE-tyyppinen periodi (erillinen käsittely)
+        periodTOE = period.toe;
+      } else if (periodDate < HYBRID_TOE_CUTOFF_DATE) {
+        // Ennen 2.9.2024: laske viikkoTOE-säännöillä
+        const viikkoTOEWeeks = calculateViikkoTOEWeeks(period);
+        const euroTOEFromViikko = convertViikkoTOEToEuroTOE(viikkoTOEWeeks);
+        periodTOE = roundToeMonthsDown(euroTOEFromViikko);
+      } else {
+        // 2.9.2024 alkaen: laske EUROTOE-säännöillä
+        periodTOE = calculateTOEValue(period);
+      }
       
       // Jos palkkatuetun työn korjaus on tehty, korjaa periodin TOE
       if (subsidyCorrection && subsidyCorrection.toeCorrection !== 0) {
@@ -513,10 +586,11 @@ export default function useTOESummary({
     const displayTOEMax = requiredTOEMonths > 0 ? requiredTOEMonths : 12;
 
     return {
+      // Käytä hybridi-TOE-laskentaa kaikille määrittelytyypeille (paitsi viikkotoe jolla on erillinen käsittely)
       totalTOEMonths: definitionType === 'viikkotoe'
         ? periods.filter(p => !p.viikkoTOERows || p.viikkoTOERows.length === 0).reduce((sum, p) => sum + calculateTOEValue(p), 0)
           + periods.filter(p => p.viikkoTOERows && p.viikkoTOERows.length > 0).reduce((sum, p) => sum + p.toe, 0)
-        : totalTOEMonthsCalc,
+        : totalTOEMonthsCalc, // Hybridi-TOE-laskenta: viikkoTOE muunnettu + suora EUROTOE
       displayTOEMonths, // Näytettävä TOE-määrä (tarvittu määrä jos täyttyy, muuten kaikki)
       displayTOEMax, // Näytettävä maksimi (tarvittu määrä jos täyttyy, muuten 12)
       totalJakaja: workingDaysTotal,

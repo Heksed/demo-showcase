@@ -65,6 +65,9 @@ export default function ForeignWorkSummaryHeader({
   // Laske päiväraha palkanmäärityksestä
   const dailySalary = wageDefinitionResult?.dailyWage ?? null;
   
+  // Jakaja: käytä palkanmäärityksen jakajaa jos saatavilla (määrittelyjakson mukainen), muuten summaryn jakajaa
+  const displayJakaja = wageDefinitionResult?.divisorDays ?? summary.totalJakaja ?? 0;
+  
   // Laske täysi päiväraha (sama logiikka kuin SummaryHeader:ssa)
   let fullDailyAllowance = 0;
   if (wageBase !== null) {
@@ -126,7 +129,7 @@ export default function ForeignWorkSummaryHeader({
                     <div className="text-gray-900">
                       {`${toeMonths.toFixed(1).replace(/\.0$/, '')}/12`}
                     </div>
-                    <div className="text-gray-900">{summary.totalJakaja || 0}</div>
+                    <div className="text-gray-900">{displayJakaja}</div>
                     <div className="text-gray-900">
                       {summary.totalSalary ? formatCurrency(summary.totalSalary) : "—"}
                     </div>
@@ -174,7 +177,7 @@ export default function ForeignWorkSummaryHeader({
                         {`${toeMonths.toFixed(1).replace(/\.0$/, '')}/${toeMax.toFixed(1).replace(/\.0$/, '')}`}
                       </span>
                     </div>
-                    <div className="text-gray-900">{summary.totalJakaja || 0}</div>
+                    <div className="text-gray-900">{displayJakaja}</div>
                     <div className="text-gray-900">
                       {summary.totalSalary ? formatCurrency(summary.totalSalary) : "—"}
                     </div>

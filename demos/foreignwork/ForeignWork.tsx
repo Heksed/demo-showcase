@@ -6,8 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SpainWorkScenario from "./components/SpainWorkScenario";
 import NordicReturnScenario from "./components/NordicReturnScenario";
-// Tulevaisuudessa:
-// import EUWorkScenario from "./components/EUWorkScenario";
+import EUWorkScenario from "./components/EUWorkScenario";
 
 type ForeignWorkScenario = "spain" | "nordic" | "eu";
 
@@ -49,8 +48,7 @@ export default function ForeignWork() {
       {/* Renderöi valittu skenaario */}
       {scenario === "spain" && <SpainWorkScenario />}
       {scenario === "nordic" && <NordicReturnScenario />}
-      {/* Tulevaisuudessa: */}
-      {/* {scenario === "eu" && <EUWorkScenario />} */}
+      {scenario === "eu" && <EUWorkScenario />}
     </div>
   );
 }

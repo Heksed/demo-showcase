@@ -41,13 +41,14 @@ export default function ExtendingPeriodsDialog({
     reason: "",
   });
 
-  // Päivitä periods kun dialogi avataan
+  // Päivitä periods vain kun dialogi avataan (ei kun initialPeriods muuttuu)
+  // Tämä estää että käyttäjän lisäämät jaksot ylikirjoitetaan
   React.useEffect(() => {
     if (open) {
       setPeriods(initialPeriods);
       setNewPeriod({ startDate: "", endDate: "", reason: "" });
     }
-  }, [open, initialPeriods]);
+  }, [open]); // Poistettu initialPeriods riippuvuus
 
   const handleAddPeriod = () => {
     if (!newPeriod.startDate || !newPeriod.endDate || !newPeriod.reason) {
@@ -81,14 +82,44 @@ export default function ExtendingPeriodsDialog({
     onOpenChange(false);
   };
 
-  // Laske päivien määrä
+  // Laske päivien määrä 21,5 päivän kuukausien perusteella
+  // Jos pidentävä jakso leikkaa kuukauden (minkä tahansa osan), siihen kuuluu 21,5 päivää
   const calculateDays = (startDate: string, endDate: string): number => {
     const start = parseFinnishDate(startDate);
     const end = parseFinnishDate(endDate);
     if (!start || !end) return 0;
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
+    
+    // Laske kuinka monta kuukautta jakso kattaa
+    // Käydään läpi kaikki kuukaudet jaksosta ja lasketaan 21,5 päivää per kuukausi
+    let totalDays = 0;
+    const currentDate = new Date(start);
+    currentDate.setDate(1); // Aloita kuukauden ensimmäisestä päivästä
+    
+    const endDateObj = new Date(end);
+    endDateObj.setDate(1); // Vertaa kuukausitasolla
+    
+    while (currentDate <= endDateObj) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      
+      // Kuukauden alkupäivä ja loppupäivä
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      
+      // Laske leikkausjakso (pidentävä jakso ja kuukausi)
+      const actualStart = start > monthStart ? start : monthStart;
+      const actualEnd = end < monthEnd ? end : monthEnd;
+      
+      // Jos pidentävä jakso leikkaa kuukauden (minkä tahansa osan), siihen kuuluu 21,5 päivää
+      if (actualStart <= actualEnd) {
+        totalDays += 21.5;
+      }
+      
+      // Siirry seuraavaan kuukauteen
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    return totalDays;
   };
 
   const totalDays = periods.reduce((sum, period) => {

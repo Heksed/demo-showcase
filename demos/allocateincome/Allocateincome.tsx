@@ -858,6 +858,7 @@ export default function AllocateIncome() {
             subsidyCorrection={subsidyCorrection}
             hasSubsidizedWork={hasSubsidizedWork}
             subsidizedEmployerName={subsidizedEmployerName}
+            reviewPeriodEnd={reviewPeriodEnd}
         />
         )}
 

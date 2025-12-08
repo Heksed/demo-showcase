@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { SubsidyCorrection } from "../types";
 import { roundToeMonthsDown } from "../utils/subsidyCalculations";
+import { parseFinnishDate, formatDateFI } from "../utils";
 
 type Summary = {
   completionDate: string;
@@ -30,6 +31,7 @@ export default function SummaryHeader({
   subsidyCorrection,
   hasSubsidizedWork,
   subsidizedEmployerName,
+  reviewPeriodEnd,
 }: {
   summary: Summary;
   definitionType: "eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan";
@@ -38,7 +40,20 @@ export default function SummaryHeader({
   subsidyCorrection?: SubsidyCorrection | null;
   hasSubsidizedWork?: boolean;
   subsidizedEmployerName?: string;
+  reviewPeriodEnd?: string;
 }) {
+  // Laske TOE-alkupäivä: aina seuraavan TOE-kertymän alkupäivä
+  // Eli tarkastelujakson päättymispäivän seuraava päivä
+  const toeStartDate = useMemo(() => {
+    if (!reviewPeriodEnd) return undefined;
+    const endDate = parseFinnishDate(reviewPeriodEnd);
+    if (!endDate) return undefined;
+    
+    const nextDay = new Date(endDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    return formatDateFI(nextDay);
+  }, [reviewPeriodEnd]);
   // Use corrected values if available, otherwise use system values
   // Always round TOE months down to nearest 0.5
   // Jos TOE täyttyy (displayTOEMonths > 0), käytä tarvittua määrää, muuten käytä kaikkia TOE-kuukausia
@@ -212,7 +227,9 @@ export default function SummaryHeader({
                         </label>
                       ))}
                     </div>
-                    <div className="col-span-2 text-blue-600">1.1.2026</div>
+                    <div className="col-span-2 text-blue-600">
+                      {toeStartDate || <span className="text-gray-400">—</span>}
+                    </div>
                   </div>
                 </div>
               </div>

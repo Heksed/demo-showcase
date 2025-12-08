@@ -14,6 +14,7 @@ import PeriodsTable from "../../allocateincome/components/PeriodsTable";
 import WageDefinitionDrawer from "./WageDefinitionDrawer";
 import ForeignWorkSummaryHeader from "./ForeignWorkSummaryHeader";
 import ExtendingPeriodsDialog, { ExtendingPeriod } from "./ExtendingPeriodsDialog";
+import TransferDataTOEDialog from "./TransferDataTOEDialog";
 import useTOESummary from "../../allocateincome/hooks/useTOESummary";
 
 // Suomen työn palkkatiedot täydennetään käsittelijän toimesta
@@ -37,15 +38,20 @@ const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
     // Heinäkuu: täysi kuukausi (1-31.7.2022)
     // Palkanmääritys: 1.7.-19.8.2022, yhteensä 36 päivää
     // Jakaja: 21.5 lähtötilanteessa vaikka työsuhde alkaisi keskeltä kuuta
+    // Tuntit: default 18h/viikko = ~78h/kk (4.33 viikkoa × 18h)
     if (monthName === "Heinäkuu") {
       const heinakuuPalkka = Math.round(FINLAND_DAILY_AVG * 31); // 31 päivää
+      const WEEKS_PER_MONTH = 4.33;
+      const DEFAULT_HOURS_PER_WEEK = 18;
+      const defaultHours = Math.round(WEEKS_PER_MONTH * DEFAULT_HOURS_PER_WEEK); // ~78h
       newPeriod = {
         ...period,
-        toe: 1.0, // Vähintään 930€, joten 1 TOE
+        toe: 1.0, // Vähintään 930€, joten 1 TOE (mutta lasketaan viikkoTOE-säännöillä)
         jakaja: 21.5, // Lähtötilanteessa 21,5 vaikka työsuhde alkaisi keskeltä kuuta (käsittelijä voi muokata)
         palkka: heinakuuPalkka,
         tyonantajat: "Suomen työnantaja",
         pidennettavatJaksot: 0,
+        tunnitYhteensä: defaultHours, // Default 18h/viikko viikkoTOE-laskentaan
         rows: [
           {
             id: `fin-07-2022-1`,
@@ -61,10 +67,15 @@ const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
     }
     // Elokuu: osittainen kuukausi (1-19.8.2022) = 19 päivää
     // Jakaja: 21.5 lähtötilanteessa vaikka työsuhde alkaisi keskeltä kuuta
+    // Tuntit: default 18h/viikko, osittainen kuukausi = ~1.67 viikkoa × 18h = ~30h
     else if (monthName === "Elokuu") {
       const elokuuPalkka = Math.round(FINLAND_DAILY_AVG * 19); // 19 päivää
-      // Tarkista TOE: 19 päivää * 100.69 €/pv = 1913.11 € -> 1.0 TOE
+      // Tarkista TOE: 19 päivää * 100.69 €/pv = 1913.11 € -> 1.0 TOE (mutta lasketaan viikkoTOE-säännöillä)
       const toeValue = elokuuPalkka >= 930 ? 1.0 : (elokuuPalkka >= 465 ? 0.5 : 0.0);
+      // Osittainen kuukausi: 19 päivää ≈ 1.67 viikkoa
+      const partialWeeks = 19 / 7; // ~2.71 viikkoa
+      const DEFAULT_HOURS_PER_WEEK = 18;
+      const defaultHours = Math.round(partialWeeks * DEFAULT_HOURS_PER_WEEK); // ~49h
       newPeriod = {
         ...period,
         toe: toeValue,
@@ -72,6 +83,7 @@ const fillFinlandWorkData = (periods: MonthPeriod[]): MonthPeriod[] => {
         palkka: elokuuPalkka,
         tyonantajat: "Suomen työnantaja",
         pidennettavatJaksot: 0,
+        tunnitYhteensä: defaultHours, // Default 18h/viikko viikkoTOE-laskentaan
         rows: [
           {
             id: `fin-08-2022-1`,
@@ -102,6 +114,7 @@ export default function NordicReturnScenario() {
   const [definitionType, setDefinitionType] = useState<"eurotoe" | "eurotoe6" | "viikkotoe" | "vuositulo" | "ulkomaan">("ulkomaan");
   const [extendingPeriods, setExtendingPeriods] = useState<ExtendingPeriod[]>([]);
   const [extendingPeriodsDialogOpen, setExtendingPeriodsDialogOpen] = useState(false);
+  const [transferDataTOEDialogOpen, setTransferDataTOEDialogOpen] = useState(false);
   
   // Palkanmäärityksen tiedot
   const [wageDefinitionResult, setWageDefinitionResult] = useState<{
@@ -155,8 +168,46 @@ export default function NordicReturnScenario() {
     setIsCalculatingTOE(false);
   }, [reviewPeriodEnd]);
 
+  // Päivitä tarkastelujakson alkupäivä kun pidentävät jaksot muuttuvat
+  useEffect(() => {
+    if (!hasCalculated || extendingPeriods.length === 0) return;
+    
+    const endDate = parseFinnishDate(reviewPeriodEnd);
+    if (!endDate) return;
+    
+    // Etsi varhaisin pidentävän jakson alkupäivä
+    const earliestExtendingStart = extendingPeriods.reduce((earliest, period) => {
+      const start = parseFinnishDate(period.startDate);
+      if (!start) return earliest;
+      return earliest ? (start < earliest ? start : earliest) : start;
+    }, null as Date | null);
+    
+    if (earliestExtendingStart) {
+      // Laajennetaan tarkastelujaksoa ennen pidentävää jaksoa
+      // Tarvitaan Suomen työn palkkatiedot (1.7.-19.8.2022)
+      const wageDefinitionStart = parseFinnishDate("1.7.2022");
+      if (wageDefinitionStart && wageDefinitionStart < earliestExtendingStart) {
+        const newStartDate = new Date(wageDefinitionStart);
+        newStartDate.setDate(1);
+        setReviewPeriodStart(formatDateFI(newStartDate));
+      } else {
+        const newStartDate = new Date(earliestExtendingStart);
+        newStartDate.setDate(1);
+        setReviewPeriodStart(formatDateFI(newStartDate));
+      }
+    }
+  }, [extendingPeriods, hasCalculated, reviewPeriodEnd]);
+
   // Laske TOE-arvo periodille
+  // Jos periodilla on TOE-arvo mutta ei palkkatietoja (esim. siirtotiedot Ruotsista),
+  // käytetään periodien toe-kenttää suoraan
   const calculateTOEValue = useCallback((period: MonthPeriod): number => {
+    // Jos periodilla on TOE-arvo mutta ei palkkatietoja, käytetään periodien toe-kenttää
+    if (period.rows.length === 0 && period.toe > 0) {
+      return period.toe;
+    }
+    
+    // Muuten lasketaan palkkatietojen perusteella
     const totalSalary = period.rows.reduce((sum, row) => sum + row.palkka, 0);
     if (totalSalary >= 930) return 1.0;
     if (totalSalary >= 465) return 0.5;
@@ -164,13 +215,27 @@ export default function NordicReturnScenario() {
   }, []);
 
   const calculateEffectiveIncomeTotal = useCallback((period: MonthPeriod): number => {
+    // Suodata pois siirtotiedot (ruotsin työskentelyn palkat)
+    // TOE-palkkaan otetaan vain suomessa tehdyt työt
+    return period.rows
+      .filter(row => !row.isTransferData) // Suodata pois siirtotiedot
+      .reduce((sum, row) => sum + row.palkka, 0);
+  }, []);
+
+  // Funktio näyttöä varten: näyttää kaikkien rivien summan (mukaan lukien siirtotiedot)
+  const calculateDisplayIncomeTotal = useCallback((period: MonthPeriod): number => {
     return period.rows.reduce((sum, row) => sum + row.palkka, 0);
   }, []);
 
   const isViikkoTOEPeriod = useCallback((period: MonthPeriod): boolean => {
-    // Palkanmääritys tehdään viikkotoen puolella
-    return wageDefinitionResult !== null;
-  }, [wageDefinitionResult]);
+    // Tarkista onko periodi ennen 2.9.2024 (viikkoTOE-laskenta)
+    const HYBRID_TOE_CUTOFF_DATE = new Date(2024, 8, 2); // 2.9.2024
+    const periodDate = parsePeriodDate(period.ajanjakso);
+    if (!periodDate) return false;
+    
+    // Palauta true vain jos periodi on ennen 2.9.2024
+    return periodDate < HYBRID_TOE_CUTOFF_DATE;
+  }, [parsePeriodDate]);
 
   const togglePeriod = useCallback((periodId: string) => {
     setExpandedPeriods(prev => {
@@ -186,7 +251,41 @@ export default function NordicReturnScenario() {
     setFinlandDataFilled(true);
   }, []);
 
+  // Laske kuinka monta päivää pidentävästä jaksosta kuuluu tiettyyn kuukauteen
+  // Pidentävät päivät lasketaan 21,5 päivän kuukausien perusteella
+  // Jos pidentävä jakso leikkaa kuukauden (minkä tahansa osan), siihen kuuluu aina 21,5 päivää
+  // Käsittelijä voi manuaalisesti muokata tätä pienemmäksi jos tarpeen
+  const calculateExtendingDaysForMonth = useCallback((
+    extendingPeriods: ExtendingPeriod[],
+    year: number,
+    month: number
+  ): number => {
+    let totalDays = 0;
+    
+    extendingPeriods.forEach(period => {
+      const periodStart = parseFinnishDate(period.startDate);
+      const periodEnd = parseFinnishDate(period.endDate);
+      if (!periodStart || !periodEnd) return;
+      
+      // Kuukauden alkupäivä ja loppupäivä (kalenterikuukausi)
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      
+      // Laske leikkausjakso (pidentävä jakso ja kuukausi)
+      const actualStart = periodStart > monthStart ? periodStart : monthStart;
+      const actualEnd = periodEnd < monthEnd ? periodEnd : monthEnd;
+      
+      // Jos pidentävä jakso leikkaa kuukauden (minkä tahansa osan), siihen kuuluu 21,5 päivää
+      if (actualStart <= actualEnd) {
+        totalDays += 21.5;
+      }
+    });
+    
+    return totalDays;
+  }, []);
+
   // Generoi kaikki 14 kk tarkastelujaksolta (tyhjät kuukaudet mukaan lukien)
+  // Jos pidentävät jaksot on lisätty, laajennetaan tarkastelujaksoa taaksepäin
   const filteredPeriods = useMemo(() => {
     if (!hasCalculated) return [];
     if (!reviewPeriodStart || !reviewPeriodEnd) return [];
@@ -205,9 +304,39 @@ export default function NordicReturnScenario() {
     const generatedPeriods: MonthPeriod[] = [];
     const endDateLastDay = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
     
-    // Aloita loppupäivästä ja mene 14 kk taaksepäin
+    // Laske tarkastelujakson alkupäivä (14 kk taaksepäin)
+    let effectiveStartDate = new Date(startDate);
+    
+    // Jos pidentävät jaksot on lisätty, laajennetaan tarkastelujaksoa taaksepäin
+    // Etsitään varhaisin pidentävän jakson alkupäivä
+    if (extendingPeriods.length > 0) {
+      const earliestExtendingStart = extendingPeriods.reduce((earliest, period) => {
+        const start = parseFinnishDate(period.startDate);
+        if (!start) return earliest;
+        return earliest ? (start < earliest ? start : earliest) : start;
+      }, null as Date | null);
+      
+      if (earliestExtendingStart) {
+        // Laajennetaan tarkastelujaksoa ennen pidentävää jaksoa
+        // Tarvitaan Suomen työn palkkatiedot (1.7.-19.8.2022)
+        // Joten laajennetaan vähintään 1.7.2022 asti
+        const wageDefinitionStart = parseFinnishDate("1.7.2022");
+        if (wageDefinitionStart && wageDefinitionStart < earliestExtendingStart) {
+          effectiveStartDate = new Date(wageDefinitionStart);
+          effectiveStartDate.setDate(1); // Kuukauden ensimmäinen päivä
+        } else {
+          effectiveStartDate = new Date(earliestExtendingStart);
+          effectiveStartDate.setDate(1); // Kuukauden ensimmäinen päivä
+        }
+      }
+    }
+    
+    // Aloita loppupäivästä ja mene taaksepäin effectiveStartDate asti
     const currentDate = new Date(endDate);
-    for (let i = 0; i < 14; i++) {
+    const minDate = new Date(effectiveStartDate);
+    minDate.setDate(1);
+    
+    while (currentDate >= minDate) {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
       const monthName = monthNames[month];
@@ -217,7 +346,7 @@ export default function NordicReturnScenario() {
       const periodStart = new Date(year, month, 1);
       const periodEnd = new Date(year, month + 1, 0);
       
-      if (periodStart <= endDateLastDay && periodEnd >= startDate) {
+      if (periodStart <= endDateLastDay && periodEnd >= effectiveStartDate) {
         // Etsi onko mock datassa periodi tälle kuukaudelle
         const existingPeriod = periods.find(p => {
           const periodDate = parsePeriodDate(p.ajanjakso);
@@ -225,8 +354,14 @@ export default function NordicReturnScenario() {
           return periodDate.getFullYear() === year && periodDate.getMonth() === month;
         });
         
+        // Laske pidentävät jaksot tälle kuukaudelle
+        const extendingDays = calculateExtendingDaysForMonth(extendingPeriods, year, month);
+        
         if (existingPeriod) {
-          generatedPeriods.push(existingPeriod);
+          generatedPeriods.push({
+            ...existingPeriod,
+            pidennettavatJaksot: extendingDays
+          });
         } else {
           // Luo tyhjä periodi jos sitä ei löydy mock datasta
           const periodId = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -237,7 +372,7 @@ export default function NordicReturnScenario() {
             jakaja: 0,
             palkka: 0,
             tyonantajat: "",
-            pidennettavatJaksot: 0,
+            pidennettavatJaksot: extendingDays,
             rows: []
           });
         }
@@ -248,7 +383,7 @@ export default function NordicReturnScenario() {
     }
     
     return generatedPeriods;
-  }, [periods, reviewPeriodStart, reviewPeriodEnd, hasCalculated, parsePeriodDate]);
+  }, [periods, reviewPeriodStart, reviewPeriodEnd, hasCalculated, parsePeriodDate, extendingPeriods, calculateExtendingDaysForMonth]);
 
   // Järjestä periodsit uusimmasta vanhimpaan
   const sortedFilteredPeriods = useMemo(() => {
@@ -260,19 +395,9 @@ export default function NordicReturnScenario() {
     });
   }, [filteredPeriods, parsePeriodDate]);
 
-  // Laske pidentävien jaksojen päivien määrä
-  const additionalExtendingDays = useMemo(() => {
-    return extendingPeriods.reduce((sum, period) => {
-      const start = parseFinnishDate(period.startDate);
-      const end = parseFinnishDate(period.endDate);
-      if (!start || !end) return sum;
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return sum + diffDays;
-    }, 0);
-  }, [extendingPeriods]);
-
   // TOE Summary
+  // Huom: additionalExtendingDays = 0, koska pidentävät jaksot on jo laskettu
+  // periodien pidennettavatJaksot-kenttiin kuukausittain
   const summary = useTOESummary({
     periods: sortedFilteredPeriods,
     definitionType: 'ulkomaan',
@@ -282,15 +407,23 @@ export default function NordicReturnScenario() {
     isViikkoTOEPeriod,
     viikkoTOEVähennysSummat: {},
     reviewPeriod: `${reviewPeriodStart} - ${reviewPeriodEnd}`,
-    additionalExtendingDays,
+    additionalExtendingDays: 0, // Ei tarvita, koska päivät on jo laskettu periodien kenttiin
     subsidyCorrection: null,
   });
 
   // Laske TOE-alkupäivä
   const toeStartDate = useMemo(() => {
-    if (!hasCalculated || !reviewPeriodStart) return undefined;
-    return reviewPeriodStart;
-  }, [hasCalculated, reviewPeriodStart]);
+    if (!hasCalculated || !reviewPeriodEnd) return undefined;
+    // TOE-alkupäivä on aina seuraavan TOE-kertymän alkupäivä
+    // Eli tarkastelujakson päättymispäivän seuraava päivä
+    const endDate = parseFinnishDate(reviewPeriodEnd);
+    if (!endDate) return undefined;
+    
+    const nextDay = new Date(endDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    return formatDateFI(nextDay);
+  }, [hasCalculated, reviewPeriodEnd]);
 
   // Get visible rows
   const getVisibleRows = useCallback((period: MonthPeriod) => {
@@ -383,16 +516,23 @@ export default function NordicReturnScenario() {
           />
         )}
 
-        {/* Palkanmääritys-painike */}
+        {/* Palkanmääritys-painike ja siirtotiedot */}
         {hasCalculated && (
           <div className="flex justify-start gap-2 mb-4">
+            <Button 
+              onClick={() => setTransferDataTOEDialogOpen(true)}
+              variant="outline"
+              className="whitespace-nowrap"
+            >
+              Lisää siirtotiedot
+            </Button>
             {!finlandDataFilled && (
               <Button 
                 onClick={handleFillFinlandWorkData}
                 variant="outline"
                 className="whitespace-nowrap bg-green-50 hover:bg-green-100 border-green-300"
               >
-                Täydennä Suomen työn palkat
+                Tulorekisterihaku
               </Button>
             )}
             {finlandDataFilled && (
@@ -416,6 +556,7 @@ export default function NordicReturnScenario() {
             isViikkoTOEPeriod={isViikkoTOEPeriod}
             calculateTOEValue={calculateTOEValue}
             calculateEffectiveIncomeTotal={calculateEffectiveIncomeTotal}
+            calculateDisplayIncomeTotal={calculateDisplayIncomeTotal}
             getVisibleRows={getVisibleRows}
             isRowDeleted={emptyHandlers.isRowDeleted}
             NON_BENEFIT_AFFECTING_INCOME_TYPES={[]}
@@ -456,6 +597,15 @@ export default function NordicReturnScenario() {
           periods={extendingPeriods}
           onSave={(periods) => {
             setExtendingPeriods(periods);
+          }}
+        />
+
+        <TransferDataTOEDialog
+          open={transferDataTOEDialogOpen}
+          onOpenChange={setTransferDataTOEDialogOpen}
+          periods={sortedFilteredPeriods}
+          onSave={(updatedPeriods) => {
+            setPeriods(updatedPeriods);
           }}
         />
       </div>
