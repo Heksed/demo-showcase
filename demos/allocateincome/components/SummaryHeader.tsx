@@ -166,7 +166,7 @@ export default function SummaryHeader({
                 <div className="flex flex-col gap-2">
                   {/* Otsikot */}
                   <div className="grid grid-cols-5 gap-4 text-sm">
-                    <div className="font-medium text-gray-700">Perustepalkka/kk</div>
+                    <div className="font-medium text-gray-700">Täyttymispäivä</div>
                     <div className="font-medium text-gray-700">Tarkastelujakso</div>
                     <div className="font-medium text-gray-700">TOE-kuukaudet</div>
                     <div className="font-medium text-gray-700">Pidentävät jaksot pv</div>
@@ -176,16 +176,32 @@ export default function SummaryHeader({
                   {/* Arvot */}
                   <div className="grid grid-cols-5 gap-4 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "text-gray-900",
-                        !useSummaryValues && subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
-                      )}>
-                        {formatCurrency(wageBase)}
-                      </span>
-                      {!useSummaryValues && subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
-                        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
-                          Korjattu
-                        </span>
+                      {/* Jos korjaus on tehty, näytetään täyttymispäivä tai viiva */}
+                      {subsidyCorrection && (subsidyCorrection.toeCorrection !== 0 || subsidyCorrection.totalSalaryCorrection !== 0 || subsidyCorrection.averageSalaryCorrection !== 0) ? (
+                        // Jos TOE on täyttynyt, näytetään täyttymispäivä
+                        summary.completionDate ? (
+                          <span className="text-gray-900">
+                            {summary.completionDate}
+                          </span>
+                        ) : (
+                          // Jos TOE ei ole täyttynyt, näytetään viiva
+                          <span className="text-gray-400">—</span>
+                        )
+                      ) : (
+                        // Jos korjausta ei ole tehty, näytetään perustepalkka normaalisti
+                        <>
+                          <span className={cn(
+                            "text-gray-900",
+                            !useSummaryValues && subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
+                          )}>
+                            {formatCurrency(wageBase)}
+                          </span>
+                          {!useSummaryValues && subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
+                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                              Korjattu
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="text-gray-900">{summary.reviewPeriod}</div>
@@ -330,16 +346,32 @@ export default function SummaryHeader({
               {/* Arvot */}
               <div className="grid grid-cols-7 gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "text-gray-900",
-                    subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
-                  )}>
-                    {formatCurrency(wageBase)}
-                  </span>
-                  {subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
-                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
-                      Korjattu
-                    </span>
+                  {/* Jos korjaus on tehty, näytetään täyttymispäivä tai viiva */}
+                  {subsidyCorrection && (subsidyCorrection.toeCorrection !== 0 || subsidyCorrection.totalSalaryCorrection !== 0 || subsidyCorrection.averageSalaryCorrection !== 0) ? (
+                    // Jos TOE on täyttynyt, näytetään täyttymispäivä
+                    summary.completionDate ? (
+                      <span className="text-gray-900">
+                        {summary.completionDate}
+                      </span>
+                    ) : (
+                      // Jos TOE ei ole täyttynyt, näytetään viiva
+                      <span className="text-gray-400">—</span>
+                    )
+                  ) : (
+                    // Jos korjausta ei ole tehty, näytetään perustepalkka normaalisti
+                    <>
+                      <span className={cn(
+                        "text-gray-900",
+                        subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && "text-blue-600 font-semibold"
+                      )}>
+                        {formatCurrency(wageBase)}
+                      </span>
+                      {subsidyCorrection && subsidyCorrection.averageSalaryCorrection !== 0 && (
+                        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                          Korjattu
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="text-gray-900">{formatCurrency(dailySalary)}</div>

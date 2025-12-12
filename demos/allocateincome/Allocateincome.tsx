@@ -1107,6 +1107,85 @@ export default function AllocateIncome() {
               }}
               onApplyCorrection={(correction) => {
                 setSubsidyCorrection(correction);
+                
+                // Päivitä periodien tulotiedot korjatuilla palkoilla (vain manuaalisessa moodissa)
+                if (correction.correctionMode === "manual" && correction.manualPeriodValues) {
+                  setPeriods(prevPeriods => {
+                    return prevPeriods.map(period => {
+                      // Etsi korjaus tälle periodille
+                      const manualValue = correction.manualPeriodValues!.find(
+                        mv => mv.periodId === period.id
+                      );
+                      
+                      if (!manualValue) {
+                        return period;
+                      }
+                      
+                      // Erota palkkatukityön rivit ja muut rivit
+                      const subsidizedRows = period.rows.filter(row => {
+                        const isSubsidized = row.isSubsidized !== undefined 
+                          ? row.isSubsidized 
+                          : SUBSIDIZED_EMPLOYERS.has(row.tyonantaja);
+                        return isSubsidized;
+                      });
+                      
+                      const normalRows = period.rows.filter(row => {
+                        const isSubsidized = row.isSubsidized !== undefined 
+                          ? row.isSubsidized 
+                          : SUBSIDIZED_EMPLOYERS.has(row.tyonantaja);
+                        return !isSubsidized;
+                      });
+                      
+                      // Jos ei ole palkkatukityön rivejä, ei tarvitse tehdä mitään
+                      if (subsidizedRows.length === 0) {
+                        return period;
+                      }
+                      
+                      // Laske alkuperäinen palkkatukityön summa
+                      // Jos rivillä on jo alkuperainenTulo (eli se on jo korjattu), käytetään sitä
+                      // Muuten käytetään palkka-kenttää (alkuperäinen arvo)
+                      const originalSubsidizedTotal = subsidizedRows.reduce((sum, row) => {
+                        // Jos rivi on jo korjattu (alkuperainenTulo > 0), käytetään sitä
+                        // Muuten käytetään nykyistä palkka-kenttää (joka on alkuperäinen arvo)
+                        return sum + (row.alkuperainenTulo > 0 ? row.alkuperainenTulo : row.palkka);
+                      }, 0);
+                      
+                      let updatedSubsidizedRows: IncomeRow[] = [];
+                      
+                      if (manualValue.manualSubsidizedWage > 0) {
+                        // Jos korjattu palkka > 0, korvaa kaikki palkkatukityön rivit yhdellä rivillä
+                        // Käytetään ensimmäistä palkkatukityön riviä pohjana ja päivitetään sen palkka
+                        const firstSubsidizedRow = subsidizedRows[0];
+                        const correctedRow: IncomeRow = {
+                          ...firstSubsidizedRow,
+                          palkka: manualValue.manualSubsidizedWage, // Korjattu palkka (esim. 350€) - käytetään palkanmäärittelyssä
+                          // Alkuperäinen tulo on alkuperäinen palkkatukityön summa (laskettu yllä)
+                          alkuperainenTulo: originalSubsidizedTotal, // Alkuperäinen palkka (esim. 700€) - näytetään EuroTOE-taulukossa
+                          // Lisää huomautus että tämä on korjattu
+                          huom: firstSubsidizedRow.huom 
+                            ? `${firstSubsidizedRow.huom}; Manuaalisesti korjattu`
+                            : "Manuaalisesti korjattu",
+                        };
+                        updatedSubsidizedRows = [correctedRow];
+                      } else {
+                        // Jos korjattu palkka === 0, merkitään kaikki palkkatukityön rivit poistetuiksi
+                        updatedSubsidizedRows = subsidizedRows.map(row => ({
+                          ...row,
+                          huom: row.huom 
+                            ? `${row.huom}; Poistettu - ei huomioida palkanmäärittelyssä`
+                            : "Poistettu - ei huomioida palkanmäärittelyssä",
+                        }));
+                      }
+                      
+                      // Yhdistä normaalityön rivit ja päivitetyt palkkatukityön rivit
+                      return {
+                        ...period,
+                        rows: [...normalRows, ...updatedSubsidizedRows],
+                      };
+                    });
+                  });
+                }
+                
                 // Tallenna sessionStorageen pysyvyyttä varten
                 if (typeof window !== "undefined") {
                   sessionStorage.setItem("subsidyCorrection", JSON.stringify(correction));

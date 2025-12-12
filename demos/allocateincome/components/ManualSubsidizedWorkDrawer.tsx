@@ -89,6 +89,8 @@ interface ManualPeriodRow {
   includeInToe: boolean;
   includeInWage: boolean;
   originalPeriod: MonthPeriod;
+  normalWorkEmployers: string[]; // Normaalityön työnantajat
+  subsidizedWorkEmployers: string[]; // Palkkatukityön työnantajat
 }
 
 export default function ManualSubsidizedWorkDrawer({
@@ -203,6 +205,10 @@ export default function ManualSubsidizedWorkDrawer({
       const normalWorkWage = normalRows.reduce((sum, row) => sum + (row.palkka || 0), 0);
       const originalSubsidizedWage = subsidizedRows.reduce((sum, row) => sum + (row.palkka || 0), 0);
       
+      // Extract unique employer names
+      const normalWorkEmployers = Array.from(new Set(normalRows.map(row => row.tyonantaja).filter(Boolean)));
+      const subsidizedWorkEmployers = Array.from(new Set(subsidizedRows.map(row => row.tyonantaja).filter(Boolean)));
+      
       // Initialize manual values: always start with 0 for subsidized wage in manual mode
       const initialSubsidizedWage = 0;
       const initialTOE = 0;
@@ -220,6 +226,8 @@ export default function ManualSubsidizedWorkDrawer({
         includeInToe: true,
         includeInWage: true,
         originalPeriod: period,
+        normalWorkEmployers,
+        subsidizedWorkEmployers,
       });
     }
     
@@ -596,6 +604,7 @@ export default function ManualSubsidizedWorkDrawer({
     const manualPeriodValues = manualPeriodRows.map(row => ({
       periodId: row.periodId,
       manualSubsidizedWage: row.manualSubsidizedWage,
+      originalSubsidizedWage: row.originalSubsidizedWage, // Alkuperäinen palkka
       manualTOE: row.manualTOE,
       manualJakaja: row.manualJakaja,
       includeInToe: row.includeInToe,
@@ -794,6 +803,7 @@ export default function ManualSubsidizedWorkDrawer({
                   <thead className="bg-[#003479] text-white">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium">Maksupäivä</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Työnantaja</th>
                       {hasNormalWork && (
                         <th className="px-3 py-2 text-left text-xs font-medium">Muu työ</th>
                       )}
@@ -823,6 +833,24 @@ export default function ManualSubsidizedWorkDrawer({
                         }`}
                       >
                         <td className="px-3 py-2 text-xs">{row.maksupaiva}</td>
+                        <td className="px-3 py-2 text-xs">
+                          {(row.normalWorkEmployers.length > 0 || row.subsidizedWorkEmployers.length > 0) ? (
+                            <div className="space-y-1">
+                              {row.normalWorkEmployers.length > 0 && (
+                                <div className="text-gray-700">
+                                  <span className="font-medium">Muu työ:</span> {row.normalWorkEmployers.join(", ")}
+                                </div>
+                              )}
+                              {row.subsidizedWorkEmployers.length > 0 && (
+                                <div className="text-blue-700">
+                                  <span className="font-medium">Palkkatukityö:</span> {row.subsidizedWorkEmployers.join(", ")}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
                         {hasNormalWork && (
                           <td className="px-3 py-2 text-xs">
                             {row.normalWorkWage > 0 ? (
@@ -929,6 +957,7 @@ export default function ManualSubsidizedWorkDrawer({
                   <tfoot className="bg-gray-100 font-medium">
                     <tr>
                       <td className="px-3 py-2 text-xs">Yhteensä</td>
+                      <td className="px-3 py-2 text-xs">—</td>
                       {hasNormalWork && (
                         <td className="px-3 py-2 text-xs">
                           {formatCurrency(manualTotals.totalNormalWage)}

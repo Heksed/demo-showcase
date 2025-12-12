@@ -65,6 +65,7 @@ export type SubsidyCorrection = {
   manualPeriodValues?: Array<{
     periodId: string;
     manualSubsidizedWage: number; // Manuaalinen palkkatukityön palkka
+    originalSubsidizedWage: number; // Alkuperäinen palkkatukityön palkka (ennen korjausta)
     manualTOE: number; // Manuaalinen TOE-arvo
     manualJakaja: number; // Manuaalinen jakaja
     includeInToe: boolean;
