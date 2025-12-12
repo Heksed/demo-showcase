@@ -336,6 +336,101 @@ export default function ManualSubsidizedWorkDrawer({
     return inclusion;
   }, [subsidyRule, employmentStartDateParsed, manualPeriodRows]);
 
+  // Calculate accepted subsidized wage total and divisor days (for Muuntopalkka card)
+  // This is the sum of accepted subsidized wages based on the selected rule
+  // Calculated from "Palkkatukityö alkuperäinen" column values
+  // Muuntopalkka = acceptedWage / (divisorDays * 21.5)
+  const acceptedSubsidizedWageData = useMemo(() => {
+    let acceptedWage = 0;
+    let divisorDays = 0;
+    
+    if (subsidyRule === "NONE") {
+      // NONE: 100% of all original subsidized wages
+      const includedRows = manualPeriodRows.filter(row => row.originalSubsidizedWage > 0);
+      acceptedWage = includedRows.reduce((sum, row) => sum + row.originalSubsidizedWage, 0);
+      // Sum jakaja from all periods with subsidized work
+      divisorDays = includedRows.reduce((sum, row) => sum + row.manualJakaja, 0);
+    } else if (subsidyRule === "NO_TOE_EXTENDS") {
+      // NO_TOE_EXTENDS: 0% (not accepted)
+      acceptedWage = 0;
+      divisorDays = 0;
+    } else if (subsidyRule === "PERCENT_75") {
+      // PERCENT_75: 75% of original subsidized wages from employment start date onwards
+      if (!employmentStartDateParsed) {
+        return { acceptedWage: 0, divisorDays: 0, muuntopalkka: 0 };
+      }
+      const includedRows = manualPeriodRows.filter(
+        row => row.periodDate >= employmentStartDateParsed && row.originalSubsidizedWage > 0
+      );
+      acceptedWage = includedRows.reduce((sum, row) => sum + row.originalSubsidizedWage * 0.75, 0);
+      divisorDays = includedRows.reduce((sum, row) => sum + row.manualJakaja, 0);
+    } else if (subsidyRule === "LOCK_10_MONTHS_THEN_75") {
+      // LOCK_10_MONTHS_THEN_75: 75% of original subsidized wages from months 11+ (after first 10)
+      // Only include periods that accrue TOE (monthNumber > 10)
+      // Use the same logic as periodInclusion to calculate month numbers
+      if (!employmentStartDateParsed) {
+        return { acceptedWage: 0, divisorDays: 0, muuntopalkka: 0 };
+      }
+      
+      // Use the same logic as periodInclusion to calculate month numbers
+      // Sort periods by date (oldest first) - only those with subsidized work
+      const sortedRows = [...manualPeriodRows]
+        .filter(row => row.originalSubsidizedWage > 0)
+        .sort((a, b) => a.periodDate.getTime() - b.periodDate.getTime());
+      
+      let monthCounter = 0;
+      const monthNumbers = new Map<string, number>();
+      
+      sortedRows.forEach(row => {
+        if (row.periodDate >= employmentStartDateParsed) {
+          monthCounter++;
+          monthNumbers.set(row.periodId, monthCounter);
+        }
+      });
+      
+      // Filter rows that are included (monthNumber > 10)
+      const includedRows = manualPeriodRows.filter(row => {
+        const monthNumber = monthNumbers.get(row.periodId);
+        return monthNumber !== undefined && monthNumber > 10 && row.originalSubsidizedWage > 0;
+      });
+      
+      // 1. Bruttosumma: kaikkien yli 10kk kuukausien palkat (EI kerrota 0.75:llä)
+      const grossWage = includedRows.reduce((sum, row) => sum + row.originalSubsidizedWage, 0);
+      
+      // 2. Jakajanpäivät: kuukausien määrä × 21.5
+      const monthCount = includedRows.length;
+      const calculatedDivisorDays = monthCount * 21.5;
+      
+      // 3. Päiväpalkka: bruttosumma / jakajanpäivät
+      const dailyWage = calculatedDivisorDays > 0 ? grossWage / calculatedDivisorDays : 0;
+      
+      // 4. TOE-kerryttävät kuukaudet: lasketaan jokaisen periodin TOE-arvot, summa, kerrotaan 0.75:llä, pyöristetään
+      // Käytetään calculateTOEValueFromSalary-funktiota jokaiselle periodille
+      const totalTOEMonths = includedRows.reduce((sum, row) => {
+        const toeValue = calculateTOEValueFromSalary(row.originalSubsidizedWage);
+        return sum + toeValue;
+      }, 0);
+      
+      // Kerrotaan 0.75:llä ja pyöristetään alaspäin kokonaislukuun
+      const toeMonthsConverted = Math.floor(totalTOEMonths * 0.75); // Pyöristys kokonaislukuun alaspäin
+      
+      // 5. Muuntopalkka: päiväpalkka × (TOE-kuukausien määrä × 21.5)
+      const calculatedMuuntopalkka = dailyWage * (toeMonthsConverted * 21.5);
+      
+      acceptedWage = grossWage;
+      divisorDays = calculatedDivisorDays;
+      // Override muuntopalkka for LOCK_10_MONTHS_THEN_75
+      const muuntopalkka = calculatedMuuntopalkka;
+      
+      return { acceptedWage, divisorDays, muuntopalkka };
+    }
+    
+    // Calculate Muuntopalkka for other rules: (acceptedWage / divisorDays) * 21.5
+    const muuntopalkka = divisorDays > 0 ? (acceptedWage / divisorDays) * 21.5 : 0;
+    
+    return { acceptedWage, divisorDays, muuntopalkka };
+  }, [subsidyRule, employmentStartDateParsed, manualPeriodRows]);
+
   // Calculate totals from manual inputs (only for periods that are included)
   const manualTotals = useMemo(() => {
     const includedRows = manualPeriodRows.filter(row => row.includeInToe || row.includeInWage);
@@ -648,16 +743,16 @@ export default function ManualSubsidizedWorkDrawer({
               </div>
               
               {/* TOE calculation summary - siirretty tarkastelujakson ja taulukon väliin */}
-              <div className="mb-4 space-y-3">
+              <div className="mb-4">
                 {/* System TOE vs Corrected TOE comparison - grid layout */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   {/* Corrected TOE yhteensä */}
-                  <div className="p-3 bg-blue-50 rounded border border-blue-200">
+                  <div className="p-3 rounded border border-blue-200" style={{ backgroundColor: 'var(--color-white)' }}>
                     <div className="text-xs text-blue-700 mb-1 font-medium">Korjattu TOE:</div>
                     <div className="text-2xl font-semibold text-blue-900">
                       {manualTotals.totalTOE.toFixed(1)} kk
                     </div>
-                    <div className="text-xs text-blue-700 mt-1">
+                    <div className="text-xs text-gray-500 mt-1">
                       Normaalityö: {manualTotals.totalNormalWorkTOE.toFixed(1)} kk + 
                       Palkkatuettu (muunto): {manualTotals.totalSubsidizedTOE.toFixed(1)} kk
                     </div>
@@ -674,6 +769,23 @@ export default function ManualSubsidizedWorkDrawer({
                       Palkkatuettu (järjestelmä): {manualTotals.totalOriginalSubsidizedTOE.toFixed(1)} kk
                     </div>
                   </div>
+                  
+                  {/* Muuntopalkka -kortti (näytetään vain kun sääntö on valittu) */}
+                  {subsidyRule !== "NONE" && subsidyRule !== "NO_TOE_EXTENDS" ? (
+                    <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
+                      <div className="text-xs text-yellow-700 mb-1 font-medium">Muuntopalkka:</div>
+                      <div className="text-2xl font-semibold text-yellow-900">
+                        {formatCurrency(acceptedSubsidizedWageData.muuntopalkka)}
+                      </div>
+                      <div className="text-xs text-yellow-700 mt-1">
+                        ({formatCurrency(acceptedSubsidizedWageData.acceptedWage)} / {acceptedSubsidizedWageData.divisorDays.toFixed(1)}) × 21.5
+                        {subsidyRule === "LOCK_10_MONTHS_THEN_75" && " (yli 10kk kuukaudet)"}
+                        {subsidyRule === "PERCENT_75" && " (alkamispäivän jälkeen)"}
+                      </div>
+                    </div>
+                  ) : (
+                    <div></div>
+                  )}
                 </div>
               </div>
               
