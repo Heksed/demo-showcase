@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { IncomeRow, MonthPeriod } from "../types";
+import { getCurrentTimestamp } from "../utils";
 
 export default function useSplitIncome(setPeriods: React.Dispatch<React.SetStateAction<MonthPeriod[]>>) {
   const [splitModalOpen, setSplitModalOpen] = useState(false);
@@ -52,12 +53,16 @@ export default function useSplitIncome(setPeriods: React.Dispatch<React.SetState
         palkka: splitAmount,
         tulolaji: splitTargetType,
         parentId: original.id,
-        huom: (original.huom ? String(original.huom) + ' ' : '') + '(jaettu osuus)'
+        huom: (original.huom ? String(original.huom) + ' ' : '') + '(jaettu osuus)',
+        dataSource: 'manual',
+        modifiedAt: getCurrentTimestamp(),
       };
 
       const updatedOriginal: IncomeRow = {
         ...original,
-        palkka: Math.round((originalAmount - splitAmount) * 100) / 100
+        palkka: Math.round((originalAmount - splitAmount) * 100) / 100,
+        dataSource: 'manual',
+        modifiedAt: getCurrentTimestamp(),
       };
 
       const newRows: IncomeRow[] = [];

@@ -17,18 +17,15 @@ export const MOCK_EMPLOYMENT_RELATIONSHIPS = [
 
 export const MOCK_INCOME_ROWS: IncomeRow[] = [
   { id: "1-1", maksupaiva: "8.1.2026", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
-  { id: "1-2", maksupaiva: "8.1.2026", tulolaji: "Lomaraha", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-3", maksupaiva: "8.1.2026", tulolaji: "Tulospalkka", palkka: 0, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-5", maksupaiva: "8.1.2026", tulolaji: "Jokin etuus", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-6", maksupaiva: "15.1.2026", tulolaji: "Aikapalkka", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
-  { id: "1-7", maksupaiva: "15.1.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-9", maksupaiva: "8.1.2026", tulolaji: "Kokouspalkkio", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
   { id: "1-10", maksupaiva: "8.1.2026", tulolaji: "Luentopalkkio", palkka: 150, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Espoon kaupunki" },
 ];
 
 export const MOCK_ROWS_2025_12: IncomeRow[] = [
   { id: "12-1", maksupaiva: "10.12.2025", tulolaji: "Aikapalkka", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "1.12.2025 - 31.12.2025", tyonantaja: "Posti Oyj" },
-  { id: "12-2", maksupaiva: "10.12.2025", tulolaji: "Lomaraha", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
   { id: "12-3", maksupaiva: "15.12.2025", tulolaji: "Tulospalkka", palkka: 280, alkuperainenTulo: 0, ansaintaAika: "1.12.2025 - 31.12.2025", tyonantaja: "Posti Oyj" },
   { id: "12-4", maksupaiva: "20.12.2025", tulolaji: "Työkorvaus", palkka: 140, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
   { id: "12-5", maksupaiva: "25.12.2025", tulolaji: "Kokouspalkkio", palkka: 180, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
@@ -38,7 +35,6 @@ export const MOCK_ROWS_2025_12: IncomeRow[] = [
 
 export const MOCK_ROWS_2025_11: IncomeRow[] = [
   { id: "11-1", maksupaiva: "10.11.2025", tulolaji: "Aikapalkka", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "1.11.2025 - 30.11.2025", tyonantaja: "Posti Oyj" },
-  { id: "11-2", maksupaiva: "10.11.2025", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
   { id: "11-3", maksupaiva: "15.11.2025", tulolaji: "Tulospalkka", palkka: 300, alkuperainenTulo: 0, ansaintaAika: "1.11.2025 - 30.11.2025", tyonantaja: "Posti Oyj" },
   { id: "11-4", maksupaiva: "20.11.2025", tulolaji: "Työkorvaus", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
   { id: "11-5", maksupaiva: "25.11.2025", tulolaji: "Kokouspalkkio", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
@@ -54,7 +50,6 @@ export const MOCK_ROWS_2025_02: IncomeRow[] = [
 
 export const MOCK_ROWS_2025_01: IncomeRow[] = [
   { id: "01-1", maksupaiva: "10.1.2025", tulolaji: "Aikapalkka", palkka: 2050, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 - 31.1.2025", tyonantaja: "Posti Oyj" },
-  { id: "01-2", maksupaiva: "10.1.2025", tulolaji: "Lomaraha", palkka: 400, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
 ];
 
 export const MOCK_PERIODS: MonthPeriod[] = [
@@ -68,8 +63,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     tyonantajat: "Posti Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      { id: "12-1", maksupaiva: "10.12.2025", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.12.2025 - 31.12.2025", tyonantaja: "Posti Oyj" },
-      { id: "12-2", maksupaiva: "10.12.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
+      { id: "12-1", maksupaiva: "10.12.2025", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.12.2025 - 31.12.2025", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -83,7 +77,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj)
       { id: "11-1", maksupaiva: "10.11.2025", tulolaji: "Aikapalkka", palkka: 700, alkuperainenTulo: 0, ansaintaAika: "1.11.2025 - 30.11.2025", tyonantaja: "Posti Oyj" },
-      { id: "11-2", maksupaiva: "10.11.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
       // Palkkatuettu työ (Nokia Oyj)
       { id: "11-3", maksupaiva: "20.11.2025", tulolaji: "Aikapalkka", palkka: 700, alkuperainenTulo: 0, ansaintaAika: "1.11.2025 - 30.11.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
@@ -99,7 +92,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj)
       { id: "10-1", maksupaiva: "10.10.2025", tulolaji: "Aikapalkka", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "1.10.2025 - 31.10.2025", tyonantaja: "Posti Oyj" },
-      { id: "10-2", maksupaiva: "10.10.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
       // Palkkatuettu työ (Nokia Oyj)
       { id: "10-3", maksupaiva: "20.10.2025", tulolaji: "Aikapalkka", palkka: 700, alkuperainenTulo: 0, ansaintaAika: "1.10.2025 - 31.10.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
@@ -130,10 +122,8 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj)
       { id: "8-1", maksupaiva: "10.8.2025", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.8.2025 - 31.8.2025", tyonantaja: "Posti Oyj" },
-      { id: "8-2", maksupaiva: "10.8.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
       // Palkkatuettu työ (Nokia Oyj)
-      { id: "8-3", maksupaiva: "20.8.2025", tulolaji: "Aikapalkka", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.8.2025 - 31.8.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "8-4", maksupaiva: "20.8.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "8-3", maksupaiva: "20.8.2025", tulolaji: "Aikapalkka", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.8.2025 - 31.8.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -147,10 +137,8 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj)
       { id: "7-1", maksupaiva: "10.7.2025", tulolaji: "Aikapalkka", palkka: 700, alkuperainenTulo: 0, ansaintaAika: "1.7.2025 - 31.7.2025", tyonantaja: "Posti Oyj" },
-      { id: "7-2", maksupaiva: "10.7.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
       // Palkkatuettu työ (Nokia Oyj)
-      { id: "7-3", maksupaiva: "20.7.2025", tulolaji: "Aikapalkka", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.7.2025 - 31.7.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "7-4", maksupaiva: "20.7.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "7-3", maksupaiva: "20.7.2025", tulolaji: "Aikapalkka", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.7.2025 - 31.7.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -179,8 +167,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      { id: "5-1", maksupaiva: "10.5.2025", tulolaji: "Aikapalkka", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "1.5.2025 - 31.5.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "5-2", maksupaiva: "10.5.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "5-1", maksupaiva: "10.5.2025", tulolaji: "Aikapalkka", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "1.5.2025 - 31.5.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -192,8 +179,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      { id: "4-1", maksupaiva: "10.4.2025", tulolaji: "Aikapalkka", palkka: 550, alkuperainenTulo: 0, ansaintaAika: "1.4.2025 - 30.4.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "4-2", maksupaiva: "10.4.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "4-1", maksupaiva: "10.4.2025", tulolaji: "Aikapalkka", palkka: 550, alkuperainenTulo: 0, ansaintaAika: "1.4.2025 - 30.4.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -205,8 +191,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      { id: "3-1", maksupaiva: "10.3.2025", tulolaji: "Aikapalkka", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.3.2025 - 31.3.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "3-2", maksupaiva: "10.3.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "3-1", maksupaiva: "10.3.2025", tulolaji: "Aikapalkka", palkka: 600, alkuperainenTulo: 0, ansaintaAika: "1.3.2025 - 31.3.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -218,8 +203,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      { id: "2-1", maksupaiva: "10.2.2025", tulolaji: "Aikapalkka", palkka: 550, alkuperainenTulo: 0, ansaintaAika: "1.2.2025 - 28.2.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2-2", maksupaiva: "10.2.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "2-1", maksupaiva: "10.2.2025", tulolaji: "Aikapalkka", palkka: 550, alkuperainenTulo: 0, ansaintaAika: "1.2.2025 - 28.2.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -231,8 +215,7 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     tyonantajat: "Nokia Oyj",
     pidennettavatJaksot: 0,
     rows: [
-      { id: "1-1", maksupaiva: "10.1.2025", tulolaji: "Aikapalkka", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 - 31.1.2025", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "1-2", maksupaiva: "10.1.2025", tulolaji: "Lomaraha", palkka: 100, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "1-1", maksupaiva: "10.1.2025", tulolaji: "Aikapalkka", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "1.1.2025 - 31.1.2025", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -246,10 +229,8 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj) - vähennetty 500e
       { id: "2024-12-1", maksupaiva: "10.12.2024", tulolaji: "Aikapalkka", palkka: 2300, alkuperainenTulo: 0, ansaintaAika: "1.12.2024 - 31.12.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-12-2", maksupaiva: "10.12.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
       // Palkkatuettu työ (Nokia Oyj) - lisätty 1000e
-      { id: "2024-12-3", maksupaiva: "20.12.2024", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.12.2024 - 31.12.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2024-12-4", maksupaiva: "20.12.2024", tulolaji: "Lomaraha", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "2024-12-3", maksupaiva: "20.12.2024", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.12.2024 - 31.12.2024", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -263,10 +244,8 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj) - vähennetty 500e
       { id: "2024-11-1", maksupaiva: "10.11.2024", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "1.11.2024 - 30.11.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-11-2", maksupaiva: "10.11.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" },
       // Palkkatuettu työ (Nokia Oyj) - lisätty 1000e
-      { id: "2024-11-3", maksupaiva: "20.11.2024", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.11.2024 - 30.11.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2024-11-4", maksupaiva: "20.11.2024", tulolaji: "Lomaraha", palkka: 200, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
+      { id: "2024-11-3", maksupaiva: "20.11.2024", tulolaji: "Aikapalkka", palkka: 800, alkuperainenTulo: 0, ansaintaAika: "1.11.2024 - 30.11.2024", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -279,7 +258,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2024-10-1", maksupaiva: "10.10.2024", tulolaji: "Aikapalkka", palkka: 2600, alkuperainenTulo: 0, ansaintaAika: "1.10.2024 - 31.10.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2024-10-2", maksupaiva: "10.10.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -292,7 +270,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2024-09-1", maksupaiva: "10.9.2024", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.9.2024 - 30.9.2024", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2024-09-2", maksupaiva: "10.9.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -306,7 +283,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj)
       { id: "2024-08-1", maksupaiva: "10.8.2024", tulolaji: "Aikapalkka", palkka: 1900, alkuperainenTulo: 0, ansaintaAika: "1.8.2024 - 31.8.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-08-2", maksupaiva: "10.8.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ],
     viikkoTOERows: [] // Säilytetään tyhjä, koska viikkoTOE-näkymä käyttää tätä
   },
@@ -373,7 +349,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     rows: [
       // Normaalityö (Posti Oyj) - vähennetty 500e
       { id: "2024-05-1", maksupaiva: "10.5.2024", tulolaji: "Aikapalkka", palkka: 1900, alkuperainenTulo: 0, ansaintaAika: "1.5.2024 - 31.5.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-05-2", maksupaiva: "10.5.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ],
     viikkoTOERows: [] // Säilytetään tyhjä, koska viikkoTOE-näkymä käyttää tätä
   },
@@ -399,7 +374,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2024-03-1", maksupaiva: "10.3.2024", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "1.3.2024 - 31.3.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-03-2", maksupaiva: "10.3.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -424,7 +398,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2024-01-1", maksupaiva: "10.1.2024", tulolaji: "Aikapalkka", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "1.1.2024 - 31.1.2024", tyonantaja: "Posti Oyj" },
-      { id: "2024-01-2", maksupaiva: "10.1.2024", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   // 2023 kuukaudet - 28kk taaksepäin mock dataa
@@ -448,7 +421,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2023-11-1", maksupaiva: "10.11.2023", tulolaji: "Aikapalkka", palkka: 2900, alkuperainenTulo: 0, ansaintaAika: "1.11.2023 - 30.11.2023", tyonantaja: "Posti Oyj" },
-      { id: "2023-11-2", maksupaiva: "10.11.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -471,7 +443,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2023-09-1", maksupaiva: "10.9.2023", tulolaji: "Aikapalkka", palkka: 2700, alkuperainenTulo: 0, ansaintaAika: "1.9.2023 - 30.9.2023", tyonantaja: "Posti Oyj" },
-      { id: "2023-09-2", maksupaiva: "10.9.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -494,7 +465,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2023-07-1", maksupaiva: "10.7.2023", tulolaji: "Aikapalkka", palkka: 2500, alkuperainenTulo: 0, ansaintaAika: "1.7.2023 - 31.7.2023", tyonantaja: "Posti Oyj" },
-      { id: "2023-07-2", maksupaiva: "10.7.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -517,7 +487,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2023-05-1", maksupaiva: "10.5.2023", tulolaji: "Aikapalkka", palkka: 2300, alkuperainenTulo: 0, ansaintaAika: "1.5.2023 - 31.5.2023", tyonantaja: "Posti Oyj" },
-      { id: "2023-05-2", maksupaiva: "10.5.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -540,7 +509,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2023-03-1", maksupaiva: "10.3.2023", tulolaji: "Aikapalkka", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "1.3.2023 - 31.3.2023", tyonantaja: "Posti Oyj" },
-      { id: "2023-03-2", maksupaiva: "10.3.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -563,7 +531,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2023-01-1", maksupaiva: "10.1.2023", tulolaji: "Aikapalkka", palkka: 1900, alkuperainenTulo: 0, ansaintaAika: "1.1.2023 - 31.1.2023", tyonantaja: "Posti Oyj" },
-      { id: "2023-01-2", maksupaiva: "10.1.2023", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   // 2026 kuukaudet - tulevaisuuden mock dataa
@@ -577,7 +544,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-12-1", maksupaiva: "10.12.2026", tulolaji: "Aikapalkka", palkka: 3100, alkuperainenTulo: 0, ansaintaAika: "1.12.2026 - 31.12.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2026-12-2", maksupaiva: "10.12.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -590,7 +556,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-11-1", maksupaiva: "10.11.2026", tulolaji: "Aikapalkka", palkka: 3000, alkuperainenTulo: 0, ansaintaAika: "1.11.2026 - 30.11.2026", tyonantaja: "Posti Oyj" },
-      { id: "2026-11-2", maksupaiva: "10.11.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -603,7 +568,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-10-1", maksupaiva: "10.10.2026", tulolaji: "Aikapalkka", palkka: 2900, alkuperainenTulo: 0, ansaintaAika: "1.10.2026 - 31.10.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2026-10-2", maksupaiva: "10.10.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -616,7 +580,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-09-1", maksupaiva: "10.9.2026", tulolaji: "Aikapalkka", palkka: 2800, alkuperainenTulo: 0, ansaintaAika: "1.9.2026 - 30.9.2026", tyonantaja: "Posti Oyj" },
-      { id: "2026-09-2", maksupaiva: "10.9.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -629,7 +592,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-08-1", maksupaiva: "10.8.2026", tulolaji: "Aikapalkka", palkka: 2700, alkuperainenTulo: 0, ansaintaAika: "1.8.2026 - 31.8.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2026-08-2", maksupaiva: "10.8.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -642,7 +604,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-07-1", maksupaiva: "10.7.2026", tulolaji: "Aikapalkka", palkka: 2600, alkuperainenTulo: 0, ansaintaAika: "1.7.2026 - 31.7.2026", tyonantaja: "Posti Oyj" },
-      { id: "2026-07-2", maksupaiva: "10.7.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -668,7 +629,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-05-1", maksupaiva: "10.5.2026", tulolaji: "Aikapalkka", palkka: 2400, alkuperainenTulo: 0, ansaintaAika: "1.5.2026 - 31.5.2026", tyonantaja: "Posti Oyj" },
-      { id: "2026-05-2", maksupaiva: "10.5.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -681,7 +641,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-04-1", maksupaiva: "10.4.2026", tulolaji: "Aikapalkka", palkka: 2300, alkuperainenTulo: 0, ansaintaAika: "1.4.2026 - 30.4.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2026-04-2", maksupaiva: "10.4.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -694,7 +653,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-03-1", maksupaiva: "10.3.2026", tulolaji: "Aikapalkka", palkka: 2200, alkuperainenTulo: 0, ansaintaAika: "1.3.2026 - 31.3.2026", tyonantaja: "Posti Oyj" },
-      { id: "2026-03-2", maksupaiva: "10.3.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   },
   {
@@ -707,7 +665,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-02-1", maksupaiva: "10.2.2026", tulolaji: "Aikapalkka", palkka: 2100, alkuperainenTulo: 0, ansaintaAika: "1.2.2026 - 28.2.2026", tyonantaja: "Nokia Oyj", isSubsidized: true },
-      { id: "2026-02-2", maksupaiva: "10.2.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Nokia Oyj", isSubsidized: true }
     ]
   },
   {
@@ -720,7 +677,6 @@ export const MOCK_PERIODS: MonthPeriod[] = [
     pidennettavatJaksot: 0,
     rows: [
       { id: "2026-01-1", maksupaiva: "10.1.2026", tulolaji: "Aikapalkka", palkka: 2000, alkuperainenTulo: 0, ansaintaAika: "1.1.2026 - 31.1.2026", tyonantaja: "Posti Oyj" },
-      { id: "2026-01-2", maksupaiva: "10.1.2026", tulolaji: "Lomaraha", palkka: 500, alkuperainenTulo: 0, ansaintaAika: "", tyonantaja: "Posti Oyj" }
     ]
   }
 ];

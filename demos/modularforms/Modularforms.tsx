@@ -470,7 +470,7 @@ export default function Modularforms() {
             className="flex items-center gap-2"
           >
             <Eye className="h-4 w-4" />
-            Esikatselu
+            Kirjeen asettelu
           </Button>
         </div>
       </div>
@@ -482,6 +482,8 @@ export default function Modularforms() {
         recoveryData={recoveryData}
         formSections={formSections}
         definition={definition}
+        onPageBreakAdd={handlePageBreakAdd}
+        onPageBreakRemove={handlePageBreakRemove}
       />
     </div>
   );

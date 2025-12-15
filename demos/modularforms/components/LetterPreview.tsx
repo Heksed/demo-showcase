@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Plus, X, FileText, AlertTriangle } from "lucide-react";
 import type { RecoveryData, FormSection, FormDefinition, PageBreak } from "../types";
 
 interface LetterPreviewProps {
@@ -10,6 +12,8 @@ interface LetterPreviewProps {
   recoveryData: RecoveryData;
   formSections: FormSection[];
   definition: FormDefinition;
+  onPageBreakAdd?: (elementId: string) => void;
+  onPageBreakRemove?: (pageBreakId: string) => void;
 }
 
 // Element ID:t järjestyksessä (sama järjestys kuin FormDocument.tsx)
@@ -35,10 +39,73 @@ export default function LetterPreview({
   recoveryData,
   formSections,
   definition,
+  onPageBreakAdd,
+  onPageBreakRemove,
 }: LetterPreviewProps) {
   // Hae elementtien järjestys (jos määritelty, muuten käytä oletusjärjestystä)
   const elementOrder = definition.elementOrder || [...ELEMENT_IDS];
-
+  
+  // Refit elementtien korkeuksien mittaukselle
+  const elementRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [elementHeights, setElementHeights] = useState<Record<string, number>>({});
+  
+  // A4-sivun mitat (mm) - sama kuin FormDocumentissa
+  const A4_HEIGHT_MM = 297;
+  const MARGIN_TOP_MM = 20;
+  const MARGIN_BOTTOM_MM = 20;
+  const HEADER_HEIGHT_MM = 30;
+  const FOOTER_HEIGHT_MM = 25;
+  const TITLE_HEIGHT_MM = 6;
+  
+  // Käytettävissä oleva korkeus yhdelle sivulle
+  const getAvailableHeightForPage = (isFirstPage: boolean): number => {
+    const marginHeight = MARGIN_TOP_MM + MARGIN_BOTTOM_MM;
+    const headerHeight = isFirstPage ? HEADER_HEIGHT_MM : 0;
+    const footerHeight = FOOTER_HEIGHT_MM;
+    const titleHeight = isFirstPage ? TITLE_HEIGHT_MM : 0;
+    return A4_HEIGHT_MM - marginHeight - headerHeight - footerHeight - titleHeight;
+  };
+  
+  // Mittaa elementtien korkeudet
+  useEffect(() => {
+    if (!open) return;
+    
+    const measureHeights = () => {
+      const heights: Record<string, number> = {};
+      
+      elementOrder.forEach((elementId) => {
+        const elementRef = elementRefs.current[elementId];
+        if (elementRef) {
+          const heightPx = elementRef.offsetHeight;
+          const heightMm = (heightPx / 96) * 25.4;
+          
+          if (heightMm > 0) {
+            heights[elementId] = heightMm;
+          }
+        }
+      });
+      
+      setElementHeights((prev) => {
+        let hasChanges = false;
+        const newHeights = { ...prev };
+        
+        Object.keys(heights).forEach((elementId) => {
+          const newHeight = heights[elementId];
+          const prevHeight = prev[elementId] || 0;
+          if (Math.abs(newHeight - prevHeight) > 1) {
+            newHeights[elementId] = newHeight;
+            hasChanges = true;
+          }
+        });
+        
+        return hasChanges ? newHeights : prev;
+      });
+    };
+    
+    const timeoutId = setTimeout(measureHeights, 100);
+    return () => clearTimeout(timeoutId);
+  }, [open, recoveryData, formSections, definition, elementOrder]);
+  
   const getSectionModules = (sectionId: string) => {
     const section = formSections.find((s) => s.id === sectionId);
     const systemGeneratedSections = [
@@ -55,6 +122,175 @@ export default function LetterPreview({
     }
     if (!section || !section.enabled) return [];
     return section.selectedModules;
+  };
+  
+  // Tarkista onko elementti näkyvissä
+  const checkElementVisibility = (elementId: string): boolean => {
+    const sectionId = elementId.replace("section-", "");
+    
+    const systemGeneratedSections = [
+      "system_generated",
+      "overpayment_reason",
+      "total_amounts",
+    ];
+    if (systemGeneratedSections.includes(sectionId)) {
+      return true;
+    }
+    
+    const section = formSections.find((s) => s.id === sectionId);
+    if (!section) {
+      if (sectionId === "recovery") {
+        return getSectionModules("recovery").length > 0;
+      }
+      if (sectionId === "recovery_justification") {
+        return getSectionModules("recovery_justification").length > 0;
+      }
+      if (sectionId === "period_breakdown") {
+        return definition.checkboxes.periodSpecification;
+      }
+      if (sectionId === "additional_payment") {
+        return !!(
+          recoveryData.additionalPayment &&
+          (getSectionModules("additional_payment").length > 0 ||
+            recoveryData.additionalPayment.periods.length > 0)
+        );
+      }
+      if (sectionId === "decision_correction") {
+        return !!(
+          recoveryData.decisionCorrection &&
+          definition.checkboxes.decisionsToCorrect
+        );
+      }
+      if (sectionId === "waiver") {
+        return getSectionModules("waiver").length > 0;
+      }
+      if (sectionId === "recovery_hearing") {
+        return getSectionModules("recovery_hearing").length > 0;
+      }
+      if (sectionId === "payment_proposal") {
+        return definition.checkboxes.paymentProposal;
+      }
+      if (sectionId === "misuse_suspicion") {
+        return getSectionModules("misuse_suspicion").length > 0;
+      }
+      if (sectionId === "misuse_hearing") {
+        return getSectionModules("misuse_hearing").length > 0;
+      }
+      return false;
+    }
+    
+    return section.enabled;
+  };
+  
+  // Helper: Tarkista onko elementissä sivunvaihto
+  const getPageBreakForElement = (elementId: string): PageBreak | undefined => {
+    return definition.pageBreaks?.find((pb) => pb.elementId === elementId);
+  };
+
+  // Laske missä kohdissa tapahtuu automaattiset sivunvaihdot
+  // Tämä lasketaan kerran ja tallennetaan muistiin
+  const autoPageBreaks = useMemo(() => {
+    const breaks = new Set<number>();
+    let cumulativeHeight = 0;
+    let isFirstPage = true;
+    let availableHeight = getAvailableHeightForPage(isFirstPage);
+    let lastManualBreakIndex = -1;
+    
+    for (let i = 0; i < elementOrder.length; i++) {
+      const elementId = elementOrder[i];
+      
+      // Tarkista manuaalinen sivunvaihto
+      const pageBreak = getPageBreakForElement(elementId);
+      if (pageBreak) {
+        lastManualBreakIndex = i;
+        cumulativeHeight = 0;
+        isFirstPage = false;
+        availableHeight = getAvailableHeightForPage(isFirstPage);
+        continue;
+      }
+      
+      // Tarkista automaattinen sivunvaihto (jos edellinen elementti täytti sivun)
+      if (lastManualBreakIndex < i - 1) {
+        // Tarkista täyttikö edellinen elementti sivun
+        const prevElementId = elementOrder[i - 1];
+        if (checkElementVisibility(prevElementId)) {
+          const prevHeight = elementHeights[prevElementId] || 0;
+          const prevCumulative = cumulativeHeight - prevHeight;
+          
+          // Jos edellinen elementti täytti sivun, lisää automaattinen sivunvaihto
+          if (prevCumulative + prevHeight >= availableHeight) {
+            breaks.add(i - 1);
+            cumulativeHeight = prevHeight; // Aloita uudelta sivulta
+            isFirstPage = false;
+            availableHeight = getAvailableHeightForPage(isFirstPage);
+            continue;
+          }
+        }
+      }
+      
+      if (!checkElementVisibility(elementId)) continue;
+      
+      const height = elementHeights[elementId] || 0;
+      cumulativeHeight += height;
+      
+      // Jos sivu täyttyy tämän elementin kanssa, lisää automaattinen sivunvaihto
+      if (cumulativeHeight >= availableHeight) {
+        breaks.add(i);
+        cumulativeHeight = 0;
+        isFirstPage = false;
+        availableHeight = getAvailableHeightForPage(isFirstPage);
+      }
+    }
+    
+    return breaks;
+  }, [elementOrder, elementHeights, definition.pageBreaks, formSections, recoveryData]);
+
+  // Laske kumulatiivinen korkeus ja tarkista kapasiteetti
+  // Ottaa huomioon sekä manuaaliset että automaattiset sivunvaihdot
+  const checkPageCapacity = (elementId: string) => {
+    const currentIndex = elementOrder.indexOf(elementId);
+    if (currentIndex < 0) return { isOverCapacity: false, usedHeight: 0, availableHeight: 0 };
+    
+    let cumulativeHeight = 0;
+    let isFirstPage = true;
+    let availableHeight = getAvailableHeightForPage(isFirstPage);
+    
+    // Etsi viimeisin sivunvaihto (joko manuaalinen tai automaattinen) ennen tätä elementtiä
+    let lastPageBreakIndex = -1;
+    
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      // Tarkista manuaalinen sivunvaihto
+      const pageBreak = getPageBreakForElement(elementOrder[i]);
+      if (pageBreak) {
+        lastPageBreakIndex = i;
+        isFirstPage = false;
+        availableHeight = getAvailableHeightForPage(isFirstPage);
+        break;
+      }
+      
+      // Tarkista automaattinen sivunvaihto
+      if (autoPageBreaks.has(i)) {
+        lastPageBreakIndex = i;
+        isFirstPage = false;
+        availableHeight = getAvailableHeightForPage(isFirstPage);
+        break;
+      }
+    }
+    
+    // Laske kumulatiivinen korkeus alkaen viimeisimmästä sivunvaihdosta
+    const startIndex = lastPageBreakIndex + 1;
+    for (let i = startIndex; i <= currentIndex; i++) {
+      const currentElementId = elementOrder[i];
+      if (!checkElementVisibility(currentElementId)) continue;
+      
+      const height = elementHeights[currentElementId] || 0;
+      cumulativeHeight += height;
+    }
+    
+    const warningThreshold = availableHeight * 0.9; // 90% varoituskynnys
+    const isOverCapacity = cumulativeHeight > warningThreshold;
+    
+    return { isOverCapacity, usedHeight: cumulativeHeight, availableHeight };
   };
 
   const renderModuleContent = (modules: typeof formSections[0]['selectedModules']) => {
@@ -83,29 +319,14 @@ export default function LetterPreview({
   // Mock recipient address (in real app, this would come from data)
   const recipientAddress = "Esimerkki Asiakas\nKadunnimi 123\n00100 Helsinki";
 
-  // A4-sivun mitat (mm)
+  // A4-sivun mitat (mm) - käytetään vain renderöinnissä
   const A4_WIDTH_MM = 210;
-  const A4_HEIGHT_MM = 297;
   const A4_WIDTH_PX = 794; // 96 DPI
   const A4_HEIGHT_PX = 1123; // 96 DPI
   
-  // Marginaalit (mm)
-  const MARGIN_TOP_MM = 20;
-  const MARGIN_BOTTOM_MM = 20;
+  // Marginaalit (mm) - käytetään vain renderöinnissä
   const MARGIN_LEFT_MM = 20;
   const MARGIN_RIGHT_MM = 20;
-  
-  // Header ja footer korkeus (arvio)
-  const HEADER_HEIGHT_MM = 80; // Etusivulla
-  const FOOTER_HEIGHT_MM = 40; // Kaikilla sivuilla
-  
-  // Käytettävissä oleva korkeus yhdelle sivulle
-  const getAvailableHeightForPage = (isFirstPage: boolean): number => {
-    const marginHeight = MARGIN_TOP_MM + MARGIN_BOTTOM_MM;
-    const headerHeight = isFirstPage ? HEADER_HEIGHT_MM : 0;
-    const footerHeight = FOOTER_HEIGHT_MM;
-    return A4_HEIGHT_MM - marginHeight - headerHeight - footerHeight;
-  };
 
   // Helper: Laske sivumäärä (sivunvaihtojen määrä + 1, tai automaattinen jos ei ole sivunvaihtoja)
   const getTotalPages = (): number => {
@@ -115,11 +336,6 @@ export default function LetterPreview({
     }
     // Jos ei ole manuaalisia sivunvaihtoja, palautetaan 1 (footer näkyy silti)
     return 1;
-  };
-
-  // Helper: Tarkista onko elementissä sivunvaihto
-  const getPageBreakForElement = (elementId: string): PageBreak | undefined => {
-    return definition.pageBreaks?.find((pb) => pb.elementId === elementId);
   };
 
   // Helper: Laske sivunumero elementille
@@ -174,6 +390,72 @@ export default function LetterPreview({
             Sivu {pageNumber}
           </span>
         </div>
+      </div>
+    );
+  };
+
+  // Helper: Renderöi sivunvaihdon asetukset (ei näytetä mitään)
+  const renderPageBreakOptions = (elementId: string, isOverCapacity: boolean) => {
+    // Ei näytetä mitään ilmoitusta
+    return null;
+  };
+
+  // Tarkista onko sivu täynnä (100% kapasiteetti ylitetty)
+  const isPageFull = (elementId: string): boolean => {
+    const capacityCheck = checkPageCapacity(elementId);
+    return capacityCheck.usedHeight >= capacityCheck.availableHeight;
+  };
+
+  // Renderöi automaattinen sivunvaihto-indikaattori kun sivu täyttyy
+  const renderAutoPageBreak = (elementId: string) => {
+    const pageBreak = getPageBreakForElement(elementId);
+    // Älä näytä automaattista sivunvaihtoa, jos on jo manuaalinen sivunvaihto
+    if (pageBreak) return null;
+    
+    const isFull = isPageFull(elementId);
+    if (!isFull) return null;
+
+    return (
+      <div className="relative my-8 flex items-center justify-center print:hidden">
+        {/* Automaattinen sivunvaihto - katkoviiva */}
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t-2 border-dashed border-red-400"></div>
+        </div>
+        {/* Indikaattori */}
+        <div className="relative bg-red-50 px-4 py-1 rounded-md border border-red-300 shadow-sm">
+          <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
+            Sivu vaihtuu
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper: Renderöi sivunvaihdon indikaattori
+  const renderPageBreakIndicator = (elementId: string) => {
+    const pageBreak = getPageBreakForElement(elementId);
+    if (!pageBreak) return null;
+
+    const pageNumber = getPageNumberForElement(elementId);
+    if (!pageNumber) return null;
+
+    return (
+      <div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 border-l-4 border-blue-500 rounded print:hidden">
+        <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+        <span className="text-sm font-medium text-blue-700">
+          Sivu {pageNumber} päättyy tähän
+        </span>
+        {onPageBreakRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 ml-auto flex-shrink-0"
+            onClick={() => onPageBreakRemove(pageBreak.id)}
+            aria-label="Poista sivunvaihto"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     );
   };
@@ -331,14 +613,14 @@ export default function LetterPreview({
                 </div>
               )}
             
-            <p className="text-sm mt-2">
+            <p className="text-sm leading-relaxed break-words mt-2" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
               Edeltävä päätös {recoveryData.decisionCorrection.decisionDate}{" "}
               {recoveryData.decisionCorrection.decisionNumber} on virheellinen
               ja se korjataan antamalla uudet päätökset.
             </p>
-            <h3 className="font-medium text-sm mt-2">
+            <p className="text-sm leading-relaxed break-words mt-2" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
               {recoveryData.customTexts?.decisionCorrectionText || "Voit antaa suostumuksen..."}
-            </h3>
+            </p>
           </div>
         );
       
@@ -361,11 +643,11 @@ export default function LetterPreview({
               KULEMINEN TAKAISINPERINTÄASIASSA
             </h2>
             {renderModuleContent(getSectionModules("recovery_hearing"))}
-            <p className="text-sm mt-2">
+            <p className="text-sm leading-relaxed break-words mt-2" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
               {recoveryData.customTexts?.hearingRequestText || "Pyydämme sinua antamaan näkemyksesi takaisinperinnästä ja sen määrästä määräajalla mennessä"}{" "}
               {definition.hearingDeadline || recoveryData.hearingDeadline} mennessä.
             </p>
-            <p className="text-sm">
+            <p className="text-sm leading-relaxed break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
               Lisätietoja saat puhelimitse: {recoveryData.contactNumber}
             </p>
           </div>
@@ -381,10 +663,10 @@ export default function LetterPreview({
             <div className="text-sm space-y-2 bg-gray-50 p-4 rounded border">
               <p className="font-medium">Voit maksaa takaisinperinnän erissä seuraavasti:</p>
               <div className="mt-3 space-y-2">
-                <p className="whitespace-pre-wrap">
+                <p className="text-sm leading-relaxed break-words whitespace-pre-wrap" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
                   {recoveryData.customTexts?.paymentProposalText || "Voit maksaa takaisinperinnän maksuerittäin. Vastaamme sinulle maksuehdottuksesta erikseen."}
                 </p>
-                <p className="mt-2">
+                <p className="text-sm leading-relaxed break-words mt-2" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
                   Jos haluat keskustella maksuehdottuksesta, ota yhteyttä puhelimitse: {recoveryData.contactNumber}
                 </p>
               </div>
@@ -428,20 +710,28 @@ export default function LetterPreview({
   ) => {
     const pageBreak = getPageBreakForElement(elementId);
     const pageNumber = getPageNumberForElement(elementId);
+    const capacityCheck = checkPageCapacity(elementId);
+    const currentIndex = elementOrder.indexOf(elementId);
+    const hasAutoPageBreak = autoPageBreaks.has(currentIndex);
 
     return (
-      <>
-        <div 
-          className={pageBreak ? "relative" : ""}
-        >
-          {content}
-          {/* Footer näkyy vain, jos sivunvaihto on määritelty, ja se tulee sivunvaihdon yläpuolelle */}
-          {/* Sivunvaihto tapahtuu elementin jälkeen (position: "after"), joten footer tulee ennen sivunvaihtoa */}
-          {pageBreak && renderFooter()}
-          {/* Sivunvaihto renderöidään elementin ja footerin jälkeen */}
-          {pageBreak && pageNumber && renderPageBreak(pageNumber)}
-        </div>
-      </>
+      <div 
+        ref={(el) => {
+          elementRefs.current[elementId] = el;
+        }}
+        className={pageBreak ? "relative" : ""}
+      >
+        {content}
+        {renderPageBreakOptions(elementId, capacityCheck.isOverCapacity)}
+        {renderPageBreakIndicator(elementId)}
+        {/* Footer näkyy kaikilla sivuilla ennen sivunvaihtoa (joko manuaalinen tai automaattinen) */}
+        {/* Footer on aina sivun viimeinen asia ennen sivunvaihtoa */}
+        {(pageBreak || hasAutoPageBreak) && renderFooter()}
+        {/* Näytä automaattinen sivunvaihto-indikaattori kun sivu täyttyy (footerin jälkeen) */}
+        {hasAutoPageBreak && !pageBreak && renderAutoPageBreak(elementId)}
+        {/* Sivunvaihto renderöidään elementin ja footerin jälkeen */}
+        {pageBreak && pageNumber && renderPageBreak(pageNumber)}
+      </div>
     );
   };
 
@@ -449,7 +739,7 @@ export default function LetterPreview({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto w-[95vw]">
         <DialogHeader>
-          <DialogTitle>Kirjeen esikatselu</DialogTitle>
+          <DialogTitle>Kirjeen asettelu</DialogTitle>
         </DialogHeader>
         
         <div className={`mt-4 ${definition.communication === "posti" ? "bg-white" : ""}`}>

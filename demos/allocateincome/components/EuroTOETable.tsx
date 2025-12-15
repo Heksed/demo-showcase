@@ -4,6 +4,7 @@ import React from "react";
 import type { IncomeRow } from "../types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { MoreVertical, RotateCcw, Eye, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +64,16 @@ export default function EuroTOETable({
                   : "bg-white"
             )}
           >
-            <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500")}>{row.huom || ""}</td>
+            <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500")}>
+              <div className="flex items-center gap-2 flex-wrap">
+                {row.isNew && (
+                  <Badge variant="default" className="bg-blue-600 text-white text-xs">
+                    Uusi
+                  </Badge>
+                )}
+                {row.huom && <span>{row.huom}</span>}
+              </div>
+            </td>
             <td className={cn("px-3 py-2 text-xs whitespace-nowrap", isRowDeleted(row) && "text-gray-500")}>{row.maksupaiva}</td>
             <td className={cn("px-3 py-2 text-xs", isRowDeleted(row) && "text-gray-500 line-through")}>{row.tulolaji}</td>
             <td className={cn("px-3 py-2 text-xs text-right", isRowDeleted(row) && "text-gray-500")}>{formatCurrency(row.palkka)}</td>

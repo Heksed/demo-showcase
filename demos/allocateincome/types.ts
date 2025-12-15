@@ -25,6 +25,13 @@ export type IncomeRow = {
   
   // Siirtotiedot: palkat joita ei huomioida palkanmäärityksessä
   isTransferData?: boolean;
+  
+  // Tiedon lähde ja muutokset (tulorekisterihaku)
+  dataSource?: 'tulorekisteri' | 'integratio' | 'manual'; // Mistä tieto tulee
+  modifiedAt?: string; // Milloin muokattu (DD.MM.YYYY HH:mm)
+  isNew?: boolean; // Onko tieto uusi tulorekisterihaussa
+  originalRowData?: IncomeRow; // Alkuperäinen rivi ennen päivitystä (vertailua varten)
+  hasConflict?: boolean; // Onko ristiriita manuaalisesti muokatun kanssa
 };
 
 export type SubsidyCorrection = {

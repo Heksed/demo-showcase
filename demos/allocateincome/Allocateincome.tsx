@@ -26,6 +26,7 @@ import useOpenAllocation from "./hooks/useOpenAllocation";
 import useViikkoTOEHandlers from "./hooks/useViikkoTOEHandlers";
 import ForeignWork from "../foreignwork/ForeignWork";
 import WageDefinitionDrawer from "../foreignwork/components/WageDefinitionDrawer";
+import IncomeRegisterSearchModal, { ConflictRow } from "./components/IncomeRegisterSearchModal";
 
 // ============================================================================
 // Allocate Income – Income allocation demo
@@ -45,7 +46,9 @@ import { isoToFI } from "./utils";
 import { getFinnishMonthName } from "./utils";
 import { getVisibleRows } from "./utils";
 import { daysBetween } from "./utils";
+import { getCurrentTimestamp } from "./utils";
 import { Input } from "@/components/ui/input";
+import { Database } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 // distributeByDays / distributeEqualMonths moved to utils
@@ -104,6 +107,9 @@ export default function AllocateIncome() {
     definitionPeriodStart: string;
     definitionPeriodEnd: string;
   } | null>(null);
+  
+  // Tulorekisterihaku state
+  const [incomeRegisterSearchOpen, setIncomeRegisterSearchOpen] = useState(false);
   
   // Aseta tarkastelujakson päättymispäiväksi kuluva päivä automaattisesti
   useEffect(() => {
@@ -886,10 +892,18 @@ export default function AllocateIncome() {
         />
         )}
 
-        {/* Suodata tulotietoja painike - näytetään vasta laskennan jälkeen */}
+        {/* Suodata tulotietoja ja Hae tulorekisteritiedot painikkeet - näytetään vasta laskennan jälkeen */}
         {hasCalculated && (
-        <div className="flex justify-end mb-4">
-            <Link href="/massincomesplit" onClick={handleNavigateToMassIncomeSplit}>
+        <div className="flex justify-end gap-2 mb-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setIncomeRegisterSearchOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Database className="h-4 w-4" />
+            Hae tulorekisteritiedot
+          </Button>
+          <Link href="/massincomesplit" onClick={handleNavigateToMassIncomeSplit}>
             <Button className="bg-[#0e4c92] hover:bg-[#0d4383]">Suodata tulotietoja</Button>
           </Link>
         </div>
@@ -1165,15 +1179,23 @@ export default function AllocateIncome() {
                           huom: firstSubsidizedRow.huom 
                             ? `${firstSubsidizedRow.huom}; Manuaalisesti korjattu`
                             : "Manuaalisesti korjattu",
+                          dataSource: 'manual',
+                          modifiedAt: getCurrentTimestamp(),
                         };
                         updatedSubsidizedRows = [correctedRow];
                       } else {
                         // Jos korjattu palkka === 0, merkitään kaikki palkkatukityön rivit poistetuiksi
+                        // ja pidetään ne manuaalisesti muokattuina (dataSource/manual + modifiedAt)
                         updatedSubsidizedRows = subsidizedRows.map(row => ({
                           ...row,
+                          palkka: 0, // ei huomioida palkanmäärityksessä
+                          // Näytä alkuperäinen tulo kuukausinäkymässä
+                          alkuperainenTulo: row.alkuperainenTulo > 0 ? row.alkuperainenTulo : row.palkka,
                           huom: row.huom 
                             ? `${row.huom}; Poistettu - ei huomioida palkanmäärittelyssä`
                             : "Poistettu - ei huomioida palkanmäärittelyssä",
+                          dataSource: 'manual',
+                          modifiedAt: getCurrentTimestamp(),
                         }));
                       }
                       
@@ -1226,6 +1248,25 @@ export default function AllocateIncome() {
             // Tässä voisi tulevaisuudessa päivittää summary-tietoja
             // tai tallentaa määrittelyjakson muutokset
             console.log("Palkanmääritys tallennettu:", result);
+          }}
+        />
+      )}
+
+      {/* Tulorekisterihaku modaali */}
+      {hasCalculated && (
+        <IncomeRegisterSearchModal
+          open={incomeRegisterSearchOpen}
+          onOpenChange={setIncomeRegisterSearchOpen}
+          periods={sortedFilteredPeriods}
+          onApplySearch={(updatedPeriods, conflicts) => {
+            // Päivitä periods state
+            setPeriods(updatedPeriods);
+            
+            // Jos on ristiriitoja, ne on jo käsitelty modaalissa
+            // Tässä voisi tulevaisuudessa näyttää ilmoituksen ristiriitoista
+            if (conflicts.length > 0) {
+              console.log("Ristiriitoja löytyi:", conflicts);
+            }
           }}
         />
       )}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AllocationContext, AllocationMethod, Direction, DistributionType, IncomeRow, MonthPeriod, MonthSplit } from "../types";
 import { MOCK_EMPLOYMENT } from "../mockData";
-import { parseDate, formatDateISO, isoToFI, splitByMonths, distributeByDays, distributeEqualMonths, distributeByWorkingDays, roundToCents } from "../utils";
+import { parseDate, formatDateISO, isoToFI, splitByMonths, distributeByDays, distributeEqualMonths, distributeByWorkingDays, roundToCents, getCurrentTimestamp } from "../utils";
 import { toast } from "sonner";
 
 type Params = {
@@ -247,6 +247,8 @@ export default function useAllocationModal({ setPeriods, getFinnishMonthName }: 
         tyonantaja: sourceRow.tyonantaja,
         huom: `Kohdistettu ${monthStr}`,
         allocationData,
+        dataSource: 'manual',
+        modifiedAt: getCurrentTimestamp(),
       };
     });
 

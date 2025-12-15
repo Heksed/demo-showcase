@@ -92,6 +92,17 @@ export function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
+// Palauttaa nykyisen ajan muodossa "DD.MM.YYYY HH:mm"
+export function getCurrentTimestamp(): string {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
 /**
  * Calculates working days (Mon-Fri) between two dates
  * For example: 1.10 - 5.10 = 3 days (1=Tue, 5=Sat, so Tue-Thu = 3 days)
