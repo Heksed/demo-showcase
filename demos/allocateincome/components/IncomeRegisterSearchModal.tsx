@@ -89,7 +89,7 @@ function simulateIncomeRegisterSearch(
         id: `new-${row.id}`,
         palkka: Math.max(0, newPalkka), // Varmista että ei negatiivinen
         isNew: true,
-        dataSource: 'tulorekisteri',
+        dataSource: 'tulorekisteri' as const,
         originalRowData: row,
       });
     });
@@ -381,7 +381,7 @@ export default function IncomeRegisterSearchModal({
           if (newRow) {
             const updatedRow = {
               ...newRow,
-              dataSource: 'tulorekisteri',
+              dataSource: 'tulorekisteri' as const,
               isNew: true,
               originalRowData: oldRow,
             };
@@ -516,7 +516,7 @@ export default function IncomeRegisterSearchModal({
               if (conflict) {
                 return {
                   ...conflict.newRow,
-                  dataSource: 'tulorekisteri',
+                  dataSource: 'tulorekisteri' as const,
                   isNew: true,
                   originalRowData: conflict.oldRow,
                 };
@@ -718,7 +718,7 @@ export default function IncomeRegisterSearchModal({
                                 <TableCell className="font-semibold">
                                   Tulorekisteri
                                 </TableCell>
-                                {hasOldRow && (
+                                {hasOldRow && change.oldRow && (
                                   <TableCell rowSpan={2} className="align-top">
                                     {change.oldRow.modifiedAt ? (
                                       <div className="text-sm">
@@ -774,7 +774,7 @@ export default function IncomeRegisterSearchModal({
                             )}
                             
                             {/* Vanha tieto (alarivi) - näytetään aina jos on vanha rivi ja ei protected */}
-                            {hasOldRow && !isProtected && (
+                            {hasOldRow && !isProtected && change.oldRow && (
                               <TableRow className={cn(
                                 "bg-gray-50",
                                 isConflict && "border-l-4 border-red-500"
